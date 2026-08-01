@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { chuanLuckProjects } from "./chuan-luck-projects";
 
 type Project = {
@@ -35,6 +35,20 @@ type Contractor = {
   preqDate: string;
   approvalDate: string;
   projects: Project[];
+};
+
+type ContractorImportRow = {
+  name: string;
+  trade: string;
+  contactName: string;
+  mobile: string;
+  officePhone: string;
+  email: string;
+  preqDate: string;
+  score: number;
+  approvalDate: string;
+  grade: string;
+  location: string;
 };
 
 const initialContractors: Contractor[] = [
@@ -270,7 +284,8 @@ export default function Home() {
     initialContractors[0].projects[0].id,
   ]);
   const [activeSection, setActiveSection] = useState<"overview" | "contractors" | "preq" | "nominations" | "imports" | "reports" | "settings">("contractors");
-  const [showProjectPanel, setShowProjectPanel] = useState(true);
+  const [showProjectPanel, setShowProjectPanel] = useState(false);
+  const [projectListStatus, setProjectListStatus] = useState<"All" | "Completed" | "Ongoing" | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -286,6 +301,10 @@ export default function Home() {
   const [profileTab, setProfileTab] = useState<"overview" | "preq" | "projects" | "documents" | "activity">("overview");
   const [uploadedFile, setUploadedFile] = useState("");
   const [projectQuery, setProjectQuery] = useState("");
+  const [contractorImportRows, setContractorImportRows] = useState<ContractorImportRow[]>([]);
+  const [contractorImportFile, setContractorImportFile] = useState("");
+  const [contractorImportError, setContractorImportError] = useState("");
+  const addContractorFormRef = useRef<HTMLFormElement>(null);
 
   const filtered = useMemo(() => {
     const term = query.toLowerCase().trim();
@@ -331,6 +350,7 @@ export default function Home() {
   const projectMatchesSearch = (project: Project) => !projectSearchTerm || [project.name, project.scope, project.client, project.location, project.period, project.status, project.progress ?? "", String(project.value)].join(" ").toLowerCase().includes(projectSearchTerm);
   const filteredCompletedProjects = completedProjects.filter(projectMatchesSearch);
   const filteredOngoingProjects = ongoingProjects.filter(projectMatchesSearch);
+  const popupProjects = activeContractor.projects.filter((project) => (projectListStatus === "All" || project.status === projectListStatus) && projectMatchesSearch(project));
 
   const sectionTitles = {
     overview: "Overview",
@@ -371,6 +391,106 @@ export default function Home() {
     downloadFile("contractor-nomination-summary.doc", html, "application/msword");
   }
 
+  function openProjectList(contractor: Contractor, status: "All" | "Completed" | "Ongoing") {
+    setActiveContractor(contractor);
+    setProjectQuery("");
+    setProjectListStatus(status);
+  }
+
+  function importedDate(value: unknown) {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+    const text = String(value ?? "").trim();
+    const match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+    if (match) return `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+    return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
+  }
+
+  async function handleContractorExcelFile(file: File | undefined) {
+    setContractorImportRows([]);
+    setContractorImportError("");
+    setContractorImportFile(file?.name ?? "");
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setContractorImportError("Please use an Excel file smaller than 5 MB.");
+      return;
+    }
+    try {
+      const { default: readXlsxFile } = await import("read-excel-file/browser");
+      const rows = await readXlsxFile(file);
+      if (rows.length < 2) throw new Error("The worksheet has no contractor rows.");
+      const normalise = (value: unknown) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const headers = rows[0].map(normalise);
+      const column = (...names: string[]) => headers.findIndex((header) => names.includes(header));
+      const get = (row: unknown[], ...names: string[]) => {
+        const index = column(...names);
+        return index >= 0 ? row[index] : "";
+      };
+      const imported = rows.slice(1).filter((row) => row.some((cell) => String(cell ?? "").trim())).map((row) => ({
+        name: String(get(row, "contractor", "contractorname", "company", "companyname") ?? "").trim(),
+        trade: String(get(row, "trade", "category") ?? "").trim(),
+        contactName: String(get(row, "contactname", "contactperson", "personincharge") ?? "").trim(),
+        mobile: String(get(row, "hphoneno", "handphoneno", "mobile", "mobileno") ?? "").trim(),
+        officePhone: String(get(row, "officeno", "officephone", "telephone") ?? "").trim(),
+        email: String(get(row, "email", "emailaddress") ?? "").trim(),
+        preqDate: importedDate(get(row, "preqdate", "prequalificationdate")),
+        score: Number(get(row, "score", "preqscore")) || 0,
+        approvalDate: importedDate(get(row, "approvaldate", "approveddate")),
+        grade: String(get(row, "cidbgrade", "grade") || "Not provided").trim(),
+        location: String(get(row, "location", "state") || "Johor").trim(),
+      })).filter((row) => row.name);
+      if (!imported.length) throw new Error("No contractor names were found. Use a Contractor or Company Name column.");
+      setContractorImportRows(imported);
+      notify(`${imported.length} contractor row${imported.length === 1 ? "" : "s"} read from ${file.name}.`);
+    } catch (error) {
+      setContractorImportError(error instanceof Error ? error.message : "The Excel file could not be read.");
+    }
+  }
+
+  function contractorFromImport(row: ContractorImportRow, index: number): Contractor {
+    return {
+      id: `excel-${Date.now()}-${index}`,
+      initials: row.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase(),
+      name: row.name,
+      trade: row.trade || "Not provided",
+      contactName: row.contactName || "Not provided",
+      mobile: row.mobile || "Not provided",
+      officePhone: row.officePhone || "Not provided",
+      email: row.email || "Not provided",
+      grade: row.grade,
+      location: row.location,
+      score: row.score,
+      status: row.score >= 65 ? "Approved" : "Review due",
+      expiry: "Not assessed",
+      updated: "Just now",
+      preqDoneBy: "Not assigned",
+      preqDate: row.preqDate || "Not provided",
+      approvalDate: row.approvalDate || "Pending",
+      projects: [],
+    };
+  }
+
+  function importAllContractors() {
+    const imported = contractorImportRows.map(contractorFromImport);
+    if (!imported.length) return;
+    setContractorRows((current) => [...imported, ...current]);
+    setActiveContractor(imported[0]);
+    setShowAddContractor(false);
+    setContractorImportRows([]);
+    setContractorImportFile("");
+    notify(`${imported.length} contractor profile${imported.length === 1 ? "" : "s"} imported from Excel for this session.`);
+  }
+
+  function useFirstImportedRow() {
+    const row = contractorImportRows[0];
+    const form = addContractorFormRef.current;
+    if (!row || !form) return;
+    Object.entries(row).forEach(([name, value]) => {
+      const field = form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null;
+      if (field) field.value = String(value);
+    });
+    notify("The first Excel row has been loaded into the form for review.");
+  }
+
   function handleAddContractor(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -399,7 +519,7 @@ export default function Home() {
     setContractorRows((current) => [contractor, ...current]);
     setActiveContractor(contractor);
     setShowAddContractor(false);
-    setShowProjectPanel(true);
+    setShowProjectPanel(false);
     setProfileTab("overview");
     setShowProfile(true);
     notify(`${name} profile created. You can now import its completed and ongoing project list.`);
@@ -600,11 +720,11 @@ export default function Home() {
                         <td><div className="score"><strong>{contractor.score}</strong><span><i style={{ width: `${contractor.score}%` }} /></span></div></td>
                         <td><span className="directory-date">{contractor.approvalDate}</span></td>
                         <td><span className="grade">CIDB {contractor.grade}</span></td>
-                        <td><button className="project-link project-count" onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setShowProjectPanel(true); }}>{contractor.projects.filter((project) => project.status === "Completed").length} completed →</button></td>
-                        <td><button className="project-link project-count ongoing" onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setShowProjectPanel(true); }}>{contractor.projects.filter((project) => project.status === "Ongoing").length} ongoing →</button></td>
+                        <td><button className="project-link project-count" onClick={(event) => { event.stopPropagation(); openProjectList(contractor, "Completed"); }}>{contractor.projects.filter((project) => project.status === "Completed").length} completed →</button></td>
+                        <td><button className="project-link project-count ongoing" onClick={(event) => { event.stopPropagation(); openProjectList(contractor, "Ongoing"); }}>{contractor.projects.filter((project) => project.status === "Ongoing").length} ongoing →</button></td>
                         <td><button className="preq-owner-button" onClick={(event) => { event.stopPropagation(); setEditingPreqOwner(contractor); }}><strong>{contractor.preqDoneBy}</strong><span>Edit company</span></button></td>
                         <td><small className="updated">{contractor.updated}</small></td>
-                        <td><div className="directory-actions"><button onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setShowProjectPanel(true); }}>Open projects</button><button onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setShowReportRequest(true); }}>Request report</button></div></td>
+                        <td><div className="directory-actions"><button onClick={(event) => { event.stopPropagation(); openProjectList(contractor, "All"); }}>Open projects</button><button onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setShowReportRequest(true); }}>Request report</button></div></td>
                       </tr>
                     );
                   })}
@@ -810,11 +930,33 @@ export default function Home() {
         </div>
       )}
 
+      {projectListStatus && (
+        <div className="modal-backdrop project-table-backdrop" role="presentation" onMouseDown={() => setProjectListStatus(null)}>
+          <section className="modal project-table-modal" role="dialog" aria-modal="true" aria-labelledby="project-list-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" onClick={() => setProjectListStatus(null)} aria-label="Close project list">×</button>
+            <div className="project-table-title"><div><p className="eyebrow">CONTRACTOR PROJECT REGISTER</p><h2 id="project-list-title">{activeContractor.name}</h2><p>Full submitted project descriptions in table format.</p></div><div><strong>{popupProjects.length}</strong><span>{projectListStatus === "All" ? "PROJECTS SHOWN" : `${projectListStatus.toUpperCase()} PROJECTS`}</span></div></div>
+            <div className="project-table-toolbar">
+              <div className="project-status-tabs"><button className={projectListStatus === "All" ? "active" : ""} onClick={() => setProjectListStatus("All")}>All ({activeContractor.projects.length})</button><button className={projectListStatus === "Completed" ? "active" : ""} onClick={() => setProjectListStatus("Completed")}>Completed ({completedProjects.length})</button><button className={projectListStatus === "Ongoing" ? "active" : ""} onClick={() => setProjectListStatus("Ongoing")}>Ongoing ({ongoingProjects.length})</button></div>
+              <label className="project-search table-search"><span>⌕</span><input value={projectQuery} onChange={(event) => setProjectQuery(event.target.value)} placeholder="Search description, client, location, year, value..." aria-label="Search project list" />{projectQuery && <button type="button" onClick={() => setProjectQuery("")}>Clear</button>}</label>
+            </div>
+            <div className="full-project-table-wrap">
+              <table className="full-project-table">
+                <thead><tr><th>Select</th><th>Project and full scope</th><th>Client</th><th>Location</th><th>Contract value</th><th>Period</th><th>Progress</th><th>Source</th></tr></thead>
+                <tbody>{popupProjects.map((project) => { const selected = selectedProjects.includes(project.id); return <tr key={project.id}><td><button className={`row-check ${selected ? "checked" : ""}`} onClick={() => toggleProject(project.id)} aria-label={`${selected ? "Remove" : "Select"} ${project.name}`}>{selected ? "✓" : ""}</button></td><td><strong>{project.name}</strong><small>{project.scope}</small></td><td>{project.client}</td><td>{project.location}</td><td><strong>{money(project.value)}</strong></td><td>{project.period}</td><td><span className={`table-project-status ${project.status.toLowerCase()}`}>{project.status}</span><small>{project.progress ?? "-"}</small></td><td>Page {project.sourcePage ?? "-"}</td></tr>; })}</tbody>
+              </table>
+              {!popupProjects.length && <div className="profile-project-empty">No projects match this search.</div>}
+            </div>
+            <div className="project-table-footer"><span>{selectedProjects.length} project{selectedProjects.length === 1 ? "" : "s"} selected for nomination</span><div><button className="secondary-button" onClick={() => setShowReportRequest(true)}>Request full report</button><button className="primary-button" onClick={() => setProjectListStatus(null)}>Done</button></div></div>
+          </section>
+        </div>
+      )}
+
       {showAddContractor && (
         <div className="modal-backdrop nested-modal" role="presentation" onMouseDown={() => setShowAddContractor(false)}>
-          <form className="modal form-modal" onSubmit={handleAddContractor} onMouseDown={(event) => event.stopPropagation()}>
+          <form ref={addContractorFormRef} className="modal form-modal add-contractor-modal" onSubmit={handleAddContractor} onMouseDown={(event) => event.stopPropagation()}>
             <button type="button" className="modal-close" onClick={() => setShowAddContractor(false)} aria-label="Close">×</button>
             <p className="eyebrow">BASIC CONTRACTOR INFORMATION</p><h2>Create contractor profile</h2><p>After creating the profile, import its project list and review the completed and ongoing projects.</p>
+            <section className="excel-import-card"><div className="excel-import-heading"><div><span>XLSX</span><div><strong>Import contractor information from Excel</strong><small>Import one contractor or a full contractor list. The file is read in your browser for this demo.</small></div></div><button type="button" onClick={() => downloadFile("contractor-import-template.csv", "Contractor,Trade,Contact Name,H/Phone No,Office No,Email,Pre-Q Date,Score,Approval Date,CIDB Grade,Location\nExample Contractor Sdn Bhd,Landscape,Mr Example,0123456789,071234567,example@company.com,17/03/2026,70,19/03/2026,G7,Johor", "text/csv;charset=utf-8")}>Download template</button></div><label className="excel-dropzone"><input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => handleContractorExcelFile(event.target.files?.[0])} /><strong>{contractorImportFile || "Choose an Excel .xlsx file"}</strong><span>Recognised columns: Contractor, Trade, Contact Name, H/Phone No, Office No, Email, Pre-Q Date, Score, Approval Date, CIDB Grade and Location.</span></label>{contractorImportError && <p className="import-error">{contractorImportError}</p>}{contractorImportRows.length > 0 && <div className="excel-import-ready"><div><strong>{contractorImportRows.length} contractor row{contractorImportRows.length === 1 ? "" : "s"} ready</strong><span>Review the first row in the form, or import every valid row immediately.</span></div><div><button type="button" className="secondary-button" onClick={useFirstImportedRow}>Use first row</button><button type="button" className="primary-button" onClick={importAllContractors}>Import all</button></div></div>}</section>
             <div className="form-grid"><label className="wide">Company name<input name="name" required placeholder="Legal company name" /></label><label>Trade<input name="trade" required placeholder="e.g. Landscape" /></label><label>Contact name<input name="contactName" required placeholder="Mr / Ms and name" /></label><label>Mobile / handphone number<input name="mobile" type="tel" required /></label><label>Office number<input name="officePhone" type="tel" required /></label><label className="wide">Email address<input name="email" type="email" required placeholder="company@example.com" /></label><label>Pre-Q date<input name="preqDate" type="date" required /></label><label>Pre-Q score<input name="score" type="number" min="0" max="100" defaultValue="0" required /></label><label>Approval date<input name="approvalDate" type="date" /></label><label>CIDB grade<select name="grade" defaultValue="G7"><option>G7</option><option>G6</option><option>G5</option><option>G4</option><option>Not provided</option></select></label><label>Location<select name="location" defaultValue="Johor"><option>Johor</option><option>Selangor</option><option>Kuala Lumpur</option><option>Other</option></select></label></div>
             <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setShowAddContractor(false)}>Cancel</button><button className="primary-button" type="submit">Create profile</button></div>
           </form>
