@@ -24,6 +24,7 @@ type Contractor = {
   status: "Approved" | "Conditional" | "Review due";
   expiry: string;
   updated: string;
+  preqDoneBy: string;
   projects: Project[];
 };
 
@@ -39,6 +40,7 @@ const initialContractors: Contractor[] = [
     status: "Approved",
     expiry: "30 Jun 2027",
     updated: "2 days ago",
+    preqDoneBy: "Johor Land Berhad",
     projects: [
       {
         id: "cl-1",
@@ -93,6 +95,7 @@ const initialContractors: Contractor[] = [
     status: "Approved",
     expiry: "18 Mar 2027",
     updated: "5 days ago",
+    preqDoneBy: "Berinda Group",
     projects: [
       {
         id: "ajc-1",
@@ -127,6 +130,7 @@ const initialContractors: Contractor[] = [
     status: "Conditional",
     expiry: "12 Dec 2026",
     updated: "1 week ago",
+    preqDoneBy: "Bukit Indah City Sdn Bhd",
     projects: [
       {
         id: "gdb-1",
@@ -161,6 +165,7 @@ const initialContractors: Contractor[] = [
     status: "Review due",
     expiry: "28 Sep 2026",
     updated: "3 weeks ago",
+    preqDoneBy: "Johor Land Berhad",
     projects: [
       {
         id: "pj-1",
@@ -280,6 +285,7 @@ export default function Home() {
   const [showAddContractor, setShowAddContractor] = useState(false);
   const [showAddProject, setShowAddProject] = useState(false);
   const [showAssessmentForm, setShowAssessmentForm] = useState(false);
+  const [editingPreqOwner, setEditingPreqOwner] = useState<Contractor | null>(null);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -379,6 +385,7 @@ export default function Home() {
       status: "Review due",
       expiry: "Not assessed",
       updated: "Just now",
+      preqDoneBy: "Not assigned",
       projects: [],
     };
     setContractorRows((current) => [contractor, ...current]);
@@ -412,11 +419,24 @@ export default function Home() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const score = ["organisation", "technical", "financial", "experience", "quality"].reduce((total, field) => total + Number(form.get(field)), 0);
-    const updatedContractor: Contractor = { ...activeContractor, score, status: score >= 65 ? "Approved" : "Conditional", expiry: "31 Jul 2027", updated: "Just now" };
+    const preqDoneBy = String(form.get("preqDoneBy") ?? activeContractor.preqDoneBy);
+    const updatedContractor: Contractor = { ...activeContractor, score, preqDoneBy, status: score >= 65 ? "Approved" : "Conditional", expiry: "31 Jul 2027", updated: "Just now" };
     setActiveContractor(updatedContractor);
     setContractorRows((current) => current.map((contractor) => contractor.id === activeContractor.id ? updatedContractor : contractor));
     setShowAssessmentForm(false);
-    notify(`Pre-Q assessment saved with a score of ${score}/100.`);
+    notify(`Pre-Q assessment by ${preqDoneBy} saved with a score of ${score}/100.`);
+  }
+
+  function handlePreqOwnerUpdate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingPreqOwner) return;
+    const form = new FormData(event.currentTarget);
+    const preqDoneBy = String(form.get("preqDoneBy") ?? editingPreqOwner.preqDoneBy);
+    const updatedContractor = { ...editingPreqOwner, preqDoneBy, updated: "Just now" };
+    setContractorRows((current) => current.map((contractor) => contractor.id === editingPreqOwner.id ? updatedContractor : contractor));
+    if (activeContractor.id === editingPreqOwner.id) setActiveContractor(updatedContractor);
+    setEditingPreqOwner(null);
+    notify(`Pre-Q company updated to ${preqDoneBy}.`);
   }
 
   function handleEditProfile(event: React.FormEvent<HTMLFormElement>) {
@@ -554,7 +574,7 @@ export default function Home() {
           <div className={`data-layout ${showProjectPanel ? "" : "panel-hidden"}`}>
             <div className="table-wrap">
               <table>
-                <thead><tr><th><span className="fake-check" /></th><th>Contractor</th><th>Pre-Q status</th><th>Score</th><th>Grade</th><th>Relevant projects</th><th>Updated</th><th /></tr></thead>
+                <thead><tr><th><span className="fake-check" /></th><th>Contractor</th><th>Pre-Q status</th><th>Score</th><th>Grade</th><th>Completed projects</th><th>Ongoing projects</th><th>Pre-Q done by</th><th>Updated</th><th /></tr></thead>
                 <tbody>
                   {filtered.map((contractor) => {
                     const isSelected = selectedContractors.includes(contractor.id);
@@ -566,7 +586,9 @@ export default function Home() {
                         <td><span className={`status ${contractor.status.toLowerCase().replace(" ", "-")}`}><i />{contractor.status}</span><small className="expiry">Until {contractor.expiry}</small></td>
                         <td><div className="score"><strong>{contractor.score}</strong><span><i style={{ width: `${contractor.score}%` }} /></span></div></td>
                         <td><span className="grade">CIDB {contractor.grade}</span></td>
-                        <td><button className="project-link" onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setShowProjectPanel(true); }}>{contractor.projects.length} projects →</button></td>
+                        <td><button className="project-link project-count" onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setShowProjectPanel(true); }}>{contractor.projects.filter((project) => project.status === "Completed").length} completed →</button></td>
+                        <td><button className="project-link project-count ongoing" onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setShowProjectPanel(true); }}>{contractor.projects.filter((project) => project.status === "Ongoing").length} ongoing →</button></td>
+                        <td><button className="preq-owner-button" onClick={(event) => { event.stopPropagation(); setEditingPreqOwner(contractor); }}><strong>{contractor.preqDoneBy}</strong><span>Edit company</span></button></td>
                         <td><small className="updated">{contractor.updated}</small></td>
                         <td><button className="more" aria-label={`More actions for ${contractor.name}`} onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setProfileTab("overview"); setShowProfile(true); }}>•••</button></td>
                       </tr>
@@ -666,6 +688,7 @@ export default function Home() {
               <div><small>CIDB GRADE</small><strong>{activeContractor.grade}</strong></div>
               <div><small>VERIFIED PROJECTS</small><strong>{activeContractor.projects.length}</strong></div>
               <div><small>COMBINED PROJECT VALUE</small><strong>{money(activeContractor.projects.reduce((total, project) => total + project.value, 0))}</strong></div>
+              <div><small>PRE-Q DONE BY</small><strong className="preq-summary-owner">{activeContractor.preqDoneBy}</strong></div>
             </div>
 
             <nav className="profile-tabs" aria-label="Contractor profile sections">
@@ -807,8 +830,22 @@ export default function Home() {
           <form className="modal form-modal assessment-form-modal" onSubmit={handleAssessment} onMouseDown={(event) => event.stopPropagation()}>
             <button type="button" className="modal-close" onClick={() => setShowAssessmentForm(false)} aria-label="Close">×</button>
             <p className="eyebrow">PRE-Q SCORING</p><h2>{activeContractor.name}</h2><p>Enter each category score. The maximum total is 100 and the demonstration passing score is 65.</p>
+            <label className="assessment-company">Pre-Q done by company<select name="preqDoneBy" defaultValue={activeContractor.preqDoneBy}><option>Berinda Group</option><option>Johor Land Berhad</option><option>Bukit Indah City Sdn Bhd</option><option>Not assigned</option></select><span>Any authorised company in the group may update this assessment record.</span></label>
             <div className="score-form-grid"><label>Organisation <span>Maximum 15</span><input name="organisation" type="number" min="0" max="15" defaultValue="13" required /></label><label>Technical capability <span>Maximum 25</span><input name="technical" type="number" min="0" max="25" defaultValue="21" required /></label><label>Financial capability <span>Maximum 20</span><input name="financial" type="number" min="0" max="20" defaultValue="16" required /></label><label>Work experience <span>Maximum 25</span><input name="experience" type="number" min="0" max="25" defaultValue="22" required /></label><label>Quality and workload <span>Maximum 15</span><input name="quality" type="number" min="0" max="15" defaultValue="10" required /></label></div>
             <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setShowAssessmentForm(false)}>Cancel</button><button className="primary-button" type="submit">Calculate and save</button></div>
+          </form>
+        </div>
+      )}
+
+      {editingPreqOwner && (
+        <div className="modal-backdrop nested-modal" role="presentation" onMouseDown={() => setEditingPreqOwner(null)}>
+          <form className="modal form-modal preq-owner-modal" onSubmit={handlePreqOwnerUpdate} onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" type="button" onClick={() => setEditingPreqOwner(null)} aria-label="Close">×</button>
+            <p className="eyebrow">SHARED GROUP RECORD</p>
+            <h2>Update Pre-Q company</h2>
+            <p>Select the group company responsible for the latest Pre-Q assessment of <strong>{editingPreqOwner.name}</strong>.</p>
+            <label className="assessment-company">Pre-Q done by company<select name="preqDoneBy" defaultValue={editingPreqOwner.preqDoneBy}><option>Berinda Group</option><option>Johor Land Berhad</option><option>Bukit Indah City Sdn Bhd</option><option>Not assigned</option></select><span>In the final Firebase version, the system will also record the user, date and previous value in the audit history.</span></label>
+            <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setEditingPreqOwner(null)}>Cancel</button><button className="primary-button" type="submit">Save company</button></div>
           </form>
         </div>
       )}

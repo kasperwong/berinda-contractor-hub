@@ -106,6 +106,8 @@ export interface ContractorProject extends AuditFields {
 export interface PrequalificationAssessment extends AuditFields {
   id: string;
   contractorId: string;
+  assessedByCompanyId: string;
+  assessedByCompanyName: string;
   criteriaVersion: string;
   proposedContractValueMyr: number;
   requiredPassingScore: number;
