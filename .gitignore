@@ -45,6 +45,8 @@ next-env.d.ts
 
 # local development and interrupted setup recovery
 .devserver.*.log
+.functional-test-dev.*.log
+/.playwright-cli/
 /.magic-string-fix/
 /.recovery/
 /magic-string-*.tgz
