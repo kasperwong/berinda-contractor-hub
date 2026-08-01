@@ -100,6 +100,8 @@ tbody tr:hover, tbody tr.active-row { background: #f6faf9; }
 .contractor-cell strong, .contractor-cell small { display: block; }
 .contractor-cell strong { font-size: 9px; }
 .contractor-cell small { margin-top: 4px; color: #8993a0; font-size: 7.5px; }
+.contractor-name-only { min-width: 190px; }
+.contractor-name-only strong { font-size: 10px; }
 .directory-detail { min-width: 130px; }
 .directory-detail strong, .directory-detail small { display: block; }
 .directory-detail strong { color: #35475b; font-size: 9px; }
@@ -393,6 +395,8 @@ td { height: 80px; font-size: 12px; }
 .full-project-table-wrap { min-height: 0; flex: 1; overflow: auto; }
 .full-project-table { min-width: 1320px; table-layout: fixed; white-space: normal; }
 .full-project-table th { position: sticky; z-index: 2; top: 0; height: 44px; font-size: 9px; }
+.sortable-heading { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 5px; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; font-weight: 750; letter-spacing: inherit; text-align: left; text-transform: uppercase; }
+.sortable-heading:hover { color: var(--teal); }
 .full-project-table th:nth-child(1) { width: 58px; }
 .full-project-table th:nth-child(2) { width: 43%; }
 .full-project-table th:nth-child(3) { width: 14%; }
@@ -411,6 +415,27 @@ td { height: 80px; font-size: 12px; }
 .table-project-status.ongoing { background: var(--blue-soft); color: #4b71a2; }
 .project-table-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 20px; border-top: 1px solid var(--line); background: white; color: #687687; font-size: 10px; }
 .project-table-footer > div { display: flex; gap: 8px; }
+.nomination-selection-card { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: white; }
+.nomination-selection-card .module-heading > div h3 { margin: 2px 0 0; font-size: 15px; }
+.nomination-selection-card .module-heading > span { padding: 5px 9px; border-radius: 99px; background: var(--teal-soft); color: var(--teal); font-size: 10px; font-weight: 700; }
+.nomination-company-groups { display: grid; gap: 14px; padding: 16px; background: #f5f7f8; }
+.nomination-company-group { overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: white; }
+.nomination-company-group > header { min-height: 66px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 16px; border-bottom: 1px solid var(--line); }
+.nomination-company-group > header strong, .nomination-company-group > header small { display: block; }
+.nomination-company-group > header strong { color: #26394d; font-size: 13px; }
+.nomination-company-group > header small { margin-top: 4px; color: #7c8996; font-size: 10px; }
+.nomination-company-group > header b { padding: 6px 9px; border-radius: 99px; background: #edf3f5; color: #526779; font-size: 9px; }
+.nomination-reference-table { overflow-x: auto; }
+.nomination-reference-row { min-width: 1040px; display: grid; grid-template-columns: 2fr 1fr .55fr .7fr 58px; align-items: start; gap: 15px; min-height: 72px; padding: 12px 16px; border-bottom: 1px solid var(--line); color: #526175; font-size: 10.5px; }
+.nomination-reference-row.header { min-height: 40px; align-items: center; background: #f8f9fa; color: #7c8795; font-size: 9px; font-weight: 750; text-transform: uppercase; }
+.nomination-reference-row strong, .nomination-reference-row small { display: block; }
+.nomination-reference-row strong { color: #293c50; font-size: 11px; }
+.nomination-reference-row small { margin-top: 4px; color: #7c8996; font-size: 9px; line-height: 1.45; }
+.nomination-reference-row button { border: 0; background: transparent; color: #ad534a; font-size: 9px; font-weight: 700; }
+.nomination-empty { min-height: 170px; display: grid; place-items: center; place-content: center; gap: 7px; padding: 24px; color: #7c8896; text-align: center; }
+.nomination-empty strong { color: #2c4054; font-size: 14px; }
+.nomination-empty span { font-size: 11px; }
+.nomination-empty button { margin-top: 6px; }
 .card-heading-actions { display: flex; align-items: center; gap: 8px; }
 .request-contractor-card { display: flex; align-items: center; gap: 12px; margin: 16px 0; padding: 14px; border: 1px solid var(--line); border-radius: 9px; background: #f8fafb; }
 .request-contractor-card > span { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 8px; background: var(--navy); color: white; font-size: 11px; font-weight: 750; }
