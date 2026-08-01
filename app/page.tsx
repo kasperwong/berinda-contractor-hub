@@ -321,6 +321,8 @@ export default function Home() {
     equity: 0,
     liabilities: 0,
   };
+  const completedProjects = activeContractor.projects.filter((project) => project.status === "Completed");
+  const ongoingProjects = activeContractor.projects.filter((project) => project.status === "Ongoing");
 
   const sectionTitles = {
     overview: "Overview",
@@ -444,6 +446,32 @@ export default function Home() {
     );
   }
 
+  function renderProjectCard(project: Project) {
+    const selected = selectedProjects.includes(project.id);
+    return (
+      <article key={project.id} className={selected ? "selected-project" : ""}>
+        <button className={`project-check ${selected ? "checked" : ""}`} onClick={() => toggleProject(project.id)} aria-label={`${selected ? "Remove" : "Select"} ${project.name}`}>{selected ? "✓" : ""}</button>
+        <div className="project-content">
+          <div className="project-title"><strong>{project.name}</strong><span className={project.status === "Completed" ? "completed" : "ongoing"}>{project.status}</span></div>
+          <p>{project.scope}</p>
+          <dl><div><dt>CLIENT</dt><dd>{project.client}</dd></div><div><dt>LOCATION</dt><dd>{project.location}</dd></div><div><dt>CONTRACT VALUE</dt><dd>{money(project.value)}</dd></div><div><dt>PERIOD</dt><dd>{project.period}</dd></div></dl>
+        </div>
+      </article>
+    );
+  }
+
+  function renderProfileProjectRows(projects: Project[]) {
+    return projects.map((project) => (
+      <div className="profile-project-row" key={project.id}>
+        <span><strong>{project.name}</strong><small>{project.scope}</small></span>
+        <span>{project.client}<small>{project.location}</small></span>
+        <span><strong>{money(project.value)}</strong></span>
+        <span>{project.period}</span>
+        <span><b className={project.status === "Completed" ? "completed" : "ongoing"}>{project.status}</b></span>
+      </div>
+    ));
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -558,19 +586,14 @@ export default function Home() {
               <div className="panel-meta"><span>{activeContractor.trade}</span><span>CIDB {activeContractor.grade}</span><span>{activeContractor.projects.length} records</span></div>
               <div className="panel-instruction"><span>✓</span><p><strong>Select the most relevant experience</strong>Chosen projects will appear in the nomination summary.</p></div>
               <div className="projects-list">
-                {activeContractor.projects.map((project) => {
-                  const selected = selectedProjects.includes(project.id);
-                  return (
-                    <article key={project.id} className={selected ? "selected-project" : ""}>
-                      <button className={`project-check ${selected ? "checked" : ""}`} onClick={() => toggleProject(project.id)} aria-label={`${selected ? "Remove" : "Select"} ${project.name}`}>{selected ? "✓" : ""}</button>
-                      <div className="project-content">
-                        <div className="project-title"><strong>{project.name}</strong><span className={project.status === "Completed" ? "completed" : "ongoing"}>{project.status}</span></div>
-                        <p>{project.scope}</p>
-                        <dl><div><dt>CLIENT</dt><dd>{project.client}</dd></div><div><dt>LOCATION</dt><dd>{project.location}</dd></div><div><dt>CONTRACT VALUE</dt><dd>{money(project.value)}</dd></div><div><dt>PERIOD</dt><dd>{project.period}</dd></div></dl>
-                      </div>
-                    </article>
-                  );
-                })}
+                <section className="project-group completed-group">
+                  <div className="project-group-heading"><span>✓</span><h4>Completed projects</h4><b>{completedProjects.length}</b></div>
+                  <div className="project-group-items">{completedProjects.length ? completedProjects.map(renderProjectCard) : <p className="no-projects">No completed projects recorded.</p>}</div>
+                </section>
+                <section className="project-group ongoing-group">
+                  <div className="project-group-heading"><span>↻</span><h4>Ongoing projects</h4><b>{ongoingProjects.length}</b></div>
+                  <div className="project-group-items">{ongoingProjects.length ? ongoingProjects.map(renderProjectCard) : <p className="no-projects">No ongoing projects recorded.</p>}</div>
+                </section>
               </div>
               <button className="view-profile" onClick={() => { setProfileTab("overview"); setShowProfile(true); }}>View full contractor profile →</button>
             </aside>}
@@ -709,7 +732,16 @@ export default function Home() {
                 <div className="profile-single-column">
                   <section className="profile-card profile-projects-card">
                     <div className="card-heading"><div><p className="eyebrow">VERIFIED EXPERIENCE</p><h3>Relevant project portfolio</h3></div><button className="primary-button" onClick={() => setShowAddProject(true)}>＋ Add project</button></div>
-                    <div className="profile-project-table"><div className="profile-project-row header"><span>Project and scope</span><span>Client</span><span>Value</span><span>Period</span><span>Status</span></div>{activeContractor.projects.map((project) => <div className="profile-project-row" key={project.id}><span><strong>{project.name}</strong><small>{project.scope}</small></span><span>{project.client}<small>{project.location}</small></span><span><strong>{money(project.value)}</strong></span><span>{project.period}</span><span><b className={project.status === "Completed" ? "completed" : "ongoing"}>{project.status}</b></span></div>)}</div>
+                    <div className="profile-project-groups">
+                      <section className="profile-project-group">
+                        <div className="profile-project-group-heading"><div><span className="completed-mark">✓</span><div><h4>Completed projects</h4><p>Finished work available as proven experience</p></div></div><b>{completedProjects.length}</b></div>
+                        <div className="profile-project-table"><div className="profile-project-row header"><span>Project and scope</span><span>Client</span><span>Value</span><span>Period</span><span>Status</span></div>{completedProjects.length ? renderProfileProjectRows(completedProjects) : <div className="profile-project-empty">No completed projects recorded.</div>}</div>
+                      </section>
+                      <section className="profile-project-group">
+                        <div className="profile-project-group-heading"><div><span className="ongoing-mark">↻</span><div><h4>Ongoing projects</h4><p>Current commitments and active workload</p></div></div><b>{ongoingProjects.length}</b></div>
+                        <div className="profile-project-table"><div className="profile-project-row header"><span>Project and scope</span><span>Client</span><span>Value</span><span>Period</span><span>Status</span></div>{ongoingProjects.length ? renderProfileProjectRows(ongoingProjects) : <div className="profile-project-empty">No ongoing projects recorded.</div>}</div>
+                      </section>
+                    </div>
                   </section>
                 </div>
               )}
