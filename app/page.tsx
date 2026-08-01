@@ -186,6 +186,71 @@ const contractors: Contractor[] = [
   },
 ];
 
+const contractorDetails: Record<
+  string,
+  {
+    registrationNumber: string;
+    incorporated: string;
+    address: string;
+    email: string;
+    phone: string;
+    employees: string;
+    averageRevenue: number;
+    averageNetProfit: number;
+    equity: number;
+    liabilities: number;
+  }
+> = {
+  "chuan-luck": {
+    registrationNumber: "200101018847 (554604-W)",
+    incorporated: "18 July 2001",
+    address: "No. 8, Jalan Ekoperniagaan 2, Taman Ekoperniagaan, Johor Bahru, Johor",
+    email: "admin@chuanluck.com.my",
+    phone: "+607 556 2188",
+    employees: "86",
+    averageRevenue: 42800000,
+    averageNetProfit: 3900000,
+    equity: 18700000,
+    liabilities: 14200000,
+  },
+  ajc: {
+    registrationNumber: "201201023456 (1007948-X)",
+    incorporated: "6 July 2012",
+    address: "Taman Perindustrian Mount Austin, Johor Bahru, Johor",
+    email: "admin@ajcventures.com.my",
+    phone: "+607 351 8820",
+    employees: "42",
+    averageRevenue: 18100000,
+    averageNetProfit: 1450000,
+    equity: 7200000,
+    liabilities: 6100000,
+  },
+  gdb: {
+    registrationNumber: "201401006512 (1082590-P)",
+    incorporated: "24 February 2014",
+    address: "Jalan Tun Razak, Kuala Lumpur",
+    email: "tender@gdbgeotechnics.com.my",
+    phone: "+603 2162 7718",
+    employees: "124",
+    averageRevenue: 75600000,
+    averageNetProfit: 6100000,
+    equity: 32100000,
+    liabilities: 24600000,
+  },
+  pintaras: {
+    registrationNumber: "198901005732 (182038-D)",
+    incorporated: "23 May 1989",
+    address: "Petaling Jaya, Selangor",
+    email: "enquiry@pintaras.com.my",
+    phone: "+603 7955 1188",
+    employees: "215",
+    averageRevenue: 132000000,
+    averageNetProfit: 8700000,
+    equity: 68400000,
+    liabilities: 51200000,
+  },
+};
+
 const money = (value: number) =>
   new Intl.NumberFormat("en-MY", {
     style: "currency",
@@ -206,6 +271,8 @@ export default function Home() {
   ]);
   const [showUpload, setShowUpload] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [profileTab, setProfileTab] = useState<"overview" | "preq" | "projects" | "documents" | "activity">("overview");
   const [uploadedFile, setUploadedFile] = useState("");
 
   const filtered = useMemo(() => {
@@ -370,7 +437,7 @@ export default function Home() {
                   );
                 })}
               </div>
-              <button className="view-profile">View full contractor profile →</button>
+              <button className="view-profile" onClick={() => { setProfileTab("overview"); setShowProfile(true); }}>View full contractor profile →</button>
             </aside>
           </div>
         </section>
@@ -381,6 +448,125 @@ export default function Home() {
         <button className="clear-button" onClick={() => { setSelectedContractors([]); setSelectedProjects([]); }}>Clear selection</button>
         <button className="primary-button" disabled={!selectedContractors.length} onClick={() => setShowSummary(true)}>Generate nomination summary <span>→</span></button>
       </div>
+
+      {showProfile && (
+        <div className="profile-backdrop" role="presentation" onMouseDown={() => setShowProfile(false)}>
+          <section className="profile-screen" role="dialog" aria-modal="true" aria-labelledby="profile-title" onMouseDown={(event) => event.stopPropagation()}>
+            <header className="profile-header">
+              <div className="profile-identity">
+                <span className="profile-logo">{activeContractor.initials}</span>
+                <div>
+                  <p className="eyebrow">CONTRACTOR PROFILE</p>
+                  <h2 id="profile-title">{activeContractor.name}</h2>
+                  <p>{activeContractor.trade} · {activeContractor.location} · CIDB {activeContractor.grade}</p>
+                </div>
+              </div>
+              <div className="profile-header-actions">
+                <span className={`profile-status ${activeContractor.status.toLowerCase().replace(" ", "-")}`}>● {activeContractor.status}</span>
+                <button className="secondary-button">Edit profile</button>
+                <button className="profile-close" onClick={() => setShowProfile(false)} aria-label="Close contractor profile">×</button>
+              </div>
+            </header>
+
+            <div className="profile-summary-strip">
+              <div><small>PRE-Q SCORE</small><strong>{activeContractor.score}<span>/100</span></strong></div>
+              <div><small>VALID UNTIL</small><strong>{activeContractor.expiry}</strong></div>
+              <div><small>CIDB GRADE</small><strong>{activeContractor.grade}</strong></div>
+              <div><small>VERIFIED PROJECTS</small><strong>{activeContractor.projects.length}</strong></div>
+              <div><small>COMBINED PROJECT VALUE</small><strong>{money(activeContractor.projects.reduce((total, project) => total + project.value, 0))}</strong></div>
+            </div>
+
+            <nav className="profile-tabs" aria-label="Contractor profile sections">
+              {([
+                ["overview", "Overview"],
+                ["preq", "Pre-Q assessment"],
+                ["projects", `Projects (${activeContractor.projects.length})`],
+                ["documents", "Documents (5)"],
+                ["activity", "Activity"],
+              ] as const).map(([tab, label]) => (
+                <button key={tab} className={profileTab === tab ? "active" : ""} onClick={() => setProfileTab(tab)}>{label}</button>
+              ))}
+            </nav>
+
+            <div className="profile-body">
+              {profileTab === "overview" && (
+                <div className="profile-overview-grid">
+                  <section className="profile-card company-card">
+                    <div className="card-heading"><div><p className="eyebrow">COMPANY INFORMATION</p><h3>Registration and contact</h3></div><span>Verified</span></div>
+                    <dl className="detail-grid">
+                      <div><dt>Legal company name</dt><dd>{activeContractor.name}</dd></div>
+                      <div><dt>SSM registration</dt><dd>{contractorDetails[activeContractor.id].registrationNumber}</dd></div>
+                      <div><dt>Date incorporated</dt><dd>{contractorDetails[activeContractor.id].incorporated}</dd></div>
+                      <div><dt>Number of employees</dt><dd>{contractorDetails[activeContractor.id].employees}</dd></div>
+                      <div className="wide"><dt>Registered address</dt><dd>{contractorDetails[activeContractor.id].address}</dd></div>
+                      <div><dt>General email</dt><dd>{contractorDetails[activeContractor.id].email}</dd></div>
+                      <div><dt>Telephone</dt><dd>{contractorDetails[activeContractor.id].phone}</dd></div>
+                    </dl>
+                  </section>
+
+                  <section className="profile-card preq-card">
+                    <div className="card-heading"><div><p className="eyebrow">LATEST ASSESSMENT</p><h3>Pre-qualification result</h3></div><span className="score-pill">{activeContractor.score}%</span></div>
+                    <div className="score-ring" style={{ "--score": `${activeContractor.score * 3.6}deg` } as React.CSSProperties}><div><strong>{activeContractor.score}</strong><span>out of 100</span></div></div>
+                    <div className="preq-mini"><div><span>Required passing score</span><strong>65%</strong></div><div><span>Review decision</span><strong className="positive">{activeContractor.status}</strong></div><div><span>Assessment date</span><strong>18 Mar 2026</strong></div></div>
+                    <button className="secondary-button full-width" onClick={() => setProfileTab("preq")}>View scoring breakdown</button>
+                  </section>
+
+                  <section className="profile-card financial-card">
+                    <div className="card-heading"><div><p className="eyebrow">FINANCIAL CAPACITY</p><h3>Three-year average</h3></div><span>Reviewed</span></div>
+                    <div className="financial-grid"><div><small>REVENUE</small><strong>{money(contractorDetails[activeContractor.id].averageRevenue)}</strong></div><div><small>NET PROFIT</small><strong>{money(contractorDetails[activeContractor.id].averageNetProfit)}</strong></div><div><small>EQUITY</small><strong>{money(contractorDetails[activeContractor.id].equity)}</strong></div><div><small>LIABILITIES</small><strong>{money(contractorDetails[activeContractor.id].liabilities)}</strong></div></div>
+                    <div className="review-note"><span>✓</span><p><strong>Satisfactory financial position</strong>Reviewed against the latest submitted audited accounts.</p></div>
+                  </section>
+
+                  <section className="profile-card experience-card">
+                    <div className="card-heading"><div><p className="eyebrow">PROJECT EXPERIENCE</p><h3>Recent relevant work</h3></div><button onClick={() => setProfileTab("projects")}>View all →</button></div>
+                    <div className="experience-list">{activeContractor.projects.slice(0, 3).map((project) => <article key={project.id}><span className={project.status === "Completed" ? "complete-dot" : "ongoing-dot"} /><div><strong>{project.name}</strong><p>{project.client} · {project.location}</p></div><div><strong>{money(project.value)}</strong><p>{project.period}</p></div></article>)}</div>
+                  </section>
+                </div>
+              )}
+
+              {profileTab === "preq" && (
+                <div className="profile-single-column">
+                  <section className="profile-card assessment-card">
+                    <div className="assessment-title"><div><p className="eyebrow">PRE-Q ASSESSMENT · VERSION 2026.1</p><h3>Detailed scoring breakdown</h3><p>Proposed contract value: RM1 million–RM20 million · Passing score: 65%</p></div><div><strong>{activeContractor.score}</strong><span>TOTAL SCORE</span></div></div>
+                    <div className="assessment-rows">
+                      {[["Organisation", 15], ["Technical capability", 25], ["Financial capability", 20], ["Work experience", 25], ["Quality and workload", 15]].map(([name, maximum]) => { const achieved = Math.round(Number(maximum) * activeContractor.score / 100); return <div key={String(name)}><div><strong>{name}</strong><span>{achieved} / {maximum}</span></div><div className="assessment-track"><i style={{ width: `${(achieved / Number(maximum)) * 100}%` }} /></div></div>; })}
+                    </div>
+                    <div className="assessment-decision"><span>✓</span><div><strong>Recommended for {activeContractor.status.toLowerCase()} listing</strong><p>Assessment exceeds the required passing score. Supporting financial and project documents were reviewed.</p></div><button className="secondary-button">Open assessment form</button></div>
+                  </section>
+                </div>
+              )}
+
+              {profileTab === "projects" && (
+                <div className="profile-single-column">
+                  <section className="profile-card profile-projects-card">
+                    <div className="card-heading"><div><p className="eyebrow">VERIFIED EXPERIENCE</p><h3>Relevant project portfolio</h3></div><button className="primary-button">＋ Add project</button></div>
+                    <div className="profile-project-table"><div className="profile-project-row header"><span>Project and scope</span><span>Client</span><span>Value</span><span>Period</span><span>Status</span></div>{activeContractor.projects.map((project) => <div className="profile-project-row" key={project.id}><span><strong>{project.name}</strong><small>{project.scope}</small></span><span>{project.client}<small>{project.location}</small></span><span><strong>{money(project.value)}</strong></span><span>{project.period}</span><span><b className={project.status === "Completed" ? "completed" : "ongoing"}>{project.status}</b></span></div>)}</div>
+                  </section>
+                </div>
+              )}
+
+              {profileTab === "documents" && (
+                <div className="profile-single-column">
+                  <section className="profile-card documents-card">
+                    <div className="card-heading"><div><p className="eyebrow">SHAREPOINT REFERENCES</p><h3>Contractor documents</h3></div><button className="primary-button">⇧ Upload document</button></div>
+                    <div className="document-list">{[["Pre-Qualification Form 2026.pdf", "Pre-Q form", "18 Mar 2026", "Verified"], ["CIDB Registration Certificate.pdf", "Registration", "30 Jun 2027", "Current"], ["Completed and Ongoing Projects.pdf", "Project list", "12 Mar 2026", "Verified"], ["Audited Financial Statements 2025.pdf", "Financial", "31 Dec 2025", "Restricted"], ["Quality and Safety Policy.pdf", "Quality", "6 Mar 2026", "Current"]].map(([file, type, date, status]) => <article key={file}><span className="file-icon">PDF</span><div><strong>{file}</strong><p>{type} · Updated {date}</p></div><b className={status === "Restricted" ? "restricted" : "current"}>{status}</b><button className="secondary-button">Request / Open</button></article>)}</div>
+                    <div className="sharepoint-note"><span>♢</span><p><strong>Documents remain protected in SharePoint</strong>Opening or downloading a restricted file requires SharePoint permission, even when its reference appears here.</p></div>
+                  </section>
+                </div>
+              )}
+
+              {profileTab === "activity" && (
+                <div className="profile-single-column">
+                  <section className="profile-card activity-card">
+                    <div className="card-heading"><div><p className="eyebrow">AUDIT HISTORY</p><h3>Recent activity</h3></div><button className="secondary-button">Export history</button></div>
+                    <div className="activity-list">{[["Pre-Q assessment approved", "Sarah Lim · Group Pre-Q Reviewer", "18 Mar 2026, 4:32 PM"], ["Project experience verified", "Ahmad Faiz · Contract Executive", "16 Mar 2026, 11:20 AM"], ["Project list document uploaded", "Kasper Wong · Berinda Group", "12 Mar 2026, 9:08 AM"], ["Financial review completed", "Finance Review Team", "10 Mar 2026, 2:45 PM"], ["Contractor profile created", "Johor Land Berhad", "2 Mar 2026, 10:15 AM"]].map(([action, actor, time], index) => <article key={action}><span>{index === 0 ? "✓" : "•"}</span><div><strong>{action}</strong><p>{actor}</p></div><time>{time}</time></article>)}</div>
+                  </section>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
 
       {showUpload && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setShowUpload(false)}>
