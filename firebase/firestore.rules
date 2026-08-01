@@ -1,0 +1,332 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userExists() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function activeUser() {
+      return userExists() && userProfile().active == true;
+    }
+
+    function roleIs(allowedRoles) {
+      return activeUser() && userProfile().role in allowedRoles;
+    }
+
+    function sameGroup(groupId) {
+      return activeUser() && userProfile().groupId == groupId;
+    }
+
+    function groupAdmin() {
+      return roleIs(['group_admin']);
+    }
+
+    function privilegedReviewer() {
+      return roleIs(['group_admin', 'reviewer', 'auditor']);
+    }
+
+    function ownsCompany(companyId) {
+      return roleIs(['company_admin']) && userProfile().companyId == companyId;
+    }
+
+    function contractorRecord(contractorId) {
+      return get(/databases/$(database)/documents/contractors/$(contractorId)).data;
+    }
+
+    function canReadContractor(contractor) {
+      return sameGroup(contractor.groupId)
+        && (
+          contractor.shareScope == 'group'
+          || privilegedReviewer()
+          || userProfile().companyId == contractor.owningCompanyId
+        );
+    }
+
+    function canManageContractor(contractor) {
+      return sameGroup(contractor.groupId)
+        && (groupAdmin() || ownsCompany(contractor.owningCompanyId));
+    }
+
+    function validContractorCreate() {
+      return request.resource.data.keys().hasAll([
+        'groupId',
+        'owningCompanyId',
+        'legalName',
+        'shareScope',
+        'lifecycleStatus',
+        'prequalificationStatus',
+        'latestPrequalificationScore',
+        'prequalificationValidUntil',
+        'createdBy',
+        'updatedBy'
+      ])
+      && request.resource.data.groupId == userProfile().groupId
+      && validContractorState(request.resource.data);
+    }
+
+    function validContractorState(contractor) {
+      return contractor.shareScope in ['group', 'restricted']
+        && contractor.lifecycleStatus in ['active', 'archived']
+        && contractor.prequalificationStatus in [
+          'draft',
+          'submitted',
+          'under_review',
+          'approved',
+          'conditional',
+          'rejected',
+          'expired'
+        ];
+    }
+
+    function companyMayCreateContractor() {
+      return ownsCompany(request.resource.data.owningCompanyId)
+        && request.resource.data.prequalificationStatus == 'draft'
+        && request.resource.data.latestPrequalificationScore == null
+        && request.resource.data.prequalificationValidUntil == null;
+    }
+
+    function companyMayUpdateContractor() {
+      return ownsCompany(resource.data.owningCompanyId)
+        && request.resource.data.owningCompanyId == resource.data.owningCompanyId
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'prequalificationStatus',
+          'latestPrequalificationScore',
+          'prequalificationValidUntil'
+        ]);
+    }
+
+    match /groups/{groupId} {
+      allow read: if sameGroup(groupId);
+      allow create, update: if groupAdmin() && request.resource.data.id == groupId;
+      allow delete: if false;
+    }
+
+    match /companies/{companyId} {
+      allow read: if sameGroup(resource.data.groupId);
+      allow create: if groupAdmin()
+        && request.resource.data.groupId == userProfile().groupId
+        && request.resource.data.id == companyId;
+      allow update: if groupAdmin()
+        && request.resource.data.groupId == resource.data.groupId;
+      allow delete: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if activeUser()
+        && (
+          request.auth.uid == userId
+          || (groupAdmin() && sameGroup(resource.data.groupId))
+          || (ownsCompany(resource.data.companyId) && sameGroup(resource.data.groupId))
+        );
+      allow create: if request.resource.data.id == userId
+        && request.resource.data.groupId == userProfile().groupId
+        && (
+          groupAdmin()
+          || (
+            ownsCompany(request.resource.data.companyId)
+            && request.resource.data.role in ['project_user', 'viewer']
+          )
+        );
+      allow update: if request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.companyId == resource.data.companyId
+        && (
+          (groupAdmin() && resource.data.groupId == userProfile().groupId)
+          || (
+            ownsCompany(resource.data.companyId)
+            && resource.data.role in ['project_user', 'viewer']
+            && request.resource.data.role in ['project_user', 'viewer']
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /contractors/{contractorId} {
+      allow read: if canReadContractor(resource.data);
+      allow create: if activeUser()
+        && validContractorCreate()
+        && (groupAdmin() || companyMayCreateContractor());
+      allow update: if canManageContractor(resource.data)
+        && request.resource.data.groupId == resource.data.groupId
+        && validContractorState(request.resource.data)
+        && (groupAdmin() || companyMayUpdateContractor());
+      allow delete: if false;
+
+      match /projects/{projectId} {
+        allow read: if canReadContractor(contractorRecord(contractorId));
+        allow create: if canManageContractor(contractorRecord(contractorId))
+          && request.resource.data.contractorId == contractorId
+          && (
+            groupAdmin()
+            || (
+              request.resource.data.verificationStatus == 'pending'
+              && request.resource.data.verifiedBy == null
+              && request.resource.data.verifiedAt == null
+            )
+          );
+        allow update: if canManageContractor(contractorRecord(contractorId))
+          && request.resource.data.contractorId == contractorId
+          && (
+            groupAdmin()
+            || !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'verificationStatus',
+              'verifiedBy',
+              'verifiedAt'
+            ])
+          );
+        allow delete: if groupAdmin() && sameGroup(contractorRecord(contractorId).groupId);
+      }
+
+      match /prequalifications/{assessmentId} {
+        allow read: if sameGroup(contractorRecord(contractorId).groupId)
+          && (privilegedReviewer() || ownsCompany(contractorRecord(contractorId).owningCompanyId));
+        allow create, update: if sameGroup(contractorRecord(contractorId).groupId)
+          && roleIs(['group_admin', 'reviewer'])
+          && request.resource.data.contractorId == contractorId;
+        allow delete: if false;
+      }
+
+      match /financials/{snapshotId} {
+        allow read: if sameGroup(contractorRecord(contractorId).groupId)
+          && (privilegedReviewer() || ownsCompany(contractorRecord(contractorId).owningCompanyId));
+        allow create: if sameGroup(contractorRecord(contractorId).groupId)
+          && (roleIs(['group_admin', 'reviewer']) || ownsCompany(contractorRecord(contractorId).owningCompanyId))
+          && request.resource.data.contractorId == contractorId
+          && (
+            roleIs(['group_admin', 'reviewer'])
+            || (
+              request.resource.data.reviewOutcome == 'pending'
+              && request.resource.data.reviewedBy == null
+              && request.resource.data.reviewedAt == null
+            )
+          );
+        allow update: if sameGroup(contractorRecord(contractorId).groupId)
+          && request.resource.data.contractorId == contractorId
+          && (
+            roleIs(['group_admin', 'reviewer'])
+            || (
+              ownsCompany(contractorRecord(contractorId).owningCompanyId)
+              && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                'reviewOutcome',
+                'reviewedBy',
+                'reviewedAt'
+              ])
+            )
+          );
+        allow delete: if false;
+      }
+
+      match /documents/{documentId} {
+        allow read: if canReadContractor(contractorRecord(contractorId));
+        allow create: if canManageContractor(contractorRecord(contractorId))
+          && request.resource.data.contractorId == contractorId
+          && request.resource.data.sharePointWebUrl is string
+          && request.resource.data.virusScanStatus == 'pending';
+        allow update: if canManageContractor(contractorRecord(contractorId))
+          && request.resource.data.contractorId == contractorId
+          && request.resource.data.sharePointWebUrl is string
+          && request.resource.data.virusScanStatus == resource.data.virusScanStatus;
+        allow delete: if false;
+      }
+    }
+
+    match /prequalificationCriteria/{criteriaId} {
+      allow read: if sameGroup(resource.data.groupId);
+      allow create, update: if groupAdmin()
+        && request.resource.data.groupId == userProfile().groupId;
+      allow delete: if false;
+    }
+
+    function canReadNomination(nomination) {
+      return sameGroup(nomination.groupId)
+        && (
+          roleIs(['group_admin', 'reviewer', 'auditor'])
+          || nomination.companyId == userProfile().companyId
+        );
+    }
+
+    function canEditDraftNomination(nomination) {
+      return canReadNomination(nomination)
+        && nomination.status == 'draft'
+        && (
+          roleIs(['group_admin', 'reviewer'])
+          || (nomination.companyId == userProfile().companyId && nomination.createdBy == request.auth.uid)
+        );
+    }
+
+    match /nominations/{nominationId} {
+      allow read: if canReadNomination(resource.data);
+      allow create: if roleIs(['group_admin', 'company_admin', 'reviewer', 'project_user'])
+        && request.resource.data.groupId == userProfile().groupId
+        && request.resource.data.companyId == userProfile().companyId
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.status == 'draft';
+      allow update: if sameGroup(resource.data.groupId)
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.companyId == resource.data.companyId
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.status in ['draft', 'submitted', 'approved', 'rejected', 'exported']
+        && (
+          (
+            canEditDraftNomination(resource.data)
+            && request.resource.data.status in ['draft', 'submitted']
+          )
+          || roleIs(['group_admin', 'reviewer'])
+        );
+      allow delete: if false;
+
+      match /selections/{selectionId} {
+        allow read: if canReadNomination(get(/databases/$(database)/documents/nominations/$(nominationId)).data);
+        allow create, update, delete: if canEditDraftNomination(
+          get(/databases/$(database)/documents/nominations/$(nominationId)).data
+        );
+      }
+    }
+
+    match /extractionJobs/{jobId} {
+      allow read: if sameGroup(resource.data.groupId)
+        && (resource.data.createdBy == request.auth.uid || privilegedReviewer());
+      allow create: if roleIs(['group_admin', 'company_admin', 'reviewer'])
+        && request.resource.data.groupId == userProfile().groupId
+        && request.resource.data.companyId == userProfile().companyId
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.status == 'queued';
+      allow update, delete: if false;
+    }
+
+    match /accessRequests/{requestId} {
+      allow read: if activeUser()
+        && sameGroup(resource.data.groupId)
+        && (resource.data.requestedBy == request.auth.uid || roleIs(['group_admin', 'reviewer']));
+      allow create: if activeUser()
+        && request.resource.data.groupId == userProfile().groupId
+        && request.resource.data.companyId == userProfile().companyId
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if roleIs(['group_admin', 'reviewer'])
+        && sameGroup(resource.data.groupId)
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.requestedBy == resource.data.requestedBy
+        && request.resource.data.status in ['pending', 'approved', 'rejected', 'cancelled'];
+      allow delete: if false;
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if sameGroup(resource.data.groupId)
+        && roleIs(['group_admin', 'auditor']);
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
