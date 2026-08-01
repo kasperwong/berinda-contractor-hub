@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { chuanLuckProjects } from "./chuan-luck-projects";
 
 type Project = {
   id: string;
@@ -11,6 +12,8 @@ type Project = {
   value: number;
   period: string;
   status: "Completed" | "Ongoing";
+  progress?: string;
+  sourcePage?: number;
 };
 
 type Contractor = {
@@ -53,48 +56,7 @@ const initialContractors: Contractor[] = [
     email: "tender@chuanluck.com.my",
     preqDate: "12 Mar 2026",
     approvalDate: "18 Mar 2026",
-    projects: [
-      {
-        id: "cl-1",
-        name: "Proposed industrial development, Senai",
-        scope: "Bored piling and pile-cap foundation works",
-        client: "AME Construction Sdn Bhd",
-        location: "Senai, Johor",
-        value: 12800000,
-        period: "Jan 2023 – Nov 2023",
-        status: "Completed",
-      },
-      {
-        id: "cl-2",
-        name: "Residential development at Taman Molek",
-        scope: "Supply and installation of reinforced concrete piles",
-        client: "Austin Heights Sdn Bhd",
-        location: "Johor Bahru, Johor",
-        value: 7650000,
-        period: "Mar 2024 – Feb 2025",
-        status: "Completed",
-      },
-      {
-        id: "cl-3",
-        name: "Warehouse and logistics hub",
-        scope: "Driven piling, testing and associated foundation works",
-        client: "Tiong Nam Logistics",
-        location: "Kempas, Johor",
-        value: 9400000,
-        period: "Sep 2025 – Jul 2026",
-        status: "Ongoing",
-      },
-      {
-        id: "cl-4",
-        name: "Mixed commercial development",
-        scope: "Jack-in piling and static load testing",
-        client: "Mah Sing Group Berhad",
-        location: "Iskandar Puteri, Johor",
-        value: 6200000,
-        period: "May 2022 – Feb 2023",
-        status: "Completed",
-      },
-    ],
+    projects: chuanLuckProjects,
   },
   {
     id: "ajc",
@@ -323,6 +285,7 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [profileTab, setProfileTab] = useState<"overview" | "preq" | "projects" | "documents" | "activity">("overview");
   const [uploadedFile, setUploadedFile] = useState("");
+  const [projectQuery, setProjectQuery] = useState("");
 
   const filtered = useMemo(() => {
     const term = query.toLowerCase().trim();
@@ -364,6 +327,10 @@ export default function Home() {
   };
   const completedProjects = activeContractor.projects.filter((project) => project.status === "Completed");
   const ongoingProjects = activeContractor.projects.filter((project) => project.status === "Ongoing");
+  const projectSearchTerm = projectQuery.toLowerCase().trim();
+  const projectMatchesSearch = (project: Project) => !projectSearchTerm || [project.name, project.scope, project.client, project.location, project.period, project.status, project.progress ?? "", String(project.value)].join(" ").toLowerCase().includes(projectSearchTerm);
+  const filteredCompletedProjects = completedProjects.filter(projectMatchesSearch);
+  const filteredOngoingProjects = ongoingProjects.filter(projectMatchesSearch);
 
   const sectionTitles = {
     overview: "Overview",
@@ -517,7 +484,7 @@ export default function Home() {
         <div className="project-content">
           <div className="project-title"><strong>{project.name}</strong><span className={project.status === "Completed" ? "completed" : "ongoing"}>{project.status}</span></div>
           <p>{project.scope}</p>
-          <dl><div><dt>CLIENT</dt><dd>{project.client}</dd></div><div><dt>LOCATION</dt><dd>{project.location}</dd></div><div><dt>CONTRACT VALUE</dt><dd>{money(project.value)}</dd></div><div><dt>PERIOD</dt><dd>{project.period}</dd></div></dl>
+          <dl><div><dt>CLIENT</dt><dd>{project.client}</dd></div><div><dt>LOCATION</dt><dd>{project.location}</dd></div><div><dt>CONTRACT VALUE</dt><dd>{money(project.value)}</dd></div><div><dt>PERIOD</dt><dd>{project.period}</dd></div>{project.progress && <div><dt>PROGRESS</dt><dd>{project.progress}</dd></div>}{project.sourcePage && <div><dt>SOURCE</dt><dd>Submitted list · page {project.sourcePage}</dd></div>}</dl>
         </div>
       </article>
     );
@@ -530,7 +497,7 @@ export default function Home() {
         <span>{project.client}<small>{project.location}</small></span>
         <span><strong>{money(project.value)}</strong></span>
         <span>{project.period}</span>
-        <span><b className={project.status === "Completed" ? "completed" : "ongoing"}>{project.status}</b></span>
+        <span><b className={project.status === "Completed" ? "completed" : "ongoing"}>{project.status}</b>{project.progress && <small>{project.progress} complete</small>}</span>
       </div>
     ));
   }
@@ -654,14 +621,15 @@ export default function Home() {
               </div>
               <div className="panel-meta"><span>{activeContractor.trade}</span><span>CIDB {activeContractor.grade}</span><span>{activeContractor.projects.length} records</span></div>
               <div className="panel-instruction"><span>✓</span><p><strong>Select the most relevant experience</strong>Chosen projects will appear in the nomination summary.</p></div>
+              <label className="project-search"><span>⌕</span><input value={projectQuery} onChange={(event) => setProjectQuery(event.target.value)} placeholder="Search scope, client, location, year or value..." aria-label="Search contractor projects" />{projectQuery && <button type="button" onClick={() => setProjectQuery("")}>Clear</button>}</label>
               <div className="projects-list">
                 <section className="project-group completed-group">
                   <div className="project-group-heading"><span>✓</span><h4>Completed projects</h4><b>{completedProjects.length}</b></div>
-                  <div className="project-group-items">{completedProjects.length ? completedProjects.map(renderProjectCard) : <p className="no-projects">No completed projects recorded.</p>}</div>
+                  <div className="project-group-items">{filteredCompletedProjects.length ? filteredCompletedProjects.map(renderProjectCard) : <p className="no-projects">No completed projects match this search.</p>}</div>
                 </section>
                 <section className="project-group ongoing-group">
                   <div className="project-group-heading"><span>↻</span><h4>Ongoing projects</h4><b>{ongoingProjects.length}</b></div>
-                  <div className="project-group-items">{ongoingProjects.length ? ongoingProjects.map(renderProjectCard) : <p className="no-projects">No ongoing projects recorded.</p>}</div>
+                  <div className="project-group-items">{filteredOngoingProjects.length ? filteredOngoingProjects.map(renderProjectCard) : <p className="no-projects">No ongoing projects match this search.</p>}</div>
                 </section>
               </div>
               <div className="panel-actions"><button className="view-profile" onClick={() => { setProfileTab("overview"); setShowProfile(true); }}>View contractor profile →</button><button className="request-report-button" onClick={() => setShowReportRequest(true)}>Request full detail report</button></div>
@@ -804,14 +772,15 @@ export default function Home() {
                 <div className="profile-single-column">
                   <section className="profile-card profile-projects-card">
                     <div className="card-heading"><div><p className="eyebrow">VERIFIED EXPERIENCE</p><h3>Relevant project portfolio</h3></div><div className="card-heading-actions"><button className="secondary-button" onClick={() => setShowUpload(true)}>⇧ Import project list</button><button className="primary-button" onClick={() => setShowAddProject(true)}>＋ Add project</button></div></div>
+                    <div className="profile-project-search-row"><label className="project-search profile-search"><span>⌕</span><input value={projectQuery} onChange={(event) => setProjectQuery(event.target.value)} placeholder="Search all project details: scope, client, location, year, value..." aria-label="Search project portfolio" />{projectQuery && <button type="button" onClick={() => setProjectQuery("")}>Clear</button>}</label><small>{filteredCompletedProjects.length + filteredOngoingProjects.length} of {activeContractor.projects.length} projects shown</small></div>
                     <div className="profile-project-groups">
                       <section className="profile-project-group">
                         <div className="profile-project-group-heading"><div><span className="completed-mark">✓</span><div><h4>Completed projects</h4><p>Finished work available as proven experience</p></div></div><b>{completedProjects.length}</b></div>
-                        <div className="profile-project-table"><div className="profile-project-row header"><span>Project and scope</span><span>Client</span><span>Value</span><span>Period</span><span>Status</span></div>{completedProjects.length ? renderProfileProjectRows(completedProjects) : <div className="profile-project-empty">No completed projects recorded.</div>}</div>
+                        <div className="profile-project-table"><div className="profile-project-row header"><span>Project and full scope</span><span>Client / location</span><span>Value</span><span>Period</span><span>Status</span></div>{filteredCompletedProjects.length ? renderProfileProjectRows(filteredCompletedProjects) : <div className="profile-project-empty">No completed projects match this search.</div>}</div>
                       </section>
                       <section className="profile-project-group">
                         <div className="profile-project-group-heading"><div><span className="ongoing-mark">↻</span><div><h4>Ongoing projects</h4><p>Current commitments and active workload</p></div></div><b>{ongoingProjects.length}</b></div>
-                        <div className="profile-project-table"><div className="profile-project-row header"><span>Project and scope</span><span>Client</span><span>Value</span><span>Period</span><span>Status</span></div>{ongoingProjects.length ? renderProfileProjectRows(ongoingProjects) : <div className="profile-project-empty">No ongoing projects recorded.</div>}</div>
+                        <div className="profile-project-table"><div className="profile-project-row header"><span>Project and full scope</span><span>Client / location</span><span>Value</span><span>Period</span><span>Status</span></div>{filteredOngoingProjects.length ? renderProfileProjectRows(filteredOngoingProjects) : <div className="profile-project-empty">No ongoing projects match this search.</div>}</div>
                       </section>
                     </div>
                   </section>
