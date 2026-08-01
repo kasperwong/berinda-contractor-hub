@@ -60,6 +60,9 @@ export interface Contractor extends AuditFields {
   incorporationDate: IsoDate | null;
   headquartersState: string | null;
   headquartersCountry: string;
+  primaryContactName: string | null;
+  mobileNumber: string | null;
+  officeNumber: string | null;
   phone: string | null;
   generalEmail: string | null;
   website: string | null;
@@ -70,6 +73,8 @@ export interface Contractor extends AuditFields {
   prequalificationStatus: PrequalificationStatus;
   latestPrequalificationScore: number | null;
   prequalificationValidUntil: IsoDate | null;
+  latestPrequalificationDate: IsoDate | null;
+  latestApprovalDate: IsoDate | null;
   shareScope: ShareScope;
   lifecycleStatus: RecordLifecycle;
   duplicateCheckKey: string;
@@ -214,4 +219,16 @@ export interface AuditLog {
   occurredAt: IsoDateTime;
   requestId: string;
   changedFields: string[];
+}
+
+export interface ContractorReportAccessRequest extends AuditFields {
+  id: string;
+  contractorId: string;
+  requestedByUserId: string;
+  requestedByCompanyId: string;
+  purpose: "nomination" | "preq_review" | "tender_evaluation" | "audit";
+  note: string | null;
+  status: "pending" | "approved" | "rejected" | "expired";
+  decidedByUserId: string | null;
+  decidedAt: IsoDateTime | null;
 }

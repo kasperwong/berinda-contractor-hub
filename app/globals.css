@@ -100,6 +100,14 @@ tbody tr:hover, tbody tr.active-row { background: #f6faf9; }
 .contractor-cell strong, .contractor-cell small { display: block; }
 .contractor-cell strong { font-size: 9px; }
 .contractor-cell small { margin-top: 4px; color: #8993a0; font-size: 7.5px; }
+.directory-detail { min-width: 130px; }
+.directory-detail strong, .directory-detail small { display: block; }
+.directory-detail strong { color: #35475b; font-size: 9px; }
+.directory-detail small { max-width: 180px; margin-top: 4px; overflow: hidden; color: #7d8998; font-size: 7.5px; text-overflow: ellipsis; }
+.directory-date { color: #526175; font-size: 8px; }
+.directory-actions { min-width: 108px; display: grid; gap: 5px; }
+.directory-actions button { border: 0; background: transparent; color: var(--teal); font-size: 8px; font-weight: 700; text-align: left; }
+.directory-actions button:last-child { color: #526b88; }
 .status { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 99px; font-size: 7.5px; font-weight: 680; }
 .status i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
 .status.approved { background: var(--teal-soft); color: #167469; }
@@ -163,7 +171,9 @@ tbody tr:hover, tbody tr.active-row { background: #f6faf9; }
 .project-content dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; padding-top: 8px; border-top: 1px solid #edf0f2; }
 .project-content dt { color: #9da5af; font-size: 6px; font-weight: 750; letter-spacing: .05em; }
 .project-content dd { overflow: hidden; margin: 3px 0 0; color: #495668; font-size: 7px; font-weight: 570; text-overflow: ellipsis; white-space: nowrap; }
-.view-profile { width: calc(100% - 32px); height: 35px; margin: 5px 16px 15px; border: 1px solid #dbe1e6; border-radius: 7px; background: white; color: #526175; font-size: 8px; font-weight: 650; }
+.panel-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 6px 16px 15px; }
+.view-profile, .request-report-button { min-height: 38px; border: 1px solid #dbe1e6; border-radius: 7px; background: white; color: #526175; font-size: 9px; font-weight: 650; }
+.request-report-button { border-color: #9bc8c1; background: #eff8f6; color: var(--teal); }
 
 .selection-bar { position: fixed; z-index: 20; left: calc(242px + 28px); right: 28px; bottom: 16px; min-height: 62px; display: flex; align-items: center; gap: 13px; padding: 10px 12px 10px 15px; border: 1px solid #31465f; border-radius: 10px; background: #172d48; color: white; box-shadow: 0 12px 30px rgba(12,26,43,.25); }
 .selection-bar > div { display: flex; align-items: center; gap: 10px; margin-right: auto; }
@@ -327,7 +337,7 @@ td { height: 80px; font-size: 12px; }
 .role-row span { color: #778493; font-size: 10.5px; }
 .role-row button { border: 0; background: transparent; color: var(--teal); font-size: 11px; font-weight: 650; }
 .nested-modal { z-index: 75; }
-.form-modal { width: min(620px, 100%); }
+.form-modal { width: min(620px, 100%); max-height: calc(100vh - 40px); overflow: auto; }
 .form-modal > p:not(.eyebrow) { margin-bottom: 18px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 .form-grid label, .score-form-grid label { display: grid; gap: 6px; color: #5b6878; font-size: 11px; font-weight: 650; }
@@ -344,6 +354,13 @@ td { height: 80px; font-size: 12px; }
 .assessment-company select { width: 100%; height: 44px; border: 1px solid #d6dde4; border-radius: 7px; padding: 0 11px; background: white; color: #26384b; font-size: 13px; }
 .assessment-company > span { color: #84909d; font-size: 10px; font-weight: 500; }
 .preq-owner-modal { width: min(520px, 100%); }
+.card-heading-actions { display: flex; align-items: center; gap: 8px; }
+.request-contractor-card { display: flex; align-items: center; gap: 12px; margin: 16px 0; padding: 14px; border: 1px solid var(--line); border-radius: 9px; background: #f8fafb; }
+.request-contractor-card > span { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 8px; background: var(--navy); color: white; font-size: 11px; font-weight: 750; }
+.request-contractor-card strong, .request-contractor-card small { display: block; }
+.request-contractor-card strong { font-size: 12px; }
+.request-contractor-card small { margin-top: 4px; color: #7d8998; font-size: 10px; }
+.report-request-modal { width: min(560px, 100%); }
 .toast { position: fixed; z-index: 100; right: 24px; bottom: 24px; max-width: min(420px, calc(100vw - 32px)); display: flex; align-items: center; gap: 10px; padding: 14px 17px; border: 1px solid #4c786f; border-radius: 9px; background: #173d37; color: white; box-shadow: 0 14px 35px rgba(6,24,21,.25); font-size: 12px; }
 .toast span { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: #54a294; font-size: 10px; }
 

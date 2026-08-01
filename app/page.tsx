@@ -18,6 +18,10 @@ type Contractor = {
   initials: string;
   name: string;
   trade: string;
+  contactName: string;
+  mobile: string;
+  officePhone: string;
+  email: string;
   grade: string;
   location: string;
   score: number;
@@ -25,6 +29,8 @@ type Contractor = {
   expiry: string;
   updated: string;
   preqDoneBy: string;
+  preqDate: string;
+  approvalDate: string;
   projects: Project[];
 };
 
@@ -41,6 +47,12 @@ const initialContractors: Contractor[] = [
     expiry: "30 Jun 2027",
     updated: "2 days ago",
     preqDoneBy: "Johor Land Berhad",
+    contactName: "Mr Lim Wei Jian",
+    mobile: "012-778 4231",
+    officePhone: "07-558 2188",
+    email: "tender@chuanluck.com.my",
+    preqDate: "12 Mar 2026",
+    approvalDate: "18 Mar 2026",
     projects: [
       {
         id: "cl-1",
@@ -96,6 +108,12 @@ const initialContractors: Contractor[] = [
     expiry: "18 Mar 2027",
     updated: "5 days ago",
     preqDoneBy: "Berinda Group",
+    contactName: "Mr Adrian Chin",
+    mobile: "016-712 9088",
+    officePhone: "07-521 6833",
+    email: "admin@ajcventures.com.my",
+    preqDate: "10 Mar 2026",
+    approvalDate: "18 Mar 2026",
     projects: [
       {
         id: "ajc-1",
@@ -131,6 +149,12 @@ const initialContractors: Contractor[] = [
     expiry: "12 Dec 2026",
     updated: "1 week ago",
     preqDoneBy: "Bukit Indah City Sdn Bhd",
+    contactName: "Ms Grace Tan",
+    mobile: "017-663 1192",
+    officePhone: "03-7845 2260",
+    email: "preq@gdbgeo.com.my",
+    preqDate: "05 Feb 2026",
+    approvalDate: "12 Feb 2026",
     projects: [
       {
         id: "gdb-1",
@@ -166,6 +190,12 @@ const initialContractors: Contractor[] = [
     expiry: "28 Sep 2026",
     updated: "3 weeks ago",
     preqDoneBy: "Johor Land Berhad",
+    contactName: "Mr Daniel Lee",
+    mobile: "012-720 1974",
+    officePhone: "03-7955 8100",
+    email: "tender@pintaras.com.my",
+    preqDate: "07 Jan 2026",
+    approvalDate: "11 Feb 2026",
     projects: [
       {
         id: "pj-1",
@@ -286,6 +316,7 @@ export default function Home() {
   const [showAddProject, setShowAddProject] = useState(false);
   const [showAssessmentForm, setShowAssessmentForm] = useState(false);
   const [editingPreqOwner, setEditingPreqOwner] = useState<Contractor | null>(null);
+  const [showReportRequest, setShowReportRequest] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -300,7 +331,11 @@ export default function Home() {
         !term ||
         contractor.name.toLowerCase().includes(term) ||
         contractor.trade.toLowerCase().includes(term) ||
-        contractor.location.toLowerCase().includes(term);
+        contractor.location.toLowerCase().includes(term) ||
+        contractor.contactName.toLowerCase().includes(term) ||
+        contractor.email.toLowerCase().includes(term) ||
+        contractor.mobile.includes(term) ||
+        contractor.officePhone.includes(term);
       const matchesStatus =
         statusFilter === "All status" || contractor.status === statusFilter;
       const matchesTrade = tradeFilter === "All trades" || contractor.trade === tradeFilter;
@@ -379,20 +414,28 @@ export default function Home() {
       initials: name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase(),
       name,
       trade: String(form.get("trade")),
+      contactName: String(form.get("contactName")),
+      mobile: String(form.get("mobile")),
+      officePhone: String(form.get("officePhone")),
+      email: String(form.get("email")),
       grade: String(form.get("grade")),
       location: String(form.get("location")),
-      score: 0,
-      status: "Review due",
+      score: Number(form.get("score")),
+      status: Number(form.get("score")) >= 65 ? "Approved" : "Review due",
       expiry: "Not assessed",
       updated: "Just now",
       preqDoneBy: "Not assigned",
+      preqDate: String(form.get("preqDate")),
+      approvalDate: String(form.get("approvalDate")) || "Pending",
       projects: [],
     };
     setContractorRows((current) => [contractor, ...current]);
     setActiveContractor(contractor);
     setShowAddContractor(false);
     setShowProjectPanel(true);
-    notify(`${name} added to this demonstration session.`);
+    setProfileTab("overview");
+    setShowProfile(true);
+    notify(`${name} profile created. You can now import its completed and ongoing project list.`);
   }
 
   function handleAddProject(event: React.FormEvent<HTMLFormElement>) {
@@ -442,7 +485,7 @@ export default function Home() {
   function handleEditProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const updatedContractor = { ...activeContractor, name: String(form.get("name")), trade: String(form.get("trade")), grade: String(form.get("grade")), location: String(form.get("location")), updated: "Just now" };
+    const updatedContractor = { ...activeContractor, name: String(form.get("name")), trade: String(form.get("trade")), contactName: String(form.get("contactName")), mobile: String(form.get("mobile")), officePhone: String(form.get("officePhone")), email: String(form.get("email")), grade: String(form.get("grade")), location: String(form.get("location")), updated: "Just now" };
     setActiveContractor(updatedContractor);
     setContractorRows((current) => current.map((contractor) => contractor.id === activeContractor.id ? updatedContractor : contractor));
     setShowEditProfile(false);
@@ -574,7 +617,7 @@ export default function Home() {
           <div className={`data-layout ${showProjectPanel ? "" : "panel-hidden"}`}>
             <div className="table-wrap">
               <table>
-                <thead><tr><th><span className="fake-check" /></th><th>Contractor</th><th>Pre-Q status</th><th>Score</th><th>Grade</th><th>Completed projects</th><th>Ongoing projects</th><th>Pre-Q done by</th><th>Updated</th><th /></tr></thead>
+                <thead><tr><th><span className="fake-check" /></th><th>Contractor / Trade</th><th>Contact person</th><th>Phone / Email</th><th>Pre-Q status</th><th>Pre-Q date</th><th>Score</th><th>Approval date</th><th>Grade</th><th>Completed projects</th><th>Ongoing projects</th><th>Pre-Q done by</th><th>Updated</th><th /></tr></thead>
                 <tbody>
                   {filtered.map((contractor) => {
                     const isSelected = selectedContractors.includes(contractor.id);
@@ -583,14 +626,18 @@ export default function Home() {
                       <tr key={contractor.id} className={isActive ? "active-row" : ""} onClick={() => setActiveContractor(contractor)}>
                         <td><button aria-label={`${isSelected ? "Deselect" : "Select"} ${contractor.name}`} className={`row-check ${isSelected ? "checked" : ""}`} onClick={(event) => { event.stopPropagation(); toggleContractor(contractor); }}>{isSelected ? "✓" : ""}</button></td>
                         <td><div className="contractor-cell"><span>{contractor.initials}</span><div><strong>{contractor.name}</strong><small>{contractor.trade} · {contractor.location}</small></div></div></td>
+                        <td><div className="directory-detail"><strong>{contractor.contactName}</strong><small>{contractor.mobile}</small></div></td>
+                        <td><div className="directory-detail"><strong>{contractor.officePhone}</strong><small>{contractor.email}</small></div></td>
                         <td><span className={`status ${contractor.status.toLowerCase().replace(" ", "-")}`}><i />{contractor.status}</span><small className="expiry">Until {contractor.expiry}</small></td>
+                        <td><span className="directory-date">{contractor.preqDate}</span></td>
                         <td><div className="score"><strong>{contractor.score}</strong><span><i style={{ width: `${contractor.score}%` }} /></span></div></td>
+                        <td><span className="directory-date">{contractor.approvalDate}</span></td>
                         <td><span className="grade">CIDB {contractor.grade}</span></td>
                         <td><button className="project-link project-count" onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setShowProjectPanel(true); }}>{contractor.projects.filter((project) => project.status === "Completed").length} completed →</button></td>
                         <td><button className="project-link project-count ongoing" onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setShowProjectPanel(true); }}>{contractor.projects.filter((project) => project.status === "Ongoing").length} ongoing →</button></td>
                         <td><button className="preq-owner-button" onClick={(event) => { event.stopPropagation(); setEditingPreqOwner(contractor); }}><strong>{contractor.preqDoneBy}</strong><span>Edit company</span></button></td>
                         <td><small className="updated">{contractor.updated}</small></td>
-                        <td><button className="more" aria-label={`More actions for ${contractor.name}`} onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setProfileTab("overview"); setShowProfile(true); }}>•••</button></td>
+                        <td><div className="directory-actions"><button onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setShowProjectPanel(true); }}>Open projects</button><button onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setShowReportRequest(true); }}>Request report</button></div></td>
                       </tr>
                     );
                   })}
@@ -617,7 +664,7 @@ export default function Home() {
                   <div className="project-group-items">{ongoingProjects.length ? ongoingProjects.map(renderProjectCard) : <p className="no-projects">No ongoing projects recorded.</p>}</div>
                 </section>
               </div>
-              <button className="view-profile" onClick={() => { setProfileTab("overview"); setShowProfile(true); }}>View full contractor profile →</button>
+              <div className="panel-actions"><button className="view-profile" onClick={() => { setProfileTab("overview"); setShowProfile(true); }}>View contractor profile →</button><button className="request-report-button" onClick={() => setShowReportRequest(true)}>Request full detail report</button></div>
             </aside>}
           </div>
         </section>
@@ -714,15 +761,17 @@ export default function Home() {
                       <div><dt>Date incorporated</dt><dd>{activeDetails.incorporated}</dd></div>
                       <div><dt>Number of employees</dt><dd>{activeDetails.employees}</dd></div>
                       <div className="wide"><dt>Registered address</dt><dd>{activeDetails.address}</dd></div>
-                      <div><dt>General email</dt><dd>{activeDetails.email}</dd></div>
-                      <div><dt>Telephone</dt><dd>{activeDetails.phone}</dd></div>
+                      <div><dt>Contact person</dt><dd>{activeContractor.contactName}</dd></div>
+                      <div><dt>Mobile number</dt><dd>{activeContractor.mobile}</dd></div>
+                      <div><dt>Office number</dt><dd>{activeContractor.officePhone}</dd></div>
+                      <div><dt>Email address</dt><dd>{activeContractor.email}</dd></div>
                     </dl>
                   </section>
 
                   <section className="profile-card preq-card">
                     <div className="card-heading"><div><p className="eyebrow">LATEST ASSESSMENT</p><h3>Pre-qualification result</h3></div><span className="score-pill">{activeContractor.score}%</span></div>
                     <div className="score-ring" style={{ "--score": `${activeContractor.score * 3.6}deg` } as React.CSSProperties}><div><strong>{activeContractor.score}</strong><span>out of 100</span></div></div>
-                    <div className="preq-mini"><div><span>Required passing score</span><strong>65%</strong></div><div><span>Review decision</span><strong className="positive">{activeContractor.status}</strong></div><div><span>Assessment date</span><strong>18 Mar 2026</strong></div></div>
+                    <div className="preq-mini"><div><span>Required passing score</span><strong>65%</strong></div><div><span>Review decision</span><strong className="positive">{activeContractor.status}</strong></div><div><span>Assessment date</span><strong>{activeContractor.preqDate}</strong></div><div><span>Approval date</span><strong>{activeContractor.approvalDate}</strong></div></div>
                     <button className="secondary-button full-width" onClick={() => setProfileTab("preq")}>View scoring breakdown</button>
                   </section>
 
@@ -733,7 +782,7 @@ export default function Home() {
                   </section>
 
                   <section className="profile-card experience-card">
-                    <div className="card-heading"><div><p className="eyebrow">PROJECT EXPERIENCE</p><h3>Recent relevant work</h3></div><button onClick={() => setProfileTab("projects")}>View all →</button></div>
+                    <div className="card-heading"><div><p className="eyebrow">PROJECT EXPERIENCE</p><h3>Recent relevant work</h3></div><div className="card-heading-actions"><button onClick={() => setShowUpload(true)}>Import list</button><button onClick={() => setProfileTab("projects")}>View all →</button></div></div>
                     <div className="experience-list">{activeContractor.projects.slice(0, 3).map((project) => <article key={project.id}><span className={project.status === "Completed" ? "complete-dot" : "ongoing-dot"} /><div><strong>{project.name}</strong><p>{project.client} · {project.location}</p></div><div><strong>{money(project.value)}</strong><p>{project.period}</p></div></article>)}</div>
                   </section>
                 </div>
@@ -754,7 +803,7 @@ export default function Home() {
               {profileTab === "projects" && (
                 <div className="profile-single-column">
                   <section className="profile-card profile-projects-card">
-                    <div className="card-heading"><div><p className="eyebrow">VERIFIED EXPERIENCE</p><h3>Relevant project portfolio</h3></div><button className="primary-button" onClick={() => setShowAddProject(true)}>＋ Add project</button></div>
+                    <div className="card-heading"><div><p className="eyebrow">VERIFIED EXPERIENCE</p><h3>Relevant project portfolio</h3></div><div className="card-heading-actions"><button className="secondary-button" onClick={() => setShowUpload(true)}>⇧ Import project list</button><button className="primary-button" onClick={() => setShowAddProject(true)}>＋ Add project</button></div></div>
                     <div className="profile-project-groups">
                       <section className="profile-project-group">
                         <div className="profile-project-group-heading"><div><span className="completed-mark">✓</span><div><h4>Completed projects</h4><p>Finished work available as proven experience</p></div></div><b>{completedProjects.length}</b></div>
@@ -796,9 +845,9 @@ export default function Home() {
         <div className="modal-backdrop nested-modal" role="presentation" onMouseDown={() => setShowAddContractor(false)}>
           <form className="modal form-modal" onSubmit={handleAddContractor} onMouseDown={(event) => event.stopPropagation()}>
             <button type="button" className="modal-close" onClick={() => setShowAddContractor(false)} aria-label="Close">×</button>
-            <p className="eyebrow">DEMONSTRATION RECORD</p><h2>Add contractor</h2><p>This record remains only until the page is refreshed.</p>
-            <div className="form-grid"><label className="wide">Company name<input name="name" required placeholder="Legal company name" /></label><label>Trade<select name="trade" defaultValue="Piling & foundation"><option>Piling & foundation</option><option>Building works</option></select></label><label>CIDB grade<select name="grade" defaultValue="G7"><option>G7</option><option>G6</option><option>G5</option><option>G4</option></select></label><label>Location<select name="location" defaultValue="Johor"><option>Johor</option><option>Selangor</option><option>Kuala Lumpur</option></select></label></div>
-            <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setShowAddContractor(false)}>Cancel</button><button className="primary-button" type="submit">Add contractor</button></div>
+            <p className="eyebrow">BASIC CONTRACTOR INFORMATION</p><h2>Create contractor profile</h2><p>After creating the profile, import its project list and review the completed and ongoing projects.</p>
+            <div className="form-grid"><label className="wide">Company name<input name="name" required placeholder="Legal company name" /></label><label>Trade<input name="trade" required placeholder="e.g. Landscape" /></label><label>Contact name<input name="contactName" required placeholder="Mr / Ms and name" /></label><label>Mobile / handphone number<input name="mobile" type="tel" required /></label><label>Office number<input name="officePhone" type="tel" required /></label><label className="wide">Email address<input name="email" type="email" required placeholder="company@example.com" /></label><label>Pre-Q date<input name="preqDate" type="date" required /></label><label>Pre-Q score<input name="score" type="number" min="0" max="100" defaultValue="0" required /></label><label>Approval date<input name="approvalDate" type="date" /></label><label>CIDB grade<select name="grade" defaultValue="G7"><option>G7</option><option>G6</option><option>G5</option><option>G4</option><option>Not provided</option></select></label><label>Location<select name="location" defaultValue="Johor"><option>Johor</option><option>Selangor</option><option>Kuala Lumpur</option><option>Other</option></select></label></div>
+            <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setShowAddContractor(false)}>Cancel</button><button className="primary-button" type="submit">Create profile</button></div>
           </form>
         </div>
       )}
@@ -808,7 +857,7 @@ export default function Home() {
           <form className="modal form-modal" onSubmit={handleEditProfile} onMouseDown={(event) => event.stopPropagation()}>
             <button type="button" className="modal-close" onClick={() => setShowEditProfile(false)} aria-label="Close">×</button>
             <p className="eyebrow">EDIT CONTRACTOR</p><h2>Profile information</h2>
-            <div className="form-grid"><label className="wide">Company name<input name="name" required defaultValue={activeContractor.name} /></label><label>Trade<input name="trade" required defaultValue={activeContractor.trade} /></label><label>CIDB grade<input name="grade" required defaultValue={activeContractor.grade} /></label><label>Location<input name="location" required defaultValue={activeContractor.location} /></label></div>
+            <div className="form-grid"><label className="wide">Company name<input name="name" required defaultValue={activeContractor.name} /></label><label>Trade<input name="trade" required defaultValue={activeContractor.trade} /></label><label>Contact name<input name="contactName" required defaultValue={activeContractor.contactName} /></label><label>Mobile number<input name="mobile" required defaultValue={activeContractor.mobile} /></label><label>Office number<input name="officePhone" required defaultValue={activeContractor.officePhone} /></label><label className="wide">Email address<input name="email" type="email" required defaultValue={activeContractor.email} /></label><label>CIDB grade<input name="grade" required defaultValue={activeContractor.grade} /></label><label>Location<input name="location" required defaultValue={activeContractor.location} /></label></div>
             <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setShowEditProfile(false)}>Cancel</button><button className="primary-button" type="submit">Save changes</button></div>
           </form>
         </div>
@@ -850,12 +899,26 @@ export default function Home() {
         </div>
       )}
 
+      {showReportRequest && (
+        <div className="modal-backdrop nested-modal" role="presentation" onMouseDown={() => setShowReportRequest(false)}>
+          <form className="modal form-modal report-request-modal" onSubmit={(event) => { event.preventDefault(); setShowReportRequest(false); notify(`Full detail report request submitted for ${activeContractor.name}.`); }} onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" type="button" onClick={() => setShowReportRequest(false)} aria-label="Close">×</button>
+            <p className="eyebrow">CONTROLLED ACCESS</p><h2>Request full detail report</h2>
+            <p>The basic contractor information and project list remain visible to group users. Restricted documents and the full report require approval.</p>
+            <div className="request-contractor-card"><span>{activeContractor.initials}</span><div><strong>{activeContractor.name}</strong><small>{activeContractor.trade} · Pre-Q score {activeContractor.score}</small></div></div>
+            <div className="form-grid"><label className="wide">Reason for request<select name="reason" required><option>Contractor nomination</option><option>Pre-Q review</option><option>Project tender evaluation</option><option>Audit / compliance review</option></select></label><label className="wide">Additional note<textarea name="note" rows={3} placeholder="Project name or purpose of access" /></label></div>
+            <div className="privacy-strip"><span>◇</span><p><strong>Approval-controlled</strong>The request will be sent to the contractor record owner. Opening or downloading restricted files will be logged.</p></div>
+            <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setShowReportRequest(false)}>Cancel</button><button className="primary-button" type="submit">Submit request</button></div>
+          </form>
+        </div>
+      )}
+
       {showUpload && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setShowUpload(false)}>
           <section className="modal" role="dialog" aria-modal="true" aria-labelledby="upload-title" onMouseDown={(event) => event.stopPropagation()}>
             <button className="modal-close" onClick={() => setShowUpload(false)} aria-label="Close">×</button>
-            <span className="modal-symbol">⇧</span><p className="eyebrow">AI-ASSISTED IMPORT</p><h2 id="upload-title">Upload contractor documents</h2>
-            <p>Project lists will be extracted into structured records and held for your review before publishing.</p>
+            <span className="modal-symbol">⇧</span><p className="eyebrow">AI-ASSISTED IMPORT</p><h2 id="upload-title">Import project list</h2>
+            <p>Upload the project list for <strong>{activeContractor.name}</strong>. The system will separate completed and ongoing projects, then hold the extracted information for review before publishing.</p>
             <label className="dropzone"><input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx" onChange={(event) => setUploadedFile(event.target.files?.[0]?.name ?? "")} /><strong>{uploadedFile || "Drop a PDF, Word or Excel file here"}</strong><span>{uploadedFile ? "Ready for extraction review" : "or click to browse · Maximum 50 MB"}</span></label>
             <div className="privacy-strip"><span>♢</span><p><strong>Private processing</strong>In production, files remain in your group SharePoint and only approved users can open them.</p></div>
             <div className="modal-actions"><button className="secondary-button" onClick={() => setShowUpload(false)}>Cancel</button><button className="primary-button" disabled={!uploadedFile} onClick={() => { notify(`${uploadedFile} queued for demonstration extraction.`); setUploadedFile(""); setShowUpload(false); setActiveSection("imports"); }}>Start extraction</button></div>
