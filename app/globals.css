@@ -407,6 +407,34 @@ td { height: 80px; font-size: 12px; }
 .group-project-scope { color: #667586; line-height: 1.55; }
 .group-project-empty { min-height: 220px; display: grid; place-content: center; gap: 7px; color: var(--muted); text-align: center; }
 .group-project-empty strong { color: var(--ink); font-size: 15px; }
+.group-register-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.group-register-stats article { min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 18px; background: white; }
+.group-register-stats small, .group-register-stats strong, .group-register-stats span { display: block; }
+.group-register-stats small { color: #84909e; font-size: 9px; font-weight: 750; letter-spacing: .06em; }
+.group-register-stats strong { margin-top: 7px; color: var(--ink); font-family: Georgia, serif; font-size: 25px; }
+.group-register-stats span { margin-top: 4px; color: #7e8997; font-size: 10px; }
+.group-register-card { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: white; }
+.group-register-toolbar { display: grid; grid-template-columns: minmax(300px, 1fr) 260px; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--line); background: #fbfcfc; }
+.group-register-toolbar .search-box { height: 42px; background: white; }
+.group-register-toolbar .search-box button { border: 0; background: transparent; color: var(--teal); font-size: 9px; font-weight: 700; }
+.group-register-toolbar select { height: 42px; border: 1px solid #dbe0e6; border-radius: 7px; padding: 0 11px; background: white; color: #596679; font-size: 10px; }
+.group-register-table-wrap { overflow: auto; }
+.group-register-table { min-width: 1250px; table-layout: fixed; white-space: normal; }
+.group-register-table th { position: sticky; z-index: 2; top: 0; height: 46px; }
+.group-register-table th button { width: 100%; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; font-weight: 750; letter-spacing: inherit; text-align: left; text-transform: uppercase; }
+.group-register-table th button:hover { color: var(--teal); }
+.group-register-table th:nth-child(1) { width: 17%; }
+.group-register-table th:nth-child(2) { width: 16%; }
+.group-register-table th:nth-child(3) { width: 17%; }
+.group-register-table th:nth-child(4) { width: 24%; }
+.group-register-table th:nth-child(5) { width: 10%; }
+.group-register-table th:nth-child(6) { width: 6%; }
+.group-register-table th:nth-child(7) { width: 10%; }
+.group-register-table td { height: auto; min-height: 70px; padding: 14px 10px; vertical-align: top; color: #526175; font-size: 10px; line-height: 1.5; white-space: normal; }
+.group-register-table td strong { color: #263a4d; }
+.group-register-table .group-company-name { color: var(--teal); }
+.group-register-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+.group-register-footer button { border: 0; background: transparent; color: var(--teal); font-size: 10px; font-weight: 700; }
 .project-table-title { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 28px 16px; border-bottom: 1px solid var(--line); }
 .project-table-title h2 { margin: 0; }
 .project-table-title p:last-child { margin: 5px 0 0; color: #778594; font-size: 11px; }
@@ -733,6 +761,8 @@ td { height: 80px; font-size: 12px; }
   .matcher-title > div:last-child { display: none; }
   .matcher-controls { grid-template-columns: 1fr; overflow-y: auto; }
   .matcher-range-grid { grid-template-columns: 1fr 1fr; }
+  .group-register-stats { grid-template-columns: 1fr; }
+  .group-register-footer { align-items: flex-start; flex-direction: column; }
 }
 
 .overview-actions { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: white; }
@@ -786,4 +816,11 @@ td { height: 80px; font-size: 12px; }
   .add-company-form { align-items: stretch; flex-direction: column; }
   .company-name-row { grid-template-columns: 34px minmax(160px, 1fr); }
   .company-row-actions { grid-column: 2; justify-content: flex-start; }
+  .group-register-stats { grid-template-columns: 1fr 1fr; }
+  .group-register-toolbar { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 620px) {
+  .group-register-stats { grid-template-columns: 1fr; }
+  .group-register-footer { align-items: flex-start; flex-direction: column; }
 }

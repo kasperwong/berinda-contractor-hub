@@ -64,6 +64,7 @@ type ContractorImportRow = {
 
 type ProjectSortKey = "name" | "client" | "location" | "value" | "period" | "progress" | "sourcePage";
 type ContractorSortKey = "name" | "contactName" | "grade" | "score" | "status" | "approvalDate" | "projects" | "groupProjects";
+type GroupProjectSortKey = "groupCompany" | "contractorName" | "name" | "scope" | "value" | "year" | "location";
 
 function parseContractorDate(value: string) {
   const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`) : new Date(value);
@@ -335,6 +336,9 @@ export default function Home() {
   const [newCompanyName, setNewCompanyName] = useState("");
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [editingCompanyName, setEditingCompanyName] = useState("");
+  const [groupProjectQuery, setGroupProjectQuery] = useState("");
+  const [groupProjectCompanyFilter, setGroupProjectCompanyFilter] = useState("All companies");
+  const [groupProjectSort, setGroupProjectSort] = useState<{ key: GroupProjectSortKey; direction: "asc" | "desc" }>({ key: "year", direction: "desc" });
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All status");
   const [tradeFilter, setTradeFilter] = useState("All trades");
@@ -346,7 +350,7 @@ export default function Home() {
   const [selectedProjects, setSelectedProjects] = useState<string[]>([
     initialContractors[0].projects[0].id,
   ]);
-  const [activeSection, setActiveSection] = useState<"overview" | "add" | "contractors" | "nominations" | "imports" | "reports" | "settings">("overview");
+  const [activeSection, setActiveSection] = useState<"overview" | "add" | "contractors" | "groupProjects" | "nominations" | "imports" | "reports" | "settings">("overview");
   const [showProjectPanel, setShowProjectPanel] = useState(false);
   const [projectListStatus, setProjectListStatus] = useState<"All" | "Completed" | "Ongoing" | null>(null);
   const [showUpload, setShowUpload] = useState(false);
@@ -410,6 +414,23 @@ export default function Home() {
     const comparison = typeof aValue === "number" && typeof bValue === "number" ? aValue - bValue : String(aValue).localeCompare(String(bValue), undefined, { numeric: true });
     return contractorSort.direction === "asc" ? comparison : -comparison;
   });
+  const allGroupProjectRecords = contractorRows.flatMap((contractor) =>
+    (groupCompanyProjects[contractor.id] ?? []).map((project) => ({ ...project, contractorName: contractor.name, contractorId: contractor.id })),
+  );
+  const filteredGroupProjectRecords = allGroupProjectRecords.filter((project) => {
+    const search = groupProjectQuery.trim().toLowerCase();
+    const matchesSearch = !search || [project.groupCompany, project.contractorName, project.name, project.scope, project.location, String(project.value), String(project.year)].some((value) => value.toLowerCase().includes(search));
+    const matchesCompany = groupProjectCompanyFilter === "All companies" || project.groupCompany === groupProjectCompanyFilter;
+    return matchesSearch && matchesCompany;
+  });
+  const sortedGroupProjectRecords = [...filteredGroupProjectRecords].sort((a, b) => {
+    const aValue = a[groupProjectSort.key];
+    const bValue = b[groupProjectSort.key];
+    const comparison = typeof aValue === "number" && typeof bValue === "number" ? aValue - bValue : String(aValue).localeCompare(String(bValue), undefined, { numeric: true });
+    return groupProjectSort.direction === "asc" ? comparison : -comparison;
+  });
+  const groupProjectTotalValue = filteredGroupProjectRecords.reduce((total, project) => total + project.value, 0);
+  const groupProjectCompanies = Array.from(new Set(allGroupProjectRecords.map((project) => project.groupCompany))).sort();
 
   const chosenProjectRecords = contractorRows.flatMap((contractor) =>
     contractor.projects
@@ -471,6 +492,7 @@ export default function Home() {
     overview: "Overview",
     add: "Add contractor",
     contractors: "Find contractors",
+    groupProjects: "Group projects & contracts",
     nominations: "Combined report & export",
     imports: "Document imports",
     reports: "Reports",
@@ -569,6 +591,22 @@ export default function Home() {
 
   function contractorSortIndicator(key: ContractorSortKey) {
     return contractorSort.key === key ? (contractorSort.direction === "asc" ? " ↑" : " ↓") : " ↕";
+  }
+
+  function sortGroupProjects(key: GroupProjectSortKey) {
+    setGroupProjectSort((current) => current.key === key ? { key, direction: current.direction === "asc" ? "desc" : "asc" } : { key, direction: "asc" });
+  }
+
+  function groupProjectSortIndicator(key: GroupProjectSortKey) {
+    return groupProjectSort.key === key ? (groupProjectSort.direction === "asc" ? " ↑" : " ↓") : " ↕";
+  }
+
+  function exportGroupProjectCsv() {
+    const rows = sortedGroupProjectRecords.map((project) => [project.groupCompany, project.contractorName, project.name, project.scope, project.value, project.year, project.location]);
+    const csv = [["Group Company", "Contractor", "Project", "Scope", "Contract Value (RM)", "Year", "Location"], ...rows]
+      .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
+      .join("\n");
+    downloadFile("group-projects-and-contracts.csv", csv, "text/csv;charset=utf-8");
   }
 
   function importedDate(value: unknown) {
@@ -822,6 +860,7 @@ export default function Home() {
           <button className={`nav-item ${activeSection === "overview" ? "active" : ""}`} onClick={() => setActiveSection("overview")}><span>⌂</span>Overview</button>
           <button className={`nav-item ${activeSection === "add" ? "active" : ""}`} onClick={() => setActiveSection("add")}><span>＋</span>Add contractor</button>
           <button className={`nav-item ${activeSection === "contractors" ? "active" : ""}`} onClick={() => setActiveSection("contractors")}><span>▦</span>Find contractors <b>{contractorRows.length}</b></button>
+          <button className={`nav-item ${activeSection === "groupProjects" ? "active" : ""}`} onClick={() => setActiveSection("groupProjects")}><span>▥</span>Group projects <b>{allGroupProjectRecords.length}</b></button>
           <button className={`nav-item ${activeSection === "nominations" ? "active" : ""}`} onClick={() => setActiveSection("nominations")}><span>▤</span>Combined report</button>
           <button className={`nav-item ${activeSection === "imports" ? "active" : ""}`} onClick={() => setActiveSection("imports")}><span>⇧</span>Imports</button>
         </nav>
@@ -945,6 +984,12 @@ export default function Home() {
             {activeSection === "add" && <>
               <div className="module-hero"><div><p className="eyebrow">PAGE 2 · NEW DATABASE RECORD</p><h2>Add a contractor</h2><p>Create the basic profile first. The contractor will receive a three-year validation period by default.</p></div><button className="primary-button" onClick={() => setShowAddContractor(true)}>＋ Open contractor form</button></div>
               <div className="add-page-grid"><section><span>1</span><div><h3>Create basic record</h3><p>Enter company name, contact, CIDB grade, Pre-Q score, approval date and other required database fields.</p></div></section><section><span>2</span><div><h3>Import project experience</h3><p>After the record is created, import completed and ongoing project lists from PDF, Word or Excel.</p></div></section><section><span>3</span><div><h3>Control full documents</h3><p>Keep detailed documents protected in SharePoint. Database users request access when needed.</p></div></section></div>
+            </>}
+
+            {activeSection === "groupProjects" && <>
+              <div className="module-hero"><div><p className="eyebrow">GROUP EXPERIENCE REGISTER</p><h2>Projects and contracts related to our companies</h2><p>A consolidated register of contractor work carried out for companies within the group.</p></div><button className="primary-button" onClick={exportGroupProjectCsv}>Download register CSV</button></div>
+              <div className="group-register-stats"><article><small>PROJECTS / CONTRACTS</small><strong>{filteredGroupProjectRecords.length}</strong><span>Matching current filters</span></article><article><small>GROUP COMPANIES</small><strong>{new Set(filteredGroupProjectRecords.map((project) => project.groupCompany)).size}</strong><span>Companies represented</span></article><article><small>CONTRACTORS</small><strong>{new Set(filteredGroupProjectRecords.map((project) => project.contractorId)).size}</strong><span>Contractors engaged</span></article><article><small>COMBINED CONTRACT VALUE</small><strong>{money(groupProjectTotalValue)}</strong><span>Recorded project value</span></article></div>
+              <section className="group-register-card"><div className="group-register-toolbar"><label className="search-box"><span>⌕</span><input value={groupProjectQuery} onChange={(event) => setGroupProjectQuery(event.target.value)} placeholder="Search company, contractor, project, scope, location or year..." />{groupProjectQuery && <button type="button" onClick={() => setGroupProjectQuery("")}>Clear</button>}</label><select value={groupProjectCompanyFilter} onChange={(event) => setGroupProjectCompanyFilter(event.target.value)} aria-label="Filter group projects by company"><option>All companies</option>{groupProjectCompanies.map((company) => <option key={company}>{company}</option>)}</select></div><div className="group-register-table-wrap"><table className="group-register-table"><thead><tr><th><button onClick={() => sortGroupProjects("groupCompany")}>Our company{groupProjectSortIndicator("groupCompany")}</button></th><th><button onClick={() => sortGroupProjects("contractorName")}>Contractor{groupProjectSortIndicator("contractorName")}</button></th><th><button onClick={() => sortGroupProjects("name")}>Project{groupProjectSortIndicator("name")}</button></th><th><button onClick={() => sortGroupProjects("scope")}>Scope{groupProjectSortIndicator("scope")}</button></th><th><button onClick={() => sortGroupProjects("value")}>Contract value{groupProjectSortIndicator("value")}</button></th><th><button onClick={() => sortGroupProjects("year")}>Year{groupProjectSortIndicator("year")}</button></th><th><button onClick={() => sortGroupProjects("location")}>Location{groupProjectSortIndicator("location")}</button></th></tr></thead><tbody>{sortedGroupProjectRecords.map((project) => <tr key={project.id}><td><strong className="group-company-name">{project.groupCompany}</strong></td><td><strong>{project.contractorName}</strong></td><td><strong>{project.name}</strong></td><td><span>{project.scope}</span></td><td><strong>{money(project.value)}</strong></td><td>{project.year}</td><td>{project.location}</td></tr>)}</tbody></table>{!sortedGroupProjectRecords.length && <div className="group-project-empty"><strong>No matching projects or contracts</strong><span>Try changing the search or company filter.</span></div>}</div><footer className="group-register-footer"><span>Showing {sortedGroupProjectRecords.length} of {allGroupProjectRecords.length} group-related projects and contracts</span><button onClick={() => { setGroupProjectQuery(""); setGroupProjectCompanyFilter("All companies"); }}>Clear filters</button></footer></section>
             </>}
 
             {activeSection === "nominations" && <>
