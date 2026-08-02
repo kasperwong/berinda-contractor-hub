@@ -52,6 +52,7 @@ type ContractorImportRow = {
 };
 
 type ProjectSortKey = "name" | "client" | "location" | "value" | "period" | "progress" | "sourcePage";
+type ContractorSortKey = "name" | "trade" | "grade" | "score" | "status" | "approvalDate" | "projects" | "preqDoneBy";
 
 const initialContractors: Contractor[] = [
   {
@@ -307,6 +308,13 @@ export default function Home() {
   const [contractorImportFile, setContractorImportFile] = useState("");
   const [contractorImportError, setContractorImportError] = useState("");
   const [projectSort, setProjectSort] = useState<{ key: ProjectSortKey; direction: "asc" | "desc" }>({ key: "name", direction: "asc" });
+  const [contractorSort, setContractorSort] = useState<{ key: ContractorSortKey; direction: "asc" | "desc" }>({ key: "name", direction: "asc" });
+  const [showProjectMatcher, setShowProjectMatcher] = useState(false);
+  const [matcherScope, setMatcherScope] = useState("");
+  const [matcherMinCost, setMatcherMinCost] = useState("");
+  const [matcherMaxCost, setMatcherMaxCost] = useState("");
+  const [matcherFromYear, setMatcherFromYear] = useState("");
+  const [matcherToYear, setMatcherToYear] = useState("");
   const addContractorFormRef = useRef<HTMLFormElement>(null);
 
   const filtered = useMemo(() => {
@@ -328,6 +336,18 @@ export default function Home() {
       return matchesSearch && matchesStatus && matchesTrade && matchesLocation;
     });
   }, [contractorRows, locationFilter, query, statusFilter, tradeFilter]);
+  const sortedContractors = [...filtered].sort((a, b) => {
+    const value = (contractor: Contractor) => {
+      if (contractorSort.key === "projects") return contractor.projects.length;
+      if (contractorSort.key === "grade") return Number(contractor.grade.replace(/\D/g, "")) || 0;
+      if (contractorSort.key === "approvalDate") return Date.parse(contractor.approvalDate) || 0;
+      return contractor[contractorSort.key];
+    };
+    const aValue = value(a);
+    const bValue = value(b);
+    const comparison = typeof aValue === "number" && typeof bValue === "number" ? aValue - bValue : String(aValue).localeCompare(String(bValue), undefined, { numeric: true });
+    return contractorSort.direction === "asc" ? comparison : -comparison;
+  });
 
   const chosenProjectRecords = contractorRows.flatMap((contractor) =>
     contractor.projects
@@ -364,6 +384,23 @@ export default function Home() {
     const comparison = typeof aValue === "number" && typeof bValue === "number" ? aValue - bValue : String(aValue).localeCompare(String(bValue), undefined, { numeric: true });
     return projectSort.direction === "asc" ? comparison : -comparison;
   });
+  const matcherStopWords = new Set(["and", "the", "for", "with", "from", "this", "that", "work", "works", "proposed", "construction", "completion", "unit", "units", "project", "of", "to", "at", "on", "di", "dan", "yang", "atas", "bagi", "untuk", "dengan"]);
+  const matcherTerms = Array.from(new Set(matcherScope.toLowerCase().match(/[a-z0-9]+/g)?.filter((term) => term.length > 2 && !matcherStopWords.has(term)) ?? []));
+  const relevantProjectMatches = contractorRows.flatMap((contractor) => contractor.projects.map((project) => {
+    const projectYear = Number(`${project.name} ${project.period}`.match(/\b(19|20)\d{2}\b/)?.[0] ?? 0);
+    const searchable = `${project.name} ${project.scope} ${project.client} ${project.location} ${project.status}`.toLowerCase();
+    const matchedTerms = matcherTerms.filter((term) => searchable.includes(term));
+    const coverage = matcherTerms.length ? matchedTerms.length / Math.min(matcherTerms.length, 18) : 0;
+    const phraseBonus = matcherScope.trim().length > 12 && searchable.includes(matcherScope.trim().toLowerCase()) ? 20 : 0;
+    const relevance = Math.min(99, Math.round(coverage * 100 + phraseBonus));
+    return { contractor, project, projectYear, relevance, matchedTerms };
+  })).filter((match) => {
+    const minCost = Number(matcherMinCost) || 0;
+    const maxCost = Number(matcherMaxCost) || Number.POSITIVE_INFINITY;
+    const fromYear = Number(matcherFromYear) || 0;
+    const toYear = Number(matcherToYear) || Number.POSITIVE_INFINITY;
+    return matcherTerms.length > 0 && match.relevance > 0 && match.project.value >= minCost && match.project.value <= maxCost && match.projectYear >= fromYear && match.projectYear <= toYear;
+  }).sort((a, b) => b.relevance - a.relevance || b.project.value - a.project.value).slice(0, 100);
 
   const sectionTitles = {
     overview: "Overview",
@@ -416,6 +453,14 @@ export default function Home() {
 
   function sortIndicator(key: ProjectSortKey) {
     return projectSort.key === key ? (projectSort.direction === "asc" ? " ↑" : " ↓") : " ↕";
+  }
+
+  function sortContractors(key: ContractorSortKey) {
+    setContractorSort((current) => current.key === key ? { key, direction: current.direction === "asc" ? "desc" : "asc" } : { key, direction: "asc" });
+  }
+
+  function contractorSortIndicator(key: ContractorSortKey) {
+    return contractorSort.key === key ? (contractorSort.direction === "asc" ? " ↑" : " ↓") : " ↕";
   }
 
   function importedDate(value: unknown) {
@@ -620,6 +665,13 @@ export default function Home() {
     );
   }
 
+  function toggleMatchedProject(contractor: Contractor, id: string) {
+    const adding = !selectedProjects.includes(id);
+    setActiveContractor(contractor);
+    if (adding) setSelectedContractors((current) => current.includes(contractor.id) ? current : [...current, contractor.id]);
+    setSelectedProjects((current) => current.includes(id) ? current.filter((projectId) => projectId !== id) : [...current, id]);
+  }
+
   function renderProjectCard(project: Project) {
     const selected = selectedProjects.includes(project.id);
     return (
@@ -709,7 +761,7 @@ export default function Home() {
               <h2>Find qualified contractors</h2>
               <p>Compare group-approved contractors and select verified projects for nomination.</p>
             </div>
-            <span className="demo-badge">FRAME • SAMPLE DATA</span>
+            <div className="workspace-actions"><button className="secondary-button relevant-project-button" onClick={() => setShowProjectMatcher(true)}>⌕ Find relevant projects</button><span className="demo-badge">FRAME • SAMPLE DATA</span></div>
           </div>
 
           <div className="filters">
@@ -728,28 +780,22 @@ export default function Home() {
           <div className={`data-layout ${showProjectPanel ? "" : "panel-hidden"}`}>
             <div className="table-wrap">
               <table>
-                <thead><tr><th><span className="fake-check" /></th><th>Contractor name</th><th>Trade</th><th>Contact person</th><th>Phone / Email</th><th>Pre-Q status</th><th>Pre-Q date</th><th>Score</th><th>Approval date</th><th>Grade</th><th>Completed projects</th><th>Ongoing projects</th><th>Pre-Q done by</th><th>Updated</th><th /></tr></thead>
+                <thead><tr><th>Details</th><th><button className="directory-sortable" onClick={() => sortContractors("name")}>Contractor name{contractorSortIndicator("name")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("trade")}>Trade{contractorSortIndicator("trade")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("grade")}>CIDB grade{contractorSortIndicator("grade")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("score")}>Pre-Q score{contractorSortIndicator("score")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("status")}>Status / updated{contractorSortIndicator("status")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("approvalDate")}>Approval date{contractorSortIndicator("approvalDate")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("projects")}>Projects{contractorSortIndicator("projects")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("preqDoneBy")}>Pre-Q done by{contractorSortIndicator("preqDoneBy")}</button></th><th>Documents</th></tr></thead>
                 <tbody>
-                  {filtered.map((contractor) => {
-                    const isSelected = selectedContractors.includes(contractor.id);
+                  {sortedContractors.map((contractor) => {
                     const isActive = activeContractor.id === contractor.id;
                     return (
                       <tr key={contractor.id} className={isActive ? "active-row" : ""} onClick={() => setActiveContractor(contractor)}>
-                        <td><button aria-label={`${isSelected ? "Deselect" : "Select"} ${contractor.name}`} className={`row-check ${isSelected ? "checked" : ""}`} onClick={(event) => { event.stopPropagation(); toggleContractor(contractor); }}>{isSelected ? "✓" : ""}</button></td>
+                        <td><button className="details-button" onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setProfileTab("overview"); setShowProfile(true); }}>View details</button></td>
                         <td><div className="contractor-cell contractor-name-only"><strong>{contractor.name}</strong></div></td>
                         <td><div className="directory-detail"><strong>{contractor.trade}</strong><small>{contractor.location}</small></div></td>
-                        <td><div className="directory-detail"><strong>{contractor.contactName}</strong><small>{contractor.mobile}</small></div></td>
-                        <td><div className="directory-detail"><strong>{contractor.officePhone}</strong><small>{contractor.email}</small></div></td>
-                        <td><span className={`status ${contractor.status.toLowerCase().replace(" ", "-")}`}><i />{contractor.status}</span><small className="expiry">Until {contractor.expiry}</small></td>
-                        <td><span className="directory-date">{contractor.preqDate}</span></td>
-                        <td><div className="score"><strong>{contractor.score}</strong><span><i style={{ width: `${contractor.score}%` }} /></span></div></td>
-                        <td><span className="directory-date">{contractor.approvalDate}</span></td>
                         <td><span className="grade">CIDB {contractor.grade}</span></td>
-                        <td><button className="project-link project-count" onClick={(event) => { event.stopPropagation(); openProjectList(contractor, "Completed"); }}>{contractor.projects.filter((project) => project.status === "Completed").length} completed →</button></td>
-                        <td><button className="project-link project-count ongoing" onClick={(event) => { event.stopPropagation(); openProjectList(contractor, "Ongoing"); }}>{contractor.projects.filter((project) => project.status === "Ongoing").length} ongoing →</button></td>
+                        <td><div className="score"><strong>{contractor.score}</strong><span><i style={{ width: `${contractor.score}%` }} /></span></div></td>
+                        <td><span className={`status ${contractor.status.toLowerCase().replace(" ", "-")}`}><i />{contractor.status}</span><small className="expiry">Updated {contractor.updated}</small></td>
+                        <td><span className="directory-date">{contractor.approvalDate}</span></td>
+                        <td><div className="project-summary-buttons"><button className="project-link project-count" onClick={(event) => { event.stopPropagation(); openProjectList(contractor, "Completed"); }}>{contractor.projects.filter((project) => project.status === "Completed").length} completed →</button><button className="project-link project-count ongoing" onClick={(event) => { event.stopPropagation(); openProjectList(contractor, "Ongoing"); }}>{contractor.projects.filter((project) => project.status === "Ongoing").length} ongoing →</button></div></td>
                         <td><button className="preq-owner-button" onClick={(event) => { event.stopPropagation(); setEditingPreqOwner(contractor); }}><strong>{contractor.preqDoneBy}</strong><span>Edit company</span></button></td>
-                        <td><small className="updated">{contractor.updated}</small></td>
-                        <td><div className="directory-actions"><button onClick={(event) => { event.stopPropagation(); openProjectList(contractor, "All"); }}>Open projects</button><button onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setShowReportRequest(true); }}>Request report</button></div></td>
+                        <td><button className="request-documents-button" onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setShowReportRequest(true); }}>Request documents</button></td>
                       </tr>
                     );
                   })}
@@ -952,6 +998,19 @@ export default function Home() {
                 </div>
               )}
             </div>
+          </section>
+        </div>
+      )}
+
+      {showProjectMatcher && (
+        <div className="modal-backdrop matcher-backdrop" role="presentation" onMouseDown={() => setShowProjectMatcher(false)}>
+          <section className="modal matcher-modal" role="dialog" aria-modal="true" aria-labelledby="matcher-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" onClick={() => setShowProjectMatcher(false)} aria-label="Close relevant project finder">×</button>
+            <div className="matcher-title"><div><p className="eyebrow">RELEVANT EXPERIENCE FINDER</p><h2 id="matcher-title">Find the most relevant contractor projects</h2><p>Paste the proposed project scope. Results are ranked automatically using matching work types, project details, clients and locations.</p></div><div><strong>{relevantProjectMatches.length}</strong><span>MATCHING PROJECTS</span></div></div>
+            <div className="matcher-controls"><label className="matcher-scope">Proposed project scope<textarea value={matcherScope} onChange={(event) => setMatcherScope(event.target.value)} rows={5} placeholder="Paste the full proposed scope here, for example: piling and pile-cap works for a serviced apartment development in Johor Bahru..." /><span>The ranking updates automatically as you type.</span></label><div className="matcher-range-grid"><label>Minimum contract value (RM)<input type="number" min="0" value={matcherMinCost} onChange={(event) => setMatcherMinCost(event.target.value)} placeholder="No minimum" /></label><label>Maximum contract value (RM)<input type="number" min="0" value={matcherMaxCost} onChange={(event) => setMatcherMaxCost(event.target.value)} placeholder="No maximum" /></label><label>From year<input type="number" min="1990" max="2100" value={matcherFromYear} onChange={(event) => setMatcherFromYear(event.target.value)} placeholder="e.g. 2020" /></label><label>To year<input type="number" min="1990" max="2100" value={matcherToYear} onChange={(event) => setMatcherToYear(event.target.value)} placeholder="e.g. 2026" /></label><button type="button" onClick={() => { setMatcherMinCost(""); setMatcherMaxCost(""); setMatcherFromYear(""); setMatcherToYear(""); }}>Clear ranges</button></div></div>
+            <div className="matcher-result-head"><div><strong>Ranked relevant projects</strong><span>{matcherTerms.length ? `${matcherTerms.length} meaningful scope keywords analysed` : "Paste a scope to begin matching"}</span></div><span>Highest relevance first</span></div>
+            <div className="matcher-table-wrap">{matcherTerms.length ? <table className="matcher-table"><thead><tr><th>Select</th><th>Relevance</th><th>Contractor</th><th>Project and matching scope</th><th>Client / location</th><th>Value</th><th>Year</th></tr></thead><tbody>{relevantProjectMatches.map(({ contractor, project, projectYear, relevance, matchedTerms }) => { const selected = selectedProjects.includes(project.id); return <tr key={`${contractor.id}-${project.id}`}><td><button className={`row-check ${selected ? "checked" : ""}`} onClick={() => toggleMatchedProject(contractor, project.id)} aria-label={`${selected ? "Remove" : "Select"} ${project.name}`}>{selected ? "✓" : ""}</button></td><td><strong className="relevance-score">{relevance}%</strong></td><td><strong>{contractor.name}</strong><small>{contractor.trade} · CIDB {contractor.grade}</small></td><td><strong>{project.name}</strong><small>{project.scope}</small><div className="matched-terms">{matchedTerms.slice(0, 6).map((term) => <span key={term}>{term}</span>)}</div></td><td>{project.client}<small>{project.location}</small></td><td><strong>{money(project.value)}</strong></td><td>{projectYear || "-"}<small>{project.status}</small></td></tr>; })}</tbody></table> : <div className="matcher-empty"><strong>Paste a proposed scope to find relevant experience</strong><span>You can then narrow the results using contract-value and year ranges.</span></div>}{matcherTerms.length > 0 && !relevantProjectMatches.length && <div className="matcher-empty"><strong>No projects match the current scope and ranges</strong><span>Try widening the cost or year range.</span></div>}</div>
+            <div className="project-table-footer"><span>{selectedProjects.length} project{selectedProjects.length === 1 ? "" : "s"} selected for nomination</span><div><button className="secondary-button" onClick={() => setShowProjectMatcher(false)}>Close</button><button className="primary-button" disabled={!selectedProjects.length} onClick={() => { setShowProjectMatcher(false); setActiveSection("nominations"); notify(`${selectedProjects.length} project reference${selectedProjects.length === 1 ? "" : "s"} added to the nomination summary.`); }}>Add selected to nomination</button></div></div>
           </section>
         </div>
       )}
