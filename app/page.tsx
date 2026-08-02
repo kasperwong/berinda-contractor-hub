@@ -66,6 +66,34 @@ type ProjectSortKey = "name" | "client" | "location" | "value" | "period" | "pro
 type ContractorSortKey = "name" | "contactName" | "grade" | "score" | "status" | "approvalDate" | "projects" | "groupProjects";
 type GroupProjectSortKey = "groupCompany" | "contractorName" | "name" | "scope" | "value" | "year" | "location";
 
+const PROJECT_AI_PROMPT = `Read the attached contractor project-list document and extract every completed and ongoing project. Create a CSV file named contractor-projects.csv using exactly these columns in this order: Project Name, Scope, Client, Location, Contract Value RM, Commencement Date, Completion Date, Status, Progress, Source Page. Use one project per row. Status must be Completed or Ongoing. Contract Value RM must contain numbers only. Keep the original project scope wording. Leave a field blank when the source does not provide it. Do not invent information. Return the finished CSV file for download and no additional explanation.`;
+const CONTRACTOR_AI_PROMPT = `Read the attached contractor-list document and create a CSV file named contractor-list.csv using exactly these columns in this order: Contractor Name, Trade, Contact Name, Mobile, Office Phone, Email Address, Pre-Q Date, Pre-Q Score, Approval Date, CIDB Grade, Location. Use one contractor per row. Dates must use DD/MM/YYYY. Pre-Q Score must contain numbers only. Leave a field blank when the source does not provide it. Do not invent information. Return the finished CSV file for download and no additional explanation.`;
+
+function parseCsvRows(text: string) {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === '"' && quoted && text[index + 1] === '"') {
+      cell += '"';
+      index += 1;
+    } else if (character === '"') quoted = !quoted;
+    else if (character === "," && !quoted) { row.push(cell.trim()); cell = ""; }
+    else if ((character === "\n" || character === "\r") && !quoted) {
+      if (character === "\r" && text[index + 1] === "\n") index += 1;
+      row.push(cell.trim());
+      if (row.some(Boolean)) rows.push(row);
+      row = [];
+      cell = "";
+    } else cell += character;
+  }
+  row.push(cell.trim());
+  if (row.some(Boolean)) rows.push(row);
+  return rows;
+}
+
 function parseContractorDate(value: string) {
   const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`) : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
@@ -336,6 +364,17 @@ export default function Home() {
   const [newCompanyName, setNewCompanyName] = useState("");
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [editingCompanyName, setEditingCompanyName] = useState("");
+  const [groupValidationYears, setGroupValidationYears] = useState(3);
+  const [importTab, setImportTab] = useState<"projects" | "contractors">("projects");
+  const [importContractorSearch, setImportContractorSearch] = useState("");
+  const [selectedImportContractorId, setSelectedImportContractorId] = useState(initialContractors[0].id);
+  const [projectImportFile, setProjectImportFile] = useState("");
+  const [projectImportRows, setProjectImportRows] = useState<Project[]>([]);
+  const [projectImportError, setProjectImportError] = useState("");
+  const [selectedExportTrades, setSelectedExportTrades] = useState<string[]>([]);
+  const [exportLocation, setExportLocation] = useState("All locations");
+  const [exportMinCost, setExportMinCost] = useState("");
+  const [exportMaxCost, setExportMaxCost] = useState("");
   const [groupProjectQuery, setGroupProjectQuery] = useState("");
   const [groupProjectCompanyFilter, setGroupProjectCompanyFilter] = useState("All companies");
   const [groupProjectSort, setGroupProjectSort] = useState<{ key: GroupProjectSortKey; direction: "asc" | "desc" }>({ key: "year", direction: "desc" });
@@ -431,6 +470,18 @@ export default function Home() {
   });
   const groupProjectTotalValue = filteredGroupProjectRecords.reduce((total, project) => total + project.value, 0);
   const groupProjectCompanies = Array.from(new Set(allGroupProjectRecords.map((project) => project.groupCompany))).sort();
+  const availableTrades = Array.from(new Set(contractorRows.map((contractor) => contractor.trade))).sort();
+  const availableLocations = Array.from(new Set(contractorRows.map((contractor) => contractor.location))).sort();
+  const importContractorMatches = contractorRows.filter((contractor) => `${contractor.name} ${contractor.trade} ${contractor.location}`.toLowerCase().includes(importContractorSearch.trim().toLowerCase()));
+  const selectedImportContractor = contractorRows.find((contractor) => contractor.id === selectedImportContractorId) ?? contractorRows[0];
+  const exportContractors = contractorRows.filter((contractor) => {
+    const tradeMatches = !selectedExportTrades.length || selectedExportTrades.includes(contractor.trade);
+    const locationMatches = exportLocation === "All locations" || contractor.location === exportLocation;
+    const minimum = Number(exportMinCost) || 0;
+    const maximum = Number(exportMaxCost) || Number.POSITIVE_INFINITY;
+    const costMatches = !exportMinCost && !exportMaxCost || contractor.projects.some((project) => project.value >= minimum && project.value <= maximum);
+    return tradeMatches && locationMatches && costMatches;
+  });
 
   const chosenProjectRecords = contractorRows.flatMap((contractor) =>
     contractor.projects
@@ -495,7 +546,7 @@ export default function Home() {
     groupProjects: "Group projects & contracts",
     nominations: "Combined report & export",
     imports: "Document imports",
-    reports: "Reports",
+    reports: "Export",
     settings: "Settings",
   } as const;
 
@@ -528,11 +579,35 @@ export default function Home() {
     downloadFile("selected-contractor-report.doc", html, "application/msword");
   }
 
-  function updateValidationYears(contractor: Contractor, value: number) {
+  function updateGroupValidationYears(value: number) {
     const validationYears = Math.max(1, Math.min(10, Number.isFinite(value) ? value : 3));
-    const updated = { ...contractor, validationYears, updated: "Just now" };
-    setContractorRows((current) => current.map((item) => item.id === contractor.id ? updated : item));
-    if (activeContractor.id === contractor.id) setActiveContractor(updated);
+    setGroupValidationYears(validationYears);
+    setContractorRows((current) => current.map((contractor) => ({ ...contractor, validationYears, updated: "Just now" })));
+    setActiveContractor((current) => ({ ...current, validationYears, updated: "Just now" }));
+    notify(`${validationYears}-year validation period applied to all contractors.`);
+  }
+
+  async function copyImportPrompt(prompt: string, label: string) {
+    await navigator.clipboard.writeText(prompt);
+    notify(`${label} copied. Paste it into ChatGPT with the source document attached.`);
+  }
+
+  function downloadProjectTemplate() {
+    downloadFile("contractor-projects-template.csv", "Project Name,Scope,Client,Location,Contract Value RM,Commencement Date,Completion Date,Status,Progress,Source Page\n", "text/csv;charset=utf-8");
+  }
+
+  function downloadContractorTemplate() {
+    downloadFile("contractor-list-template.csv", "Contractor Name,Trade,Contact Name,Mobile,Office Phone,Email Address,Pre-Q Date,Pre-Q Score,Approval Date,CIDB Grade,Location\n", "text/csv;charset=utf-8");
+  }
+
+  function toggleExportTrade(trade: string) {
+    setSelectedExportTrades((current) => current.includes(trade) ? current.filter((item) => item !== trade) : [...current, trade]);
+  }
+
+  function exportFilteredContractors() {
+    const rows = exportContractors.map((contractor) => [contractor.name, contractor.trade, contractor.contactName, contractor.mobile, contractor.officePhone, contractor.email, contractor.grade, contractor.score, contractorValidity(contractor), contractor.approvalDate, formatValidationDate(contractor), contractor.location, contractor.projects.filter((project) => project.status === "Completed").length, contractor.projects.filter((project) => project.status === "Ongoing").length, contractor.projects.reduce((total, project) => total + project.value, 0)]);
+    const csv = [["Contractor", "Trade", "Contact Name", "Mobile", "Office Phone", "Email", "CIDB Grade", "Pre-Q Score", "Status", "Approval Date", "Valid Until", "Location", "Completed Projects", "Ongoing Projects", "Total Project Value RM"], ...rows].map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
+    downloadFile("filtered-contractor-list.csv", csv, "text/csv;charset=utf-8");
   }
 
   function addGroupCompany(event: React.FormEvent<HTMLFormElement>) {
@@ -627,8 +702,9 @@ export default function Home() {
       return;
     }
     try {
-      const { default: readXlsxFile } = await import("read-excel-file/browser");
-      const rows = await readXlsxFile(file);
+      const rows = file.name.toLowerCase().endsWith(".csv")
+        ? parseCsvRows(await file.text())
+        : await (await import("read-excel-file/browser")).default(file);
       if (rows.length < 2) throw new Error("The worksheet has no contractor rows.");
       const normalise = (value: unknown) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
       const headers = rows[0].map(normalise);
@@ -654,8 +730,57 @@ export default function Home() {
       setContractorImportRows(imported);
       notify(`${imported.length} contractor row${imported.length === 1 ? "" : "s"} read from ${file.name}.`);
     } catch (error) {
-      setContractorImportError(error instanceof Error ? error.message : "The Excel file could not be read.");
+      setContractorImportError(error instanceof Error ? error.message : "The contractor file could not be read.");
     }
+  }
+
+  async function handleProjectStandardFile(file: File | undefined) {
+    setProjectImportRows([]);
+    setProjectImportError("");
+    setProjectImportFile(file?.name ?? "");
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { setProjectImportError("Please use a CSV or Excel file smaller than 10 MB."); return; }
+    try {
+      const rows = file.name.toLowerCase().endsWith(".csv")
+        ? parseCsvRows(await file.text())
+        : await (await import("read-excel-file/browser")).default(file);
+      if (rows.length < 2) throw new Error("The file has no project rows.");
+      const normalise = (value: unknown) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const headers = rows[0].map(normalise);
+      const get = (row: unknown[], ...names: string[]) => { const index = headers.findIndex((header) => names.includes(header)); return index >= 0 ? row[index] : ""; };
+      const projects = rows.slice(1).filter((row) => row.some((cell) => String(cell ?? "").trim())).map((row, index): Project => {
+        const commencement = String(get(row, "commencementdate", "startdate", "commencement") ?? "").trim();
+        const completion = String(get(row, "completiondate", "enddate", "completion") ?? "").trim();
+        const statusText = String(get(row, "status", "projectstatus") ?? "Completed").toLowerCase();
+        return {
+          id: `imported-project-${Date.now()}-${index}`,
+          name: String(get(row, "projectname", "project", "title") ?? "").trim(),
+          scope: String(get(row, "scope", "projectscope", "description") ?? "").trim(),
+          client: String(get(row, "client", "clientname") ?? "").trim(),
+          location: String(get(row, "location", "projectlocation") ?? "").trim(),
+          value: Number(String(get(row, "contractvaluerm", "contractvalue", "value", "cost") ?? "0").replace(/[^0-9.-]/g, "")) || 0,
+          period: [commencement, completion].filter(Boolean).join(" – ") || "Not provided",
+          status: statusText.includes("ongoing") || statusText.includes("current") ? "Ongoing" : "Completed",
+          progress: String(get(row, "progress", "percentage") ?? "").trim() || undefined,
+          sourcePage: Number(get(row, "sourcepage", "page")) || undefined,
+        };
+      }).filter((project) => project.name);
+      if (!projects.length) throw new Error("No project names were found. Use the provided template columns.");
+      setProjectImportRows(projects);
+      notify(`${projects.length} project row${projects.length === 1 ? "" : "s"} read from ${file.name}.`);
+    } catch (error) {
+      setProjectImportError(error instanceof Error ? error.message : "The project file could not be read.");
+    }
+  }
+
+  function importProjectRowsToContractor() {
+    if (!selectedImportContractor || !projectImportRows.length) return;
+    const updated = { ...selectedImportContractor, projects: [...projectImportRows, ...selectedImportContractor.projects], updated: "Just now" };
+    setContractorRows((current) => current.map((contractor) => contractor.id === updated.id ? updated : contractor));
+    setActiveContractor(updated);
+    setProjectImportRows([]);
+    setProjectImportFile("");
+    notify(`${projectImportRows.length} projects imported to ${updated.name}.`);
   }
 
   function contractorFromImport(row: ContractorImportRow, index: number): Contractor {
@@ -677,7 +802,7 @@ export default function Home() {
       preqDoneBy: "Not assigned",
       preqDate: row.preqDate || "Not provided",
       approvalDate: row.approvalDate || "Pending",
-      validationYears: 3,
+      validationYears: groupValidationYears,
       projects: [],
     };
   }
@@ -727,7 +852,7 @@ export default function Home() {
       preqDoneBy: "Not assigned",
       preqDate: String(form.get("preqDate")),
       approvalDate: String(form.get("approvalDate")) || "Pending",
-      validationYears: 3,
+      validationYears: groupValidationYears,
       projects: [],
     };
     setContractorRows((current) => [contractor, ...current]);
@@ -863,6 +988,7 @@ export default function Home() {
           <button className={`nav-item ${activeSection === "groupProjects" ? "active" : ""}`} onClick={() => setActiveSection("groupProjects")}><span>▥</span>Group projects <b>{allGroupProjectRecords.length}</b></button>
           <button className={`nav-item ${activeSection === "nominations" ? "active" : ""}`} onClick={() => setActiveSection("nominations")}><span>▤</span>Combined report</button>
           <button className={`nav-item ${activeSection === "imports" ? "active" : ""}`} onClick={() => setActiveSection("imports")}><span>⇧</span>Imports</button>
+          <button className={`nav-item ${activeSection === "reports" ? "active" : ""}`} onClick={() => setActiveSection("reports")}><span>↓</span>Export</button>
         </nav>
 
         <div className="sidebar-bottom">
@@ -887,7 +1013,7 @@ export default function Home() {
           </div>
           <div className="top-actions">
             <button className="icon-button" aria-label="Notifications" onClick={() => setNotificationsOpen((current) => !current)}>♧<i>3</i></button>
-            <button className="secondary-button" onClick={() => setShowUpload(true)}>⇧ Upload documents</button>
+            <button className="secondary-button" onClick={() => setActiveSection("imports")}>⇧ Import data</button>
             <button className="primary-button" onClick={() => setActiveSection("add")}>＋ Add contractor</button>
           </div>
           {notificationsOpen && <div className="notification-popover"><strong>Notifications</strong><button onClick={() => { setActiveSection("contractors"); setStatusFilter("Expired"); setNotificationsOpen(false); }}>{totalExpiredContractors} expired contractor record{totalExpiredContractors === 1 ? "" : "s"}</button><button onClick={() => { setActiveSection("settings"); setNotificationsOpen(false); }}>Check contractor validation periods</button><button onClick={() => { setActiveSection("imports"); setNotificationsOpen(false); }}>1 document extraction is ready</button></div>}
@@ -998,20 +1124,21 @@ export default function Home() {
             </>}
 
             {activeSection === "imports" && <>
-              <div className="module-hero"><div><p className="eyebrow">AI-ASSISTED EXTRACTION</p><h2>Document imports</h2><p>Upload project lists and inspect extraction status before records are published.</p></div><button className="primary-button" onClick={() => setShowUpload(true)}>⇧ Upload document</button></div>
-              <div className="workflow-table"><div className="workflow-row import header"><span>File</span><span>Contractor</span><span>Rows found</span><span>Status</span><span>Action</span></div>{[["Completed and ongoing.pdf", "Chuan Luck Piling", "96", "Review ready"], ["AJC Pre-Q Form.pdf", "AJC Ventures", "—", "Completed"], ["Project list.xlsx", "GDB Geotechnics", "24", "Processing"]].map(([file, contractor, rows, status]) => <div className="workflow-row import" key={file}><span><strong>{file}</strong><small>PDF / Excel import</small></span><span>{contractor}</span><span>{rows}</span><span><b className={status === "Review ready" ? "attention" : "neutral"}>{status}</b></span><span><button className="secondary-button" onClick={() => notify(status === "Review ready" ? "Extraction review opened in demonstration mode." : `Import status: ${status}.`)}>{status === "Review ready" ? "Review" : "Details"}</button></span></div>)}</div>
+              <div className="module-hero"><div><p className="eyebrow">GUIDED DATA IMPORT</p><h2>Import contractor and project information</h2><p>Use the provided template, or ask ChatGPT to convert an existing document into the required system-readable format.</p></div></div>
+              <div className="import-mode-tabs"><button className={importTab === "projects" ? "active" : ""} onClick={() => setImportTab("projects")}>Contractor project list</button><button className={importTab === "contractors" ? "active" : ""} onClick={() => setImportTab("contractors")}>Contractor list</button></div>
+              {importTab === "projects" ? <section className="guided-import"><div className="import-step"><span>1</span><div className="import-step-content"><div className="import-step-heading"><div><h3>Search and select the contractor</h3><p>The imported projects will be added only to this contractor.</p></div><b>{selectedImportContractor?.name}</b></div><label className="search-box import-contractor-search"><span>⌕</span><input value={importContractorSearch} onChange={(event) => setImportContractorSearch(event.target.value)} placeholder="Search contractor name, trade or location..." /></label><div className="import-contractor-list">{importContractorMatches.map((contractor) => <button className={selectedImportContractorId === contractor.id ? "selected" : ""} key={contractor.id} onClick={() => setSelectedImportContractorId(contractor.id)}><strong>{contractor.name}</strong><span>{contractor.trade} · CIDB {contractor.grade} · {contractor.location}</span></button>)}</div></div></div><div className="import-step"><span>2</span><div className="import-step-content"><div className="import-step-heading"><div><h3>Prepare the system-readable file</h3><p>Choose either method below. The result must use the provided columns.</p></div></div><div className="import-method-grid"><article><b>OPTION A</b><h4>Fill in our template</h4><p>Download the CSV template and enter one completed or ongoing project per row.</p><button className="secondary-button" onClick={downloadProjectTemplate}>Download project template</button></article><article><b>OPTION B · CHATGPT</b><h4>Convert an existing project list with AI</h4><p>Attach the source PDF, Word or Excel file to ChatGPT, paste our prompt, then download the CSV it produces.</p><button className="secondary-button" onClick={() => copyImportPrompt(PROJECT_AI_PROMPT, "Project extraction prompt")}>Copy ChatGPT prompt</button></article></div><details className="prompt-preview"><summary>View the project extraction prompt</summary><pre>{PROJECT_AI_PROMPT}</pre></details></div></div><div className="import-step"><span>3</span><div className="import-step-content"><div className="import-step-heading"><div><h3>Upload and import the prepared file</h3><p>Accepted format: CSV or Excel. The system checks the rows before import.</p></div></div><label className="standard-file-upload"><input type="file" accept=".csv,.xlsx,.xls" onChange={(event) => handleProjectStandardFile(event.target.files?.[0])} /><strong>{projectImportFile || "Choose prepared project file"}</strong><span>CSV or Excel · maximum 10 MB</span></label>{projectImportError && <p className="import-error">{projectImportError}</p>}{projectImportRows.length > 0 && <div className="import-ready"><div><strong>{projectImportRows.length} project rows ready</strong><span>{projectImportRows.filter((project) => project.status === "Completed").length} completed · {projectImportRows.filter((project) => project.status === "Ongoing").length} ongoing · for {selectedImportContractor?.name}</span></div><button className="primary-button" onClick={importProjectRowsToContractor}>Import projects</button></div>}</div></div></section> : <section className="guided-import"><div className="import-step"><span>1</span><div className="import-step-content"><div className="import-step-heading"><div><h3>Prepare the contractor list</h3><p>Use the template directly or ask ChatGPT to convert your existing contractor list.</p></div></div><div className="import-method-grid"><article><b>OPTION A</b><h4>Use the contractor template</h4><p>Download the required CSV columns and complete one contractor per row.</p><button className="secondary-button" onClick={downloadContractorTemplate}>Download contractor template</button></article><article><b>OPTION B · CHATGPT</b><h4>Convert an existing contractor list</h4><p>Attach the old list to ChatGPT, paste this controlled prompt, and download the generated CSV.</p><button className="secondary-button" onClick={() => copyImportPrompt(CONTRACTOR_AI_PROMPT, "Contractor extraction prompt")}>Copy ChatGPT prompt</button></article></div><details className="prompt-preview"><summary>View the contractor extraction prompt</summary><pre>{CONTRACTOR_AI_PROMPT}</pre></details></div></div><div className="import-step"><span>2</span><div className="import-step-content"><div className="import-step-heading"><div><h3>Upload and check the contractor file</h3><p>The system reads the standard columns and shows the number of valid rows before import.</p></div></div><label className="standard-file-upload"><input type="file" accept=".csv,.xlsx,.xls" onChange={(event) => handleContractorExcelFile(event.target.files?.[0])} /><strong>{contractorImportFile || "Choose prepared contractor file"}</strong><span>CSV or Excel · maximum 5 MB</span></label>{contractorImportError && <p className="import-error">{contractorImportError}</p>}{contractorImportRows.length > 0 && <div className="import-ready"><div><strong>{contractorImportRows.length} contractor rows ready</strong><span>First record: {contractorImportRows[0].name} · {contractorImportRows[0].trade || "Trade not provided"}</span></div><button className="primary-button" onClick={importAllContractors}>Import contractors</button></div>}</div></div></section>}
             </>}
 
             {activeSection === "reports" && <>
-              <div className="module-hero"><div><p className="eyebrow">MANAGEMENT REPORTING</p><h2>Reports and exports</h2><p>Download current demonstration data or review status distribution.</p></div><button className="primary-button" onClick={exportContractorCsv}>Download contractor CSV</button></div>
-              <div className="report-grid"><article><h3>Pre-Q status distribution</h3><div className="report-bars">{[["Approved", 75], ["Conditional", 14], ["Review due", 11]].map(([label, value]) => <div key={String(label)}><span>{label}</span><i><b style={{ width: `${value}%` }} /></i><strong>{value}%</strong></div>)}</div></article><article><h3>Available reports</h3><div className="report-actions"><button onClick={exportContractorCsv}>Contractor directory <span>CSV ↓</span></button><button onClick={() => downloadFile("preq-expiry-report.csv", "Contractor,Expiry,Status\nChuan Luck,30 Jun 2027,Approved\nAJC Ventures,18 Mar 2027,Approved", "text/csv")}>Pre-Q expiry report <span>CSV ↓</span></button><button onClick={exportNominationWord}>Nomination summary <span>Word ↓</span></button></div></article></div>
+              <div className="module-hero"><div><p className="eyebrow">CONTROLLED DATABASE EXPORT</p><h2>Export reports and contractor lists</h2><p>Export the current combined report or create a contractor list using trade, project cost and location filters.</p></div></div>
+              <div className="export-workspace"><section className="export-card nomination-export-card"><div><p className="eyebrow">NOMINATION / COMBINED REPORT</p><h3>Selected contractor report</h3><p>Export the contractors and relevant project references currently selected in Find Contractors.</p></div><div className="export-card-stats"><span><strong>{selectedContractors.length}</strong> contractors</span><span><strong>{selectedProjects.length}</strong> project references</span></div><div className="export-card-actions"><button className="secondary-button" onClick={() => setActiveSection("contractors")}>Change selection</button><button className="primary-button" disabled={!selectedContractors.length} onClick={exportNominationWord}>Export Word report</button></div></section><section className="export-card contractor-export-card"><div><p className="eyebrow">FILTERED CONTRACTOR LIST</p><h3>Select contractor-list criteria</h3><p>The export includes Pre-Q score, CIDB grade, validity, contact details, project counts and recorded project value.</p></div><div className="export-filter-section"><label>Trades</label><div className="trade-checkboxes">{availableTrades.map((trade) => <button className={selectedExportTrades.includes(trade) ? "selected" : ""} key={trade} onClick={() => toggleExportTrade(trade)}><span>{selectedExportTrades.includes(trade) ? "✓" : ""}</span>{trade}</button>)}</div><small>No trade selected means all trades.</small></div><div className="export-filter-grid"><label>Minimum project cost (RM)<input type="number" min="0" value={exportMinCost} onChange={(event) => setExportMinCost(event.target.value)} placeholder="No minimum" /></label><label>Maximum project cost (RM)<input type="number" min="0" value={exportMaxCost} onChange={(event) => setExportMaxCost(event.target.value)} placeholder="No maximum" /></label><label>Contractor location<select value={exportLocation} onChange={(event) => setExportLocation(event.target.value)}><option>All locations</option>{availableLocations.map((location) => <option key={location}>{location}</option>)}</select></label></div><div className="export-result"><div><strong>{exportContractors.length} contractors match</strong><span>{selectedExportTrades.length ? selectedExportTrades.join(", ") : "All trades"} · {exportLocation}</span></div><div><button className="secondary-button" onClick={() => { setSelectedExportTrades([]); setExportLocation("All locations"); setExportMinCost(""); setExportMaxCost(""); }}>Clear filters</button><button className="primary-button" disabled={!exportContractors.length} onClick={exportFilteredContractors}>Export contractor CSV</button></div></div></section></div>
             </>}
 
             {activeSection === "settings" && <>
               <div className="module-hero"><div><p className="eyebrow">DATABASE SETTINGS</p><h2>Group companies and contractor validation</h2><p>Maintain the names of companies within the group and control each contractor's validation period.</p></div><button className="primary-button" onClick={() => notify("Database settings saved for this session.")}>Save settings</button></div>
               <section className="company-settings"><div className="company-settings-heading"><div><p className="eyebrow">OUR COMPANIES</p><h3>Companies within the group</h3><span>Add a company or correct its registered name.</span></div><b>{groupCompanies.length} companies</b></div><form className="add-company-form" onSubmit={addGroupCompany}><label>New company name<input value={newCompanyName} onChange={(event) => setNewCompanyName(event.target.value)} placeholder="Enter full registered company name" /></label><button className="primary-button" type="submit" disabled={!newCompanyName.trim()}>＋ Add company</button></form><div className="company-name-list">{groupCompanies.map((company, index) => <div className="company-name-row" key={company.id}><span className="company-number">{String(index + 1).padStart(2, "0")}</span>{editingCompanyId === company.id ? <><input className="company-edit-input" value={editingCompanyName} onChange={(event) => setEditingCompanyName(event.target.value)} autoFocus aria-label={`Edit ${company.name}`} /><div className="company-row-actions"><button className="save" onClick={() => saveCompanyName(company.id)} disabled={!editingCompanyName.trim()}>Save</button><button onClick={() => { setEditingCompanyId(null); setEditingCompanyName(""); }}>Cancel</button></div></> : <><strong>{company.name}</strong><div className="company-row-actions"><button className="edit" onClick={() => startEditingCompany(company)}>Edit name</button><button className="remove" onClick={() => removeGroupCompany(company)}>Remove</button></div></>}</div>)}</div></section>
-              <div className="settings-section-title"><div><p className="eyebrow">CONTRACTOR VALIDITY</p><h3>Validation periods</h3></div><span>Default: 3 years from approval date</span></div>
-              <section className="validation-settings"><div className="validation-row header"><span>Contractor</span><span>Approval date</span><span>Validation period</span><span>Valid until</span><span>Status</span></div>{contractorRows.map((contractor) => <div className="validation-row" key={contractor.id}><span><strong>{contractor.name}</strong><small>CIDB {contractor.grade}</small></span><span>{contractor.approvalDate}</span><span><label><input type="number" min="1" max="10" value={contractor.validationYears ?? 3} onChange={(event) => updateValidationYears(contractor, Number(event.target.value))} /> years</label></span><span>{formatValidationDate(contractor)}</span><span><b className={contractorValidity(contractor).toLowerCase()}>{contractorValidity(contractor)}</b></span></div>)}</section>
+              <section className="global-validity-setting"><div><p className="eyebrow">ONE SETTING FOR ALL CONTRACTORS</p><h3>Contractor validation period</h3><p>This single period is counted from each contractor's approval date and applies to every existing and new contractor.</p></div><label><span>Validation period</span><div><input type="number" min="1" max="10" value={groupValidationYears} onChange={(event) => updateGroupValidationYears(Number(event.target.value))} /><b>years</b></div></label><aside><strong>{contractorRows.length}</strong><span>contractors use this setting</span></aside></section>
+              <div className="global-validity-note"><span>✓</span><p><strong>Applied group-wide</strong>All contractor expiry dates are calculated using the same {groupValidationYears}-year validation period. There are currently {totalValidContractors} valid and {totalExpiredContractors} expired contractors.</p></div>
             </>}
           </section>
         )}

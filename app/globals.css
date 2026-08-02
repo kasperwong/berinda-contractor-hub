@@ -435,6 +435,79 @@ td { height: 80px; font-size: 12px; }
 .group-register-table .group-company-name { color: var(--teal); }
 .group-register-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
 .group-register-footer button { border: 0; background: transparent; color: var(--teal); font-size: 10px; font-weight: 700; }
+.import-mode-tabs { display: flex; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: white; }
+.import-mode-tabs button { flex: 1; min-height: 44px; border: 0; border-radius: 7px; background: transparent; color: #657386; font-size: 11px; font-weight: 750; }
+.import-mode-tabs button.active { background: var(--teal); color: white; box-shadow: 0 4px 12px rgba(23,127,113,.18); }
+.guided-import { display: grid; gap: 14px; }
+.import-step { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 14px; }
+.import-step > span { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; background: #18344f; color: white; font-weight: 800; }
+.import-step-content { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; padding: 20px; background: white; }
+.import-step-heading { display: flex; align-items: start; justify-content: space-between; gap: 18px; margin-bottom: 15px; }
+.import-step-heading h3 { margin: 0; font-size: 15px; }
+.import-step-heading p { margin: 5px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.import-step-heading > b { max-width: 360px; border-radius: 7px; padding: 8px 11px; background: var(--teal-soft); color: var(--teal); font-size: 9px; }
+.import-contractor-search { max-width: 720px; height: 42px; }
+.import-contractor-list { max-height: 210px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; overflow-y: auto; }
+.import-contractor-list button { display: grid; gap: 4px; border: 1px solid #dce3e7; border-radius: 8px; padding: 12px; background: #fbfcfc; color: var(--ink); text-align: left; }
+.import-contractor-list button.selected { border-color: #70a9a1; background: #eef7f5; box-shadow: inset 3px 0 var(--teal); }
+.import-contractor-list strong { font-size: 10px; }
+.import-contractor-list span { color: var(--muted); font-size: 8px; }
+.import-method-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.import-method-grid article { display: grid; align-content: start; gap: 8px; min-height: 180px; border: 1px solid #dfe5e9; border-radius: 9px; padding: 17px; background: #fbfcfc; }
+.import-method-grid article > b { color: var(--gold); font-size: 8px; letter-spacing: .08em; }
+.import-method-grid h4 { margin: 0; font-size: 13px; }
+.import-method-grid p { min-height: 47px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
+.import-method-grid button { justify-self: start; }
+.prompt-preview { margin-top: 10px; border: 1px solid #e1e6e9; border-radius: 8px; padding: 11px 13px; background: #f8fafb; }
+.prompt-preview summary { cursor: pointer; color: #536579; font-size: 9px; font-weight: 750; }
+.prompt-preview pre { margin: 12px 0 0; overflow-x: auto; color: #556578; font-family: inherit; font-size: 9px; line-height: 1.55; white-space: pre-wrap; }
+.standard-file-upload { min-height: 110px; display: grid; place-content: center; gap: 5px; border: 1px dashed #aebdc7; border-radius: 9px; background: #f8fafb; color: var(--ink); text-align: center; cursor: pointer; }
+.standard-file-upload input { position: absolute; opacity: 0; pointer-events: none; }
+.standard-file-upload strong { font-size: 11px; }
+.standard-file-upload span { color: var(--muted); font-size: 9px; }
+.import-ready { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; border: 1px solid #b8d9d4; border-radius: 8px; padding: 13px; background: #eff8f6; }
+.import-ready strong, .import-ready span { display: block; }
+.import-ready strong { color: var(--teal); font-size: 11px; }
+.import-ready span { margin-top: 4px; color: #607184; font-size: 9px; }
+.import-error { border-radius: 7px; padding: 10px 12px; background: #fbeceb; color: #ad534a; font-size: 9px; }
+.export-workspace { display: grid; gap: 14px; }
+.export-card { border: 1px solid var(--line); border-radius: 10px; padding: 22px; background: white; }
+.export-card h3 { margin: 3px 0 7px; font-size: 17px; }
+.export-card > div > p:last-child { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
+.nomination-export-card { display: grid; grid-template-columns: minmax(260px, 1fr) auto auto; align-items: center; gap: 24px; }
+.export-card-stats { display: flex; gap: 12px; }
+.export-card-stats span { min-width: 100px; border-radius: 8px; padding: 12px; background: #f4f7f8; color: var(--muted); font-size: 9px; text-align: center; }
+.export-card-stats strong { display: block; margin-bottom: 3px; color: var(--ink); font-family: Georgia, serif; font-size: 20px; }
+.export-card-actions, .export-result > div:last-child { display: flex; gap: 8px; }
+.contractor-export-card { display: grid; gap: 18px; }
+.export-filter-section { display: grid; gap: 8px; }
+.export-filter-section > label, .export-filter-grid label { color: #637083; font-size: 10px; font-weight: 700; }
+.export-filter-section > small { color: var(--muted); font-size: 8px; }
+.trade-checkboxes { display: flex; flex-wrap: wrap; gap: 7px; }
+.trade-checkboxes button { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #d9e0e5; border-radius: 7px; padding: 8px 10px; background: white; color: #526175; font-size: 9px; }
+.trade-checkboxes button span { width: 14px; height: 14px; display: grid; place-items: center; border: 1px solid #c7d1d7; border-radius: 3px; color: white; }
+.trade-checkboxes button.selected { border-color: #79afa7; background: #eef7f5; color: var(--teal); }
+.trade-checkboxes button.selected span { border-color: var(--teal); background: var(--teal); }
+.export-filter-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.export-filter-grid label { display: grid; gap: 6px; }
+.export-filter-grid input, .export-filter-grid select { height: 42px; border: 1px solid #d8dee5; border-radius: 7px; padding: 0 10px; background: white; color: var(--ink); font-size: 10px; }
+.export-result { display: flex; align-items: center; justify-content: space-between; gap: 18px; border-top: 1px solid var(--line); padding-top: 16px; }
+.export-result strong, .export-result span { display: block; }
+.export-result strong { font-size: 12px; }
+.export-result span { margin-top: 4px; color: var(--muted); font-size: 9px; }
+.global-validity-setting { display: grid; grid-template-columns: minmax(320px, 1fr) 220px 170px; align-items: center; gap: 24px; border: 1px solid var(--line); border-radius: 10px; padding: 22px; background: white; }
+.global-validity-setting h3 { margin: 3px 0 7px; font-size: 17px; }
+.global-validity-setting p:last-child { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
+.global-validity-setting > label { display: grid; gap: 7px; color: #637083; font-size: 10px; font-weight: 700; }
+.global-validity-setting > label > div { display: flex; align-items: center; gap: 9px; }
+.global-validity-setting input { width: 100px; height: 46px; border: 1px solid #b9cbc8; border-radius: 8px; padding: 0 12px; color: var(--ink); font-size: 16px; font-weight: 750; }
+.global-validity-setting aside { border-left: 1px solid var(--line); padding-left: 22px; text-align: center; }
+.global-validity-setting aside strong, .global-validity-setting aside span { display: block; }
+.global-validity-setting aside strong { color: var(--teal); font-family: Georgia, serif; font-size: 30px; }
+.global-validity-setting aside span { margin-top: 4px; color: var(--muted); font-size: 9px; }
+.global-validity-note { display: flex; gap: 11px; border: 1px solid #bddbd6; border-radius: 9px; padding: 14px 16px; background: #eff8f6; color: var(--teal); }
+.global-validity-note p { margin: 0; color: #607184; font-size: 10px; line-height: 1.55; }
+.global-validity-note strong { display: block; color: var(--teal); }
 .project-table-title { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 28px 16px; border-bottom: 1px solid var(--line); }
 .project-table-title h2 { margin: 0; }
 .project-table-title p:last-child { margin: 5px 0 0; color: #778594; font-size: 11px; }
@@ -818,9 +891,17 @@ td { height: 80px; font-size: 12px; }
   .company-row-actions { grid-column: 2; justify-content: flex-start; }
   .group-register-stats { grid-template-columns: 1fr 1fr; }
   .group-register-toolbar { grid-template-columns: 1fr; }
+  .import-contractor-list, .import-method-grid, .export-filter-grid { grid-template-columns: 1fr; }
+  .nomination-export-card, .global-validity-setting { grid-template-columns: 1fr; }
+  .global-validity-setting aside { border-left: 0; border-top: 1px solid var(--line); padding: 16px 0 0; text-align: left; }
 }
 
 @media (max-width: 620px) {
   .group-register-stats { grid-template-columns: 1fr; }
   .group-register-footer { align-items: flex-start; flex-direction: column; }
+  .import-step { grid-template-columns: 1fr; }
+  .import-step > span { width: 32px; height: 32px; }
+  .import-ready, .export-result, .nomination-export-card { align-items: stretch; flex-direction: column; }
+  .export-card-stats { flex-wrap: wrap; }
+  .export-card-actions, .export-result > div:last-child { flex-direction: column; }
 }
