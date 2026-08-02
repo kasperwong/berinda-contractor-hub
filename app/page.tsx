@@ -326,6 +326,15 @@ const money = (value: number) =>
 
 export default function Home() {
   const [contractorRows, setContractorRows] = useState(initialContractors);
+  const [groupCompanies, setGroupCompanies] = useState([
+    { id: "berinda-group", name: "Berinda Group" },
+    { id: "johor-land", name: "Johor Land Berhad" },
+    { id: "bukit-indah-city", name: "Bukit Indah City Sdn Bhd" },
+    { id: "berinda-properties", name: "Berinda Properties Sdn Bhd" },
+  ]);
+  const [newCompanyName, setNewCompanyName] = useState("");
+  const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
+  const [editingCompanyName, setEditingCompanyName] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All status");
   const [tradeFilter, setTradeFilter] = useState("All trades");
@@ -502,6 +511,42 @@ export default function Home() {
     const updated = { ...contractor, validationYears, updated: "Just now" };
     setContractorRows((current) => current.map((item) => item.id === contractor.id ? updated : item));
     if (activeContractor.id === contractor.id) setActiveContractor(updated);
+  }
+
+  function addGroupCompany(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = newCompanyName.trim();
+    if (!name) return;
+    if (groupCompanies.some((company) => company.name.toLowerCase() === name.toLowerCase())) {
+      notify(`${name} is already in the company list.`);
+      return;
+    }
+    setGroupCompanies((current) => [...current, { id: `company-${Date.now()}`, name }]);
+    setNewCompanyName("");
+    notify(`${name} added to Our Group Companies.`);
+  }
+
+  function startEditingCompany(company: { id: string; name: string }) {
+    setEditingCompanyId(company.id);
+    setEditingCompanyName(company.name);
+  }
+
+  function saveCompanyName(id: string) {
+    const name = editingCompanyName.trim();
+    if (!name) return;
+    setGroupCompanies((current) => current.map((company) => company.id === id ? { ...company, name } : company));
+    setEditingCompanyId(null);
+    setEditingCompanyName("");
+    notify("Group company name updated.");
+  }
+
+  function removeGroupCompany(company: { id: string; name: string }) {
+    setGroupCompanies((current) => current.filter((item) => item.id !== company.id));
+    if (editingCompanyId === company.id) {
+      setEditingCompanyId(null);
+      setEditingCompanyName("");
+    }
+    notify(`${company.name} removed from the company list.`);
   }
 
   function openProjectList(contractor: Contractor, status: "All" | "Completed" | "Ongoing") {
@@ -918,7 +963,9 @@ export default function Home() {
             </>}
 
             {activeSection === "settings" && <>
-              <div className="module-hero"><div><p className="eyebrow">DATABASE SETTINGS</p><h2>Contractor validation periods</h2><p>Each contractor defaults to three years from its approval date. You can set a different period for an individual contractor.</p></div><button className="primary-button" onClick={() => notify("Validation settings saved for this session.")}>Save settings</button></div>
+              <div className="module-hero"><div><p className="eyebrow">DATABASE SETTINGS</p><h2>Group companies and contractor validation</h2><p>Maintain the names of companies within the group and control each contractor's validation period.</p></div><button className="primary-button" onClick={() => notify("Database settings saved for this session.")}>Save settings</button></div>
+              <section className="company-settings"><div className="company-settings-heading"><div><p className="eyebrow">OUR COMPANIES</p><h3>Companies within the group</h3><span>Add a company or correct its registered name.</span></div><b>{groupCompanies.length} companies</b></div><form className="add-company-form" onSubmit={addGroupCompany}><label>New company name<input value={newCompanyName} onChange={(event) => setNewCompanyName(event.target.value)} placeholder="Enter full registered company name" /></label><button className="primary-button" type="submit" disabled={!newCompanyName.trim()}>＋ Add company</button></form><div className="company-name-list">{groupCompanies.map((company, index) => <div className="company-name-row" key={company.id}><span className="company-number">{String(index + 1).padStart(2, "0")}</span>{editingCompanyId === company.id ? <><input className="company-edit-input" value={editingCompanyName} onChange={(event) => setEditingCompanyName(event.target.value)} autoFocus aria-label={`Edit ${company.name}`} /><div className="company-row-actions"><button className="save" onClick={() => saveCompanyName(company.id)} disabled={!editingCompanyName.trim()}>Save</button><button onClick={() => { setEditingCompanyId(null); setEditingCompanyName(""); }}>Cancel</button></div></> : <><strong>{company.name}</strong><div className="company-row-actions"><button className="edit" onClick={() => startEditingCompany(company)}>Edit name</button><button className="remove" onClick={() => removeGroupCompany(company)}>Remove</button></div></>}</div>)}</div></section>
+              <div className="settings-section-title"><div><p className="eyebrow">CONTRACTOR VALIDITY</p><h3>Validation periods</h3></div><span>Default: 3 years from approval date</span></div>
               <section className="validation-settings"><div className="validation-row header"><span>Contractor</span><span>Approval date</span><span>Validation period</span><span>Valid until</span><span>Status</span></div>{contractorRows.map((contractor) => <div className="validation-row" key={contractor.id}><span><strong>{contractor.name}</strong><small>CIDB {contractor.grade}</small></span><span>{contractor.approvalDate}</span><span><label><input type="number" min="1" max="10" value={contractor.validationYears ?? 3} onChange={(event) => updateValidationYears(contractor, Number(event.target.value))} /> years</label></span><span>{formatValidationDate(contractor)}</span><span><b className={contractorValidity(contractor).toLowerCase()}>{contractorValidity(contractor)}</b></span></div>)}</section>
             </>}
           </section>
