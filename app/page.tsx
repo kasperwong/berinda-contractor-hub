@@ -16,6 +16,16 @@ type Project = {
   sourcePage?: number;
 };
 
+type GroupCompanyProject = {
+  id: string;
+  name: string;
+  scope: string;
+  value: number;
+  year: number;
+  location: string;
+  groupCompany: string;
+};
+
 type Contractor = {
   id: string;
   initials: string;
@@ -53,7 +63,7 @@ type ContractorImportRow = {
 };
 
 type ProjectSortKey = "name" | "client" | "location" | "value" | "period" | "progress" | "sourcePage";
-type ContractorSortKey = "name" | "contactName" | "grade" | "score" | "status" | "approvalDate" | "projects";
+type ContractorSortKey = "name" | "contactName" | "grade" | "score" | "status" | "approvalDate" | "projects" | "groupProjects";
 
 function parseContractorDate(value: string) {
   const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`) : new Date(value);
@@ -224,6 +234,23 @@ const initialContractors: Contractor[] = [
   },
 ];
 
+const groupCompanyProjects: Record<string, GroupCompanyProject[]> = {
+  "chuan-luck": [
+    { id: "cl-group-1", name: "Residential development foundation works", scope: "Piling and pile-cap works for a residential development phase", value: 12800000, year: 2024, location: "Bandar Dato' Onn, Johor Bahru", groupCompany: "Johor Land Berhad" },
+    { id: "cl-group-2", name: "Mixed development piling package", scope: "Driven piling, testing and foundation works for commercial and residential blocks", value: 9400000, year: 2022, location: "Bukit Indah, Johor", groupCompany: "Bukit Indah City Sdn Bhd" },
+    { id: "cl-group-3", name: "Terrace housing foundation package", scope: "Piling works for two-storey terrace housing and associated infrastructure", value: 6750000, year: 2021, location: "Tebrau, Johor Bahru", groupCompany: "Berinda Properties Sdn Bhd" },
+  ],
+  ajc: [
+    { id: "ajc-group-1", name: "Commercial shop-office development", scope: "Main building, architectural and external works", value: 8700000, year: 2024, location: "Kulai, Johor", groupCompany: "Johor Land Berhad" },
+  ],
+  gdb: [
+    { id: "gdb-group-1", name: "High-rise foundation enabling works", scope: "Bored piling, pile testing and earth-retaining works", value: 18200000, year: 2025, location: "Johor Bahru, Johor", groupCompany: "Bukit Indah City Sdn Bhd" },
+  ],
+  pintaras: [
+    { id: "pj-group-1", name: "Industrial park expansion", scope: "Driven piles for factory buildings and supporting infrastructure", value: 11900000, year: 2025, location: "Tebrau, Johor", groupCompany: "Berinda Properties Sdn Bhd" },
+  ],
+};
+
 const contractorDetails: Record<
   string,
   {
@@ -321,6 +348,7 @@ export default function Home() {
   const [showAssessmentForm, setShowAssessmentForm] = useState(false);
   const [editingPreqOwner, setEditingPreqOwner] = useState<Contractor | null>(null);
   const [showReportRequest, setShowReportRequest] = useState(false);
+  const [groupProjectsContractor, setGroupProjectsContractor] = useState<Contractor | null>(null);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -362,6 +390,7 @@ export default function Home() {
   const sortedContractors = [...filtered].sort((a, b) => {
     const value = (contractor: Contractor) => {
       if (contractorSort.key === "projects") return contractor.projects.length;
+      if (contractorSort.key === "groupProjects") return groupCompanyProjects[contractor.id]?.length ?? 0;
       if (contractorSort.key === "grade") return Number(contractor.grade.replace(/\D/g, "")) || 0;
       if (contractorSort.key === "approvalDate") return parseContractorDate(contractor.approvalDate)?.getTime() || 0;
       if (contractorSort.key === "status") return contractorValidity(contractor);
@@ -814,7 +843,7 @@ export default function Home() {
           <div className={`data-layout ${showProjectPanel ? "" : "panel-hidden"}`}>
             <div className="table-wrap">
               <table>
-                <thead><tr><th><button className="directory-sortable" onClick={() => sortContractors("name")}>Contractor name{contractorSortIndicator("name")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("contactName")}>Contact{contractorSortIndicator("contactName")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("grade")}>CIDB grade{contractorSortIndicator("grade")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("score")}>Pre-Q score{contractorSortIndicator("score")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("status")}>Status{contractorSortIndicator("status")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("approvalDate")}>Approval{contractorSortIndicator("approvalDate")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("projects")}>Projects{contractorSortIndicator("projects")}</button></th><th>Request document</th></tr></thead>
+                <thead><tr><th><button className="directory-sortable" onClick={() => sortContractors("name")}>Contractor name{contractorSortIndicator("name")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("contactName")}>Contact{contractorSortIndicator("contactName")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("grade")}>CIDB grade{contractorSortIndicator("grade")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("score")}>Pre-Q score{contractorSortIndicator("score")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("status")}>Status{contractorSortIndicator("status")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("approvalDate")}>Approval{contractorSortIndicator("approvalDate")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("projects")}>Projects{contractorSortIndicator("projects")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("groupProjects")}>Group company projects{contractorSortIndicator("groupProjects")}</button></th><th>Request document</th></tr></thead>
                 <tbody>
                   {sortedContractors.map((contractor) => {
                     const isActive = activeContractor.id === contractor.id;
@@ -827,6 +856,7 @@ export default function Home() {
                         <td><span className={`status ${contractorValidity(contractor).toLowerCase()}`}><i />{contractorValidity(contractor)}</span><small className="expiry">Until {formatValidationDate(contractor)}</small></td>
                         <td><span className="directory-date">{contractor.approvalDate}</span><small className="expiry">Updated {contractor.updated}</small></td>
                         <td><div className="project-summary-buttons"><button className="project-link project-count" onClick={(event) => { event.stopPropagation(); openProjectList(contractor, "Completed"); }}>{contractor.projects.filter((project) => project.status === "Completed").length} completed →</button><button className="project-link project-count ongoing" onClick={(event) => { event.stopPropagation(); openProjectList(contractor, "Ongoing"); }}>{contractor.projects.filter((project) => project.status === "Ongoing").length} ongoing →</button></div></td>
+                        <td><button className="group-project-button" onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setGroupProjectsContractor(contractor); }}><strong>{groupCompanyProjects[contractor.id]?.length ?? 0}</strong><span>View group projects →</span></button></td>
                         <td><button className="request-documents-button" onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setShowReportRequest(true); }}>Request documents</button></td>
                       </tr>
                     );
@@ -1042,6 +1072,19 @@ export default function Home() {
             <div className="matcher-result-head"><div><strong>Ranked relevant projects</strong><span>{matcherTerms.length ? `${matcherTerms.length} meaningful scope keywords analysed` : "Paste a scope to begin matching"}</span></div><span>Highest relevance first</span></div>
             <div className="matcher-table-wrap">{matcherTerms.length ? <table className="matcher-table"><thead><tr><th>Select</th><th>Relevance</th><th>Contractor</th><th>Project and matching scope</th><th>Client / location</th><th>Value</th><th>Year</th></tr></thead><tbody>{relevantProjectMatches.map(({ contractor, project, projectYear, relevance, matchedTerms }) => { const selected = selectedProjects.includes(project.id); return <tr key={`${contractor.id}-${project.id}`}><td><button className={`row-check ${selected ? "checked" : ""}`} onClick={() => toggleMatchedProject(contractor, project.id)} aria-label={`${selected ? "Remove" : "Select"} ${project.name}`}>{selected ? "✓" : ""}</button></td><td><strong className="relevance-score">{relevance}%</strong></td><td><strong>{contractor.name}</strong><small>{contractor.trade} · CIDB {contractor.grade}</small></td><td><strong>{project.name}</strong><small>{project.scope}</small><div className="matched-terms">{matchedTerms.slice(0, 6).map((term) => <span key={term}>{term}</span>)}</div></td><td>{project.client}<small>{project.location}</small></td><td><strong>{money(project.value)}</strong></td><td>{projectYear || "-"}<small>{project.status}</small></td></tr>; })}</tbody></table> : <div className="matcher-empty"><strong>Paste a proposed scope to find relevant experience</strong><span>You can then narrow the results using contract-value and year ranges.</span></div>}{matcherTerms.length > 0 && !relevantProjectMatches.length && <div className="matcher-empty"><strong>No projects match the current scope and ranges</strong><span>Try widening the cost or year range.</span></div>}</div>
             <div className="project-table-footer"><span>{selectedProjects.length} project{selectedProjects.length === 1 ? "" : "s"} selected for reporting</span><div><button className="secondary-button" onClick={() => setShowProjectMatcher(false)}>Close</button><button className="primary-button" disabled={!selectedProjects.length} onClick={() => { setShowProjectMatcher(false); setActiveSection("nominations"); notify(`${selectedProjects.length} project reference${selectedProjects.length === 1 ? "" : "s"} added to the combined report.`); }}>Add selected to report</button></div></div>
+          </section>
+        </div>
+      )}
+
+      {groupProjectsContractor && (
+        <div className="modal-backdrop project-table-backdrop" role="presentation" onMouseDown={() => setGroupProjectsContractor(null)}>
+          <section className="modal group-project-modal" role="dialog" aria-modal="true" aria-labelledby="group-project-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" onClick={() => setGroupProjectsContractor(null)} aria-label="Close group company projects">×</button>
+            <div className="project-table-title"><div><p className="eyebrow">EXPERIENCE WITHIN BERINDA GROUP</p><h2 id="group-project-title">{groupProjectsContractor.name}</h2><p>Projects carried out for companies within the group.</p></div><div><strong>{groupCompanyProjects[groupProjectsContractor.id]?.length ?? 0}</strong><span>GROUP PROJECTS</span></div></div>
+            <div className="group-project-table-wrap">
+              {(groupCompanyProjects[groupProjectsContractor.id]?.length ?? 0) > 0 ? <table className="full-project-table group-project-table"><thead><tr><th>Project</th><th>Scope</th><th>Contract value</th><th>Year</th><th>Location</th><th>Group company</th></tr></thead><tbody>{groupCompanyProjects[groupProjectsContractor.id].map((project) => <tr key={project.id}><td><strong>{project.name}</strong></td><td><span className="group-project-scope">{project.scope}</span></td><td><strong>{money(project.value)}</strong></td><td>{project.year}</td><td>{project.location}</td><td><strong>{project.groupCompany}</strong></td></tr>)}</tbody></table> : <div className="group-project-empty"><strong>No group company projects recorded</strong><span>This contractor does not yet have a project linked to a company within the group.</span></div>}
+            </div>
+            <div className="project-table-footer"><span>Information shown is from the shared contractor database.</span><button className="primary-button" onClick={() => setGroupProjectsContractor(null)}>Done</button></div>
           </section>
         </div>
       )}
