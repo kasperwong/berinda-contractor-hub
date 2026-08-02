@@ -34,6 +34,7 @@ type Contractor = {
   preqDoneBy: string;
   preqDate: string;
   approvalDate: string;
+  validationYears?: number;
   projects: Project[];
 };
 
@@ -52,7 +53,30 @@ type ContractorImportRow = {
 };
 
 type ProjectSortKey = "name" | "client" | "location" | "value" | "period" | "progress" | "sourcePage";
-type ContractorSortKey = "name" | "trade" | "grade" | "score" | "status" | "approvalDate" | "projects" | "preqDoneBy";
+type ContractorSortKey = "name" | "contactName" | "grade" | "score" | "status" | "approvalDate" | "projects";
+
+function parseContractorDate(value: string) {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`) : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function contractorExpiryDate(contractor: Contractor) {
+  const approval = parseContractorDate(contractor.approvalDate);
+  if (!approval) return null;
+  const expiry = new Date(approval);
+  expiry.setFullYear(expiry.getFullYear() + (contractor.validationYears ?? 3));
+  return expiry;
+}
+
+function contractorValidity(contractor: Contractor) {
+  const expiry = contractorExpiryDate(contractor);
+  return expiry && expiry.getTime() < Date.now() ? "Expired" : "Valid";
+}
+
+function formatValidationDate(contractor: Contractor) {
+  const expiry = contractorExpiryDate(contractor);
+  return expiry ? expiry.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Approval pending";
+}
 
 const initialContractors: Contractor[] = [
   {
@@ -286,7 +310,7 @@ export default function Home() {
   const [selectedProjects, setSelectedProjects] = useState<string[]>([
     initialContractors[0].projects[0].id,
   ]);
-  const [activeSection, setActiveSection] = useState<"overview" | "contractors" | "preq" | "nominations" | "imports" | "reports" | "settings">("contractors");
+  const [activeSection, setActiveSection] = useState<"overview" | "add" | "contractors" | "nominations" | "imports" | "reports" | "settings">("overview");
   const [showProjectPanel, setShowProjectPanel] = useState(false);
   const [projectListStatus, setProjectListStatus] = useState<"All" | "Completed" | "Ongoing" | null>(null);
   const [showUpload, setShowUpload] = useState(false);
@@ -329,8 +353,7 @@ export default function Home() {
         contractor.email.toLowerCase().includes(term) ||
         contractor.mobile.includes(term) ||
         contractor.officePhone.includes(term);
-      const matchesStatus =
-        statusFilter === "All status" || contractor.status === statusFilter;
+      const matchesStatus = statusFilter === "All status" || contractorValidity(contractor) === statusFilter;
       const matchesTrade = tradeFilter === "All trades" || contractor.trade === tradeFilter;
       const matchesLocation = locationFilter === "All locations" || contractor.location === locationFilter;
       return matchesSearch && matchesStatus && matchesTrade && matchesLocation;
@@ -340,7 +363,8 @@ export default function Home() {
     const value = (contractor: Contractor) => {
       if (contractorSort.key === "projects") return contractor.projects.length;
       if (contractorSort.key === "grade") return Number(contractor.grade.replace(/\D/g, "")) || 0;
-      if (contractorSort.key === "approvalDate") return Date.parse(contractor.approvalDate) || 0;
+      if (contractorSort.key === "approvalDate") return parseContractorDate(contractor.approvalDate)?.getTime() || 0;
+      if (contractorSort.key === "status") return contractorValidity(contractor);
       return contractor[contractorSort.key];
     };
     const aValue = value(a);
@@ -355,6 +379,9 @@ export default function Home() {
       .map((project) => ({ ...project, contractor: contractor.name, contractorId: contractor.id, trade: contractor.trade, grade: contractor.grade })),
   );
   const nominationProjectGroups = contractorRows.map((contractor) => ({ contractor, projects: chosenProjectRecords.filter((project) => project.contractorId === contractor.id) })).filter((group) => group.projects.length);
+  const totalTrades = new Set(contractorRows.map((contractor) => contractor.trade).filter(Boolean)).size;
+  const totalValidContractors = contractorRows.filter((contractor) => contractorValidity(contractor) === "Valid").length;
+  const totalExpiredContractors = contractorRows.length - totalValidContractors;
 
   const activeDetails = contractorDetails[activeContractor.id] ?? {
     registrationNumber: "Pending verification",
@@ -404,9 +431,9 @@ export default function Home() {
 
   const sectionTitles = {
     overview: "Overview",
-    contractors: "Contractor directory",
-    preq: "Pre-Q reviews",
-    nominations: "Nominations",
+    add: "Add contractor",
+    contractors: "Find contractors",
+    nominations: "Combined report & export",
     imports: "Document imports",
     reports: "Reports",
     settings: "Settings",
@@ -437,8 +464,15 @@ export default function Home() {
 
   function exportNominationWord() {
     const projectRows = chosenProjectRecords.map((project) => `<tr><td>${project.contractor}</td><td>${project.name}</td><td>${project.scope}</td><td>${project.client}</td><td>${project.location}</td><td>${money(project.value)}</td></tr>`).join("");
-    const html = `<html><body><h1>Contractor Nomination Summary</h1><p>Prepared from the Berinda Contractor Hub demonstration.</p><table border="1" cellspacing="0" cellpadding="6"><tr><th>Contractor</th><th>Project</th><th>Scope</th><th>Client</th><th>Location</th><th>Value</th></tr>${projectRows}</table></body></html>`;
-    downloadFile("contractor-nomination-summary.doc", html, "application/msword");
+    const html = `<html><body><h1>Selected Contractor Report</h1><p>Combined for reporting purposes from the Berinda Contractor Hub.</p><table border="1" cellspacing="0" cellpadding="6"><tr><th>Contractor</th><th>Project</th><th>Scope</th><th>Client</th><th>Location</th><th>Value</th></tr>${projectRows}</table></body></html>`;
+    downloadFile("selected-contractor-report.doc", html, "application/msword");
+  }
+
+  function updateValidationYears(contractor: Contractor, value: number) {
+    const validationYears = Math.max(1, Math.min(10, Number.isFinite(value) ? value : 3));
+    const updated = { ...contractor, validationYears, updated: "Just now" };
+    setContractorRows((current) => current.map((item) => item.id === contractor.id ? updated : item));
+    if (activeContractor.id === contractor.id) setActiveContractor(updated);
   }
 
   function openProjectList(contractor: Contractor, status: "All" | "Completed" | "Ongoing") {
@@ -531,6 +565,7 @@ export default function Home() {
       preqDoneBy: "Not assigned",
       preqDate: row.preqDate || "Not provided",
       approvalDate: row.approvalDate || "Pending",
+      validationYears: 3,
       projects: [],
     };
   }
@@ -580,15 +615,15 @@ export default function Home() {
       preqDoneBy: "Not assigned",
       preqDate: String(form.get("preqDate")),
       approvalDate: String(form.get("approvalDate")) || "Pending",
+      validationYears: 3,
       projects: [],
     };
     setContractorRows((current) => [contractor, ...current]);
     setActiveContractor(contractor);
     setShowAddContractor(false);
     setShowProjectPanel(false);
-    setProfileTab("overview");
-    setShowProfile(true);
-    notify(`${name} profile created. You can now import its completed and ongoing project list.`);
+    setActiveSection("contractors");
+    notify(`${name} added with the default three-year validation period.`);
   }
 
   function handleAddProject(event: React.FormEvent<HTMLFormElement>) {
@@ -711,11 +746,10 @@ export default function Home() {
 
         <nav aria-label="Main navigation">
           <button className={`nav-item ${activeSection === "overview" ? "active" : ""}`} onClick={() => setActiveSection("overview")}><span>⌂</span>Overview</button>
-          <button className={`nav-item ${activeSection === "contractors" ? "active" : ""}`} onClick={() => setActiveSection("contractors")}><span>▦</span>Contractors <b>{contractorRows.length}</b></button>
-          <button className={`nav-item ${activeSection === "preq" ? "active" : ""}`} onClick={() => setActiveSection("preq")}><span>◫</span>Pre-Q reviews <b className="amber">9</b></button>
-          <button className={`nav-item ${activeSection === "nominations" ? "active" : ""}`} onClick={() => setActiveSection("nominations")}><span>▤</span>Nominations</button>
+          <button className={`nav-item ${activeSection === "add" ? "active" : ""}`} onClick={() => setActiveSection("add")}><span>＋</span>Add contractor</button>
+          <button className={`nav-item ${activeSection === "contractors" ? "active" : ""}`} onClick={() => setActiveSection("contractors")}><span>▦</span>Find contractors <b>{contractorRows.length}</b></button>
+          <button className={`nav-item ${activeSection === "nominations" ? "active" : ""}`} onClick={() => setActiveSection("nominations")}><span>▤</span>Combined report</button>
           <button className={`nav-item ${activeSection === "imports" ? "active" : ""}`} onClick={() => setActiveSection("imports")}><span>⇧</span>Imports</button>
-          <button className={`nav-item ${activeSection === "reports" ? "active" : ""}`} onClick={() => setActiveSection("reports")}><span>◉</span>Reports</button>
         </nav>
 
         <div className="sidebar-bottom">
@@ -741,25 +775,25 @@ export default function Home() {
           <div className="top-actions">
             <button className="icon-button" aria-label="Notifications" onClick={() => setNotificationsOpen((current) => !current)}>♧<i>3</i></button>
             <button className="secondary-button" onClick={() => setShowUpload(true)}>⇧ Upload documents</button>
-            <button className="primary-button" onClick={() => setShowAddContractor(true)}>＋ Add contractor</button>
+            <button className="primary-button" onClick={() => setActiveSection("add")}>＋ Add contractor</button>
           </div>
-          {notificationsOpen && <div className="notification-popover"><strong>Notifications</strong><button onClick={() => { setActiveSection("preq"); setNotificationsOpen(false); }}>9 Pre-Q reviews require attention</button><button onClick={() => { setActiveSection("contractors"); setStatusFilter("Review due"); setNotificationsOpen(false); }}>3 contractor records expire soon</button><button onClick={() => { setActiveSection("imports"); setNotificationsOpen(false); }}>1 document extraction is ready</button></div>}
+          {notificationsOpen && <div className="notification-popover"><strong>Notifications</strong><button onClick={() => { setActiveSection("contractors"); setStatusFilter("Expired"); setNotificationsOpen(false); }}>{totalExpiredContractors} expired contractor record{totalExpiredContractors === 1 ? "" : "s"}</button><button onClick={() => { setActiveSection("settings"); setNotificationsOpen(false); }}>Check contractor validation periods</button><button onClick={() => { setActiveSection("imports"); setNotificationsOpen(false); }}>1 document extraction is ready</button></div>}
         </header>
 
         {activeSection === "contractors" ? <>
 
         <section className="metrics" aria-label="Contractor statistics">
-          <article><span className="metric-icon teal">✓</span><div><small>Approved contractors</small><strong>96</strong><em>75% of directory</em></div></article>
-          <article><span className="metric-icon blue">◫</span><div><small>Under review</small><strong>14</strong><em>5 awaiting documents</em></div></article>
-          <article><span className="metric-icon amber-bg">!</span><div><small>Expiring in 90 days</small><strong>9</strong><em>Action required</em></div></article>
-          <article><span className="metric-icon purple">▥</span><div><small>Project records</small><strong>1,842</strong><em>Across all companies</em></div></article>
+          <article><span className="metric-icon blue">#</span><div><small>Total trades</small><strong>{totalTrades}</strong><em>Across the group</em></div></article>
+          <article><span className="metric-icon purple">▥</span><div><small>Total contractors</small><strong>{contractorRows.length}</strong><em>Shared database records</em></div></article>
+          <article><span className="metric-icon teal">✓</span><div><small>Valid contractors</small><strong>{totalValidContractors}</strong><em>Within validation period</em></div></article>
+          <article><span className="metric-icon amber-bg">!</span><div><small>Expired contractors</small><strong>{totalExpiredContractors}</strong><em>Validation has ended</em></div></article>
         </section>
 
         <section className="workspace-card">
           <div className="workspace-heading">
             <div>
               <h2>Find qualified contractors</h2>
-              <p>Compare group-approved contractors and select verified projects for nomination.</p>
+              <p>Search the shared database, view project experience and combine selected records for reporting.</p>
             </div>
             <div className="workspace-actions"><button className="secondary-button relevant-project-button" onClick={() => setShowProjectMatcher(true)}>⌕ Find relevant projects</button><span className="demo-badge">FRAME • SAMPLE DATA</span></div>
           </div>
@@ -771,7 +805,7 @@ export default function Home() {
               <kbd>⌘ K</kbd>
             </label>
             <select aria-label="Filter by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-              <option>All status</option><option>Approved</option><option>Conditional</option><option>Review due</option>
+              <option>All status</option><option>Valid</option><option>Expired</option>
             </select>
             <select aria-label="Filter by trade" value={tradeFilter} onChange={(event) => setTradeFilter(event.target.value)}><option>All trades</option><option>Piling & foundation</option><option>Building works</option></select>
             <select aria-label="Filter by location" value={locationFilter} onChange={(event) => setLocationFilter(event.target.value)}><option>All locations</option><option>Johor</option><option>Selangor</option><option>Kuala Lumpur</option></select>
@@ -780,21 +814,19 @@ export default function Home() {
           <div className={`data-layout ${showProjectPanel ? "" : "panel-hidden"}`}>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Details</th><th><button className="directory-sortable" onClick={() => sortContractors("name")}>Contractor name{contractorSortIndicator("name")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("trade")}>Trade{contractorSortIndicator("trade")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("grade")}>CIDB grade{contractorSortIndicator("grade")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("score")}>Pre-Q score{contractorSortIndicator("score")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("status")}>Status / updated{contractorSortIndicator("status")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("approvalDate")}>Approval date{contractorSortIndicator("approvalDate")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("projects")}>Projects{contractorSortIndicator("projects")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("preqDoneBy")}>Pre-Q done by{contractorSortIndicator("preqDoneBy")}</button></th><th>Documents</th></tr></thead>
+                <thead><tr><th><button className="directory-sortable" onClick={() => sortContractors("name")}>Contractor name{contractorSortIndicator("name")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("contactName")}>Contact{contractorSortIndicator("contactName")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("grade")}>CIDB grade{contractorSortIndicator("grade")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("score")}>Pre-Q score{contractorSortIndicator("score")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("status")}>Status{contractorSortIndicator("status")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("approvalDate")}>Approval{contractorSortIndicator("approvalDate")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("projects")}>Projects{contractorSortIndicator("projects")}</button></th><th>Request document</th></tr></thead>
                 <tbody>
                   {sortedContractors.map((contractor) => {
                     const isActive = activeContractor.id === contractor.id;
                     return (
                       <tr key={contractor.id} className={isActive ? "active-row" : ""} onClick={() => setActiveContractor(contractor)}>
-                        <td><button className="details-button" onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setProfileTab("overview"); setShowProfile(true); }}>View details</button></td>
                         <td><div className="contractor-cell contractor-name-only"><strong>{contractor.name}</strong></div></td>
-                        <td><div className="directory-detail"><strong>{contractor.trade}</strong><small>{contractor.location}</small></div></td>
+                        <td><div className="directory-detail"><strong>{contractor.contactName}</strong><small>{contractor.mobile}</small></div></td>
                         <td><span className="grade">CIDB {contractor.grade}</span></td>
                         <td><div className="score"><strong>{contractor.score}</strong><span><i style={{ width: `${contractor.score}%` }} /></span></div></td>
-                        <td><span className={`status ${contractor.status.toLowerCase().replace(" ", "-")}`}><i />{contractor.status}</span><small className="expiry">Updated {contractor.updated}</small></td>
-                        <td><span className="directory-date">{contractor.approvalDate}</span></td>
+                        <td><span className={`status ${contractorValidity(contractor).toLowerCase()}`}><i />{contractorValidity(contractor)}</span><small className="expiry">Until {formatValidationDate(contractor)}</small></td>
+                        <td><span className="directory-date">{contractor.approvalDate}</span><small className="expiry">Updated {contractor.updated}</small></td>
                         <td><div className="project-summary-buttons"><button className="project-link project-count" onClick={(event) => { event.stopPropagation(); openProjectList(contractor, "Completed"); }}>{contractor.projects.filter((project) => project.status === "Completed").length} completed →</button><button className="project-link project-count ongoing" onClick={(event) => { event.stopPropagation(); openProjectList(contractor, "Ongoing"); }}>{contractor.projects.filter((project) => project.status === "Ongoing").length} ongoing →</button></div></td>
-                        <td><button className="preq-owner-button" onClick={(event) => { event.stopPropagation(); setEditingPreqOwner(contractor); }}><strong>{contractor.preqDoneBy}</strong><span>Edit company</span></button></td>
                         <td><button className="request-documents-button" onClick={(event) => { event.stopPropagation(); setActiveContractor(contractor); setShowReportRequest(true); }}>Request documents</button></td>
                       </tr>
                     );
@@ -811,7 +843,7 @@ export default function Home() {
                 <button aria-label="Close project panel" onClick={() => setShowProjectPanel(false)}>×</button>
               </div>
               <div className="panel-meta"><span>{activeContractor.trade}</span><span>CIDB {activeContractor.grade}</span><span>{activeContractor.projects.length} records</span></div>
-              <div className="panel-instruction"><span>✓</span><p><strong>Select the most relevant experience</strong>Chosen projects will appear in the nomination summary.</p></div>
+              <div className="panel-instruction"><span>✓</span><p><strong>Select the most relevant experience</strong>Chosen projects will appear in the combined report.</p></div>
               <label className="project-search"><span>⌕</span><input value={projectQuery} onChange={(event) => setProjectQuery(event.target.value)} placeholder="Search scope, client, location, year or value..." aria-label="Search contractor projects" />{projectQuery && <button type="button" onClick={() => setProjectQuery("")}>Clear</button>}</label>
               <div className="projects-list">
                 <section className="project-group completed-group">
@@ -823,27 +855,26 @@ export default function Home() {
                   <div className="project-group-items">{filteredOngoingProjects.length ? filteredOngoingProjects.map(renderProjectCard) : <p className="no-projects">No ongoing projects match this search.</p>}</div>
                 </section>
               </div>
-              <div className="panel-actions"><button className="view-profile" onClick={() => { setProfileTab("overview"); setShowProfile(true); }}>View contractor profile →</button><button className="request-report-button" onClick={() => setShowReportRequest(true)}>Request full detail report</button></div>
+              <div className="panel-actions"><button className="request-report-button" onClick={() => setShowReportRequest(true)}>Request full detail report</button></div>
             </aside>}
           </div>
         </section>
         </> : (
           <section className="module-screen">
             {activeSection === "overview" && <>
-              <div className="module-hero"><div><p className="eyebrow">GROUP WORKSPACE</p><h2>Good afternoon, Kasper</h2><p>Here is the latest contractor and Pre-Q activity across the group.</p></div><button className="primary-button" onClick={() => setActiveSection("contractors")}>Open contractor directory →</button></div>
-              <div className="module-stat-grid"><article><small>APPROVED CONTRACTORS</small><strong>{contractorRows.filter((item) => item.status === "Approved").length}</strong><span>Demonstration records</span></article><article><small>REVIEWS REQUIRING ACTION</small><strong>9</strong><span>3 expire within 90 days</span></article><article><small>ACTIVE NOMINATIONS</small><strong>4</strong><span>2 awaiting reviewer decision</span></article><article><small>DOCUMENT IMPORTS</small><strong>12</strong><span>1 requires field review</span></article></div>
-              <div className="module-grid"><section><div className="module-heading"><h3>Recent group activity</h3><button onClick={() => setActiveSection("reports")}>View reports</button></div><div className="simple-list">{["Chuan Luck Pre-Q assessment approved", "AJC Ventures project list imported", "Piling contractor nomination created", "CIDB certificate expiry reminder issued"].map((item, index) => <article key={item}><span>{index + 1}</span><strong>{item}</strong><small>{index + 1} day{index ? "s" : ""} ago</small></article>)}</div></section><section><div className="module-heading"><h3>Quick actions</h3></div><div className="quick-actions"><button onClick={() => setShowAddContractor(true)}>＋ Add contractor</button><button onClick={() => setShowUpload(true)}>⇧ Import project list</button><button onClick={() => setActiveSection("preq")}>◫ Review Pre-Q</button><button onClick={() => setShowSummary(true)}>▤ Prepare nomination</button></div></section></div>
+              <div className="module-hero"><div><p className="eyebrow">SHARED CONTRACTOR DATABASE</p><h2>Group contractor overview</h2><p>A clear view of the contractor records shared by companies across the group.</p></div><button className="primary-button" onClick={() => setActiveSection("contractors")}>Look for contractor →</button></div>
+              <div className="module-stat-grid"><article><small>TOTAL TRADES</small><strong>{totalTrades}</strong><span>Registered work categories</span></article><article><small>TOTAL CONTRACTORS</small><strong>{contractorRows.length}</strong><span>Shared contractor records</span></article><article><small>VALID CONTRACTORS</small><strong>{totalValidContractors}</strong><span>Within validation period</span></article><article><small>EXPIRED CONTRACTORS</small><strong>{totalExpiredContractors}</strong><span>Require renewed approval</span></article></div>
+              <section className="overview-actions"><div className="module-heading"><div><p className="eyebrow">DATABASE ACTIONS</p><h3>What would you like to do?</h3></div></div><div className="overview-action-grid"><button onClick={() => setActiveSection("add")}><span>01</span><strong>Add new contractor</strong><small>Create a basic contractor record and import projects.</small></button><button onClick={() => setActiveSection("contractors")}><span>02</span><strong>Look for contractor</strong><small>Search limited information and relevant experience.</small></button><button onClick={() => setActiveSection("nominations")}><span>03</span><strong>Export combined report</strong><small>Combine selected contractors for reporting purposes.</small></button></div></section>
             </>}
 
-            {activeSection === "preq" && <>
-              <div className="module-hero"><div><p className="eyebrow">REVIEW QUEUE</p><h2>Pre-qualification reviews</h2><p>Open an assessment, check its scoring and record a demonstration decision.</p></div><button className="primary-button" onClick={() => { setActiveContractor(contractorRows[0]); setShowAssessmentForm(true); }}>Start assessment</button></div>
-              <div className="workflow-table"><div className="workflow-row header"><span>Contractor</span><span>Trade</span><span>Submitted</span><span>Status</span><span>Action</span></div>{contractorRows.slice(0, 4).map((contractor, index) => <div className="workflow-row" key={contractor.id}><span><strong>{contractor.name}</strong><small>CIDB {contractor.grade}</small></span><span>{contractor.trade}</span><span>{index + 12} Jul 2026</span><span><b className={index === 0 ? "attention" : "neutral"}>{index === 0 ? "Ready for review" : "Documents pending"}</b></span><span><button className="secondary-button" onClick={() => { setActiveContractor(contractor); setShowAssessmentForm(true); }}>Review</button></span></div>)}</div>
+            {activeSection === "add" && <>
+              <div className="module-hero"><div><p className="eyebrow">PAGE 2 · NEW DATABASE RECORD</p><h2>Add a contractor</h2><p>Create the basic profile first. The contractor will receive a three-year validation period by default.</p></div><button className="primary-button" onClick={() => setShowAddContractor(true)}>＋ Open contractor form</button></div>
+              <div className="add-page-grid"><section><span>1</span><div><h3>Create basic record</h3><p>Enter company name, contact, CIDB grade, Pre-Q score, approval date and other required database fields.</p></div></section><section><span>2</span><div><h3>Import project experience</h3><p>After the record is created, import completed and ongoing project lists from PDF, Word or Excel.</p></div></section><section><span>3</span><div><h3>Control full documents</h3><p>Keep detailed documents protected in SharePoint. Database users request access when needed.</p></div></section></div>
             </>}
 
             {activeSection === "nominations" && <>
-              <div className="module-hero"><div><p className="eyebrow">PROCUREMENT WORKFLOW</p><h2>Contractor nominations</h2><p>Prepare, review and export contractor comparison summaries.</p></div><button className="primary-button" onClick={() => setShowSummary(true)}>＋ New nomination</button></div>
-              <section className="nomination-selection-card"><div className="module-heading"><div><p className="eyebrow">CURRENT NOMINATION SELECTION</p><h3>Selected project references by contractor</h3></div><span>{chosenProjectRecords.length} reference{chosenProjectRecords.length === 1 ? "" : "s"}</span></div>{nominationProjectGroups.length ? <div className="nomination-company-groups">{nominationProjectGroups.map(({ contractor, projects }) => <section className="nomination-company-group" key={contractor.id}><header><div><strong>{contractor.name}</strong><small>{contractor.trade} · CIDB {contractor.grade} · Pre-Q {contractor.score}/100</small></div><b>{projects.length} selected project{projects.length === 1 ? "" : "s"}</b></header><div className="nomination-reference-table"><div className="nomination-reference-row header"><span>Project and scope</span><span>Client / location</span><span>Value</span><span>Period</span><span /></div>{projects.map((project) => <div className="nomination-reference-row" key={project.id}><span><strong>{project.name}</strong><small>{project.scope}</small></span><span>{project.client}<small>{project.location}</small></span><span><strong>{money(project.value)}</strong></span><span>{project.period}</span><span><button onClick={() => toggleProject(project.id)}>Remove</button></span></div>)}</div></section>)}</div> : <div className="nomination-empty"><strong>No project references selected</strong><span>Open the contractor directory, select relevant projects, then add them to the nomination summary.</span><button className="secondary-button" onClick={() => setActiveSection("contractors")}>Browse contractors</button></div>}</section>
-              <div className="workflow-table"><div className="workflow-row nomination header"><span>Nomination</span><span>Trade</span><span>Shortlist</span><span>Status</span><span>Action</span></div>{[["Piling works – Project A", "Piling & foundation", "3 contractors", "Draft"], ["Main building works – Phase 2", "Building works", "4 contractors", "Under review"], ["Factory extension", "Building works", "2 contractors", "Approved"]].map(([title, trade, count, status]) => <div className="workflow-row nomination" key={title}><span><strong>{title}</strong><small>Updated this month</small></span><span>{trade}</span><span>{count}</span><span><b className="neutral">{status}</b></span><span><button className="secondary-button" onClick={() => setShowSummary(true)}>Open</button></span></div>)}</div>
+              <div className="module-hero"><div><p className="eyebrow">PAGE 4 · REPORTING ONLY</p><h2>Combined contractor report</h2><p>Combine selected contractors and relevant projects into one report. This page does not perform review or approval actions.</p></div><button className="primary-button" disabled={!selectedContractors.length} onClick={() => setShowSummary(true)}>Preview combined report</button></div>
+              <section className="nomination-selection-card"><div className="module-heading"><div><p className="eyebrow">CURRENT REPORT SELECTION</p><h3>Selected project references by contractor</h3></div><span>{chosenProjectRecords.length} reference{chosenProjectRecords.length === 1 ? "" : "s"}</span></div>{nominationProjectGroups.length ? <div className="nomination-company-groups">{nominationProjectGroups.map(({ contractor, projects }) => <section className="nomination-company-group" key={contractor.id}><header><div><strong>{contractor.name}</strong><small>CIDB {contractor.grade} · Pre-Q {contractor.score}/100 · {contractorValidity(contractor)}</small></div><b>{projects.length} selected project{projects.length === 1 ? "" : "s"}</b></header><div className="nomination-reference-table"><div className="nomination-reference-row header"><span>Project and scope</span><span>Client / location</span><span>Value</span><span>Period</span><span /></div>{projects.map((project) => <div className="nomination-reference-row" key={project.id}><span><strong>{project.name}</strong><small>{project.scope}</small></span><span>{project.client}<small>{project.location}</small></span><span><strong>{money(project.value)}</strong></span><span>{project.period}</span><span><button onClick={() => toggleProject(project.id)}>Remove</button></span></div>)}</div></section>)}</div> : <div className="nomination-empty"><strong>No project references selected</strong><span>Open Find Contractors, select relevant projects, then add them to the combined report.</span><button className="secondary-button" onClick={() => setActiveSection("contractors")}>Find contractors</button></div>}</section>
             </>}
 
             {activeSection === "imports" && <>
@@ -857,8 +888,8 @@ export default function Home() {
             </>}
 
             {activeSection === "settings" && <>
-              <div className="module-hero"><div><p className="eyebrow">PROTOTYPE SETTINGS</p><h2>Companies and access roles</h2><p>Review the planned role structure before company login and Firebase are connected.</p></div><button className="primary-button" onClick={() => notify("Demonstration settings saved for this session.")}>Save preferences</button></div>
-              <div className="settings-grid"><section><div className="module-heading"><h3>Pilot companies</h3></div><label>Group name<input defaultValue="Berinda Group" /></label><label>First pilot company<input defaultValue="Johor Land Berhad" /></label><label>Second pilot company<input placeholder="Enter subsidiary name" /></label></section><section><div className="module-heading"><h3>Access roles</h3></div>{[["Group administrator", "All companies and settings"], ["Company administrator", "Own company submissions"], ["Pre-Q reviewer", "Assessments and decisions"], ["Project user", "Search and nominations"], ["Viewer", "Approved records only"]].map(([role, access]) => <div className="role-row" key={role}><strong>{role}</strong><span>{access}</span><button onClick={() => notify(`${role} permissions displayed.`)}>View</button></div>)}</section></div>
+              <div className="module-hero"><div><p className="eyebrow">DATABASE SETTINGS</p><h2>Contractor validation periods</h2><p>Each contractor defaults to three years from its approval date. You can set a different period for an individual contractor.</p></div><button className="primary-button" onClick={() => notify("Validation settings saved for this session.")}>Save settings</button></div>
+              <section className="validation-settings"><div className="validation-row header"><span>Contractor</span><span>Approval date</span><span>Validation period</span><span>Valid until</span><span>Status</span></div>{contractorRows.map((contractor) => <div className="validation-row" key={contractor.id}><span><strong>{contractor.name}</strong><small>CIDB {contractor.grade}</small></span><span>{contractor.approvalDate}</span><span><label><input type="number" min="1" max="10" value={contractor.validationYears ?? 3} onChange={(event) => updateValidationYears(contractor, Number(event.target.value))} /> years</label></span><span>{formatValidationDate(contractor)}</span><span><b className={contractorValidity(contractor).toLowerCase()}>{contractorValidity(contractor)}</b></span></div>)}</section>
             </>}
           </section>
         )}
@@ -867,7 +898,7 @@ export default function Home() {
       {(activeSection === "contractors" || activeSection === "nominations") && <div className="selection-bar">
         <div><span className="selection-icon">▤</span><p><strong>{selectedContractors.length} contractor{selectedContractors.length === 1 ? "" : "s"} selected</strong><small>{selectedProjects.length} relevant project{selectedProjects.length === 1 ? "" : "s"} included</small></p></div>
         <button className="clear-button" onClick={() => { setSelectedContractors([]); setSelectedProjects([]); }}>Clear selection</button>
-        <button className="primary-button" disabled={!selectedContractors.length} onClick={() => setShowSummary(true)}>Generate nomination summary <span>→</span></button>
+        <button className="primary-button" disabled={!selectedContractors.length} onClick={() => setActiveSection("nominations")}>Open combined report <span>→</span></button>
       </div>}
 
       {showProfile && (
@@ -1010,7 +1041,7 @@ export default function Home() {
             <div className="matcher-controls"><label className="matcher-scope">Proposed project scope<textarea value={matcherScope} onChange={(event) => setMatcherScope(event.target.value)} rows={5} placeholder="Paste the full proposed scope here, for example: piling and pile-cap works for a serviced apartment development in Johor Bahru..." /><span>The ranking updates automatically as you type.</span></label><div className="matcher-range-grid"><label>Minimum contract value (RM)<input type="number" min="0" value={matcherMinCost} onChange={(event) => setMatcherMinCost(event.target.value)} placeholder="No minimum" /></label><label>Maximum contract value (RM)<input type="number" min="0" value={matcherMaxCost} onChange={(event) => setMatcherMaxCost(event.target.value)} placeholder="No maximum" /></label><label>From year<input type="number" min="1990" max="2100" value={matcherFromYear} onChange={(event) => setMatcherFromYear(event.target.value)} placeholder="e.g. 2020" /></label><label>To year<input type="number" min="1990" max="2100" value={matcherToYear} onChange={(event) => setMatcherToYear(event.target.value)} placeholder="e.g. 2026" /></label><button type="button" onClick={() => { setMatcherMinCost(""); setMatcherMaxCost(""); setMatcherFromYear(""); setMatcherToYear(""); }}>Clear ranges</button></div></div>
             <div className="matcher-result-head"><div><strong>Ranked relevant projects</strong><span>{matcherTerms.length ? `${matcherTerms.length} meaningful scope keywords analysed` : "Paste a scope to begin matching"}</span></div><span>Highest relevance first</span></div>
             <div className="matcher-table-wrap">{matcherTerms.length ? <table className="matcher-table"><thead><tr><th>Select</th><th>Relevance</th><th>Contractor</th><th>Project and matching scope</th><th>Client / location</th><th>Value</th><th>Year</th></tr></thead><tbody>{relevantProjectMatches.map(({ contractor, project, projectYear, relevance, matchedTerms }) => { const selected = selectedProjects.includes(project.id); return <tr key={`${contractor.id}-${project.id}`}><td><button className={`row-check ${selected ? "checked" : ""}`} onClick={() => toggleMatchedProject(contractor, project.id)} aria-label={`${selected ? "Remove" : "Select"} ${project.name}`}>{selected ? "✓" : ""}</button></td><td><strong className="relevance-score">{relevance}%</strong></td><td><strong>{contractor.name}</strong><small>{contractor.trade} · CIDB {contractor.grade}</small></td><td><strong>{project.name}</strong><small>{project.scope}</small><div className="matched-terms">{matchedTerms.slice(0, 6).map((term) => <span key={term}>{term}</span>)}</div></td><td>{project.client}<small>{project.location}</small></td><td><strong>{money(project.value)}</strong></td><td>{projectYear || "-"}<small>{project.status}</small></td></tr>; })}</tbody></table> : <div className="matcher-empty"><strong>Paste a proposed scope to find relevant experience</strong><span>You can then narrow the results using contract-value and year ranges.</span></div>}{matcherTerms.length > 0 && !relevantProjectMatches.length && <div className="matcher-empty"><strong>No projects match the current scope and ranges</strong><span>Try widening the cost or year range.</span></div>}</div>
-            <div className="project-table-footer"><span>{selectedProjects.length} project{selectedProjects.length === 1 ? "" : "s"} selected for nomination</span><div><button className="secondary-button" onClick={() => setShowProjectMatcher(false)}>Close</button><button className="primary-button" disabled={!selectedProjects.length} onClick={() => { setShowProjectMatcher(false); setActiveSection("nominations"); notify(`${selectedProjects.length} project reference${selectedProjects.length === 1 ? "" : "s"} added to the nomination summary.`); }}>Add selected to nomination</button></div></div>
+            <div className="project-table-footer"><span>{selectedProjects.length} project{selectedProjects.length === 1 ? "" : "s"} selected for reporting</span><div><button className="secondary-button" onClick={() => setShowProjectMatcher(false)}>Close</button><button className="primary-button" disabled={!selectedProjects.length} onClick={() => { setShowProjectMatcher(false); setActiveSection("nominations"); notify(`${selectedProjects.length} project reference${selectedProjects.length === 1 ? "" : "s"} added to the combined report.`); }}>Add selected to report</button></div></div>
           </section>
         </div>
       )}
@@ -1031,7 +1062,7 @@ export default function Home() {
               </table>
               {!popupProjects.length && <div className="profile-project-empty">No projects match this search.</div>}
             </div>
-            <div className="project-table-footer"><span>{selectedProjects.length} project{selectedProjects.length === 1 ? "" : "s"} selected for nomination</span><div><button className="secondary-button" disabled={!selectedProjects.length} onClick={() => { setProjectListStatus(null); setActiveSection("nominations"); notify(`${selectedProjects.length} selected project reference${selectedProjects.length === 1 ? "" : "s"} added to the nomination summary.`); }}>Add selected to nomination summary</button><button className="primary-button" onClick={() => setProjectListStatus(null)}>Done</button></div></div>
+            <div className="project-table-footer"><span>{selectedProjects.length} project{selectedProjects.length === 1 ? "" : "s"} selected for reporting</span><div><button className="secondary-button" disabled={!selectedProjects.length} onClick={() => { setProjectListStatus(null); setActiveSection("nominations"); notify(`${selectedProjects.length} selected project reference${selectedProjects.length === 1 ? "" : "s"} added to the combined report.`); }}>Add selected to report</button><button className="primary-button" onClick={() => setProjectListStatus(null)}>Done</button></div></div>
           </section>
         </div>
       )}
@@ -1102,7 +1133,7 @@ export default function Home() {
             <p className="eyebrow">CONTROLLED ACCESS</p><h2>Request full detail report</h2>
             <p>The basic contractor information and project list remain visible to group users. Restricted documents and the full report require approval.</p>
             <div className="request-contractor-card"><span>{activeContractor.initials}</span><div><strong>{activeContractor.name}</strong><small>{activeContractor.trade} · Pre-Q score {activeContractor.score}</small></div></div>
-            <div className="form-grid"><label className="wide">Reason for request<select name="reason" required><option>Contractor nomination</option><option>Pre-Q review</option><option>Project tender evaluation</option><option>Audit / compliance review</option></select></label><label className="wide">Additional note<textarea name="note" rows={3} placeholder="Project name or purpose of access" /></label></div>
+            <div className="form-grid"><label className="wide">Reason for request<select name="reason" required><option>Contractor reporting</option><option>Project tender evaluation</option><option>Audit / compliance check</option><option>Other business purpose</option></select></label><label className="wide">Additional note<textarea name="note" rows={3} placeholder="Project name or purpose of access" /></label></div>
             <div className="privacy-strip"><span>◇</span><p><strong>Approval-controlled</strong>The request will be sent to the contractor record owner. Opening or downloading restricted files will be logged.</p></div>
             <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setShowReportRequest(false)}>Cancel</button><button className="primary-button" type="submit">Submit request</button></div>
           </form>
@@ -1126,9 +1157,9 @@ export default function Home() {
         <div className="modal-backdrop summary-backdrop" role="presentation" onMouseDown={() => setShowSummary(false)}>
           <section className="modal summary-modal" role="dialog" aria-modal="true" aria-labelledby="summary-title" onMouseDown={(event) => event.stopPropagation()}>
             <button className="modal-close" onClick={() => setShowSummary(false)} aria-label="Close">×</button>
-            <div className="summary-brand"><div className="brand-mark">B</div><span>CONTRACTOR NOMINATION</span></div>
-            <p className="eyebrow">DRAFT SUMMARY</p><h2 id="summary-title">Piling contractor comparison</h2><p>Prepared from the group contractor directory · 01 Aug 2026</p>
-            <div className="summary-stats"><div><small>SHORTLISTED</small><strong>{selectedContractors.length}</strong></div><div><small>PROJECT REFERENCES</small><strong>{selectedProjects.length}</strong></div><div><small>REVIEW STATUS</small><strong>Draft</strong></div></div>
+            <div className="summary-brand"><div className="brand-mark">B</div><span>SELECTED CONTRACTOR REPORT</span></div>
+            <p className="eyebrow">REPORT PREVIEW</p><h2 id="summary-title">Combined contractor comparison</h2><p>Prepared from the group contractor database · 02 Aug 2026</p>
+            <div className="summary-stats"><div><small>CONTRACTORS</small><strong>{selectedContractors.length}</strong></div><div><small>PROJECT REFERENCES</small><strong>{selectedProjects.length}</strong></div><div><small>PURPOSE</small><strong>Reporting</strong></div></div>
             <h3>Selected relevant experience</h3>
             <div className="summary-projects">
               {chosenProjectRecords.map((project) => <article key={project.id}><div><strong>{project.contractor}</strong><span>{project.name}</span></div><div><strong>{money(project.value)}</strong><span>{project.location}</span></div></article>)}
