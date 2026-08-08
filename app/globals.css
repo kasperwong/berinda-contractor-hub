@@ -91,6 +91,8 @@ h1 { margin: 0; font-family: Georgia, serif; font-size: 28px; font-weight: 650; 
 .data-layout { display: grid; grid-template-columns: minmax(650px, 1fr) 362px; }
 .table-wrap { min-width: 0; overflow: auto; border-right: 1px solid var(--line); }
 table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+.table-wrap table > thead:not(.directory-enhanced-head) { display: none; }
+.trade-cell strong { white-space: normal; line-height: 1.35; }
 th { height: 38px; border-bottom: 1px solid var(--line); padding: 0 10px; background: #f8f9fa; color: #7b8795; font-size: 8px; font-weight: 700; letter-spacing: .04em; text-align: left; text-transform: uppercase; }
 .directory-sortable { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 5px; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; font-weight: 750; letter-spacing: inherit; text-align: left; text-transform: uppercase; white-space: nowrap; }
 .directory-sortable:hover { color: var(--teal); }
