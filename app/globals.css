@@ -135,6 +135,12 @@ tbody tr:hover, tbody tr.active-row { background: #f6faf9; }
 .details-button:hover, .request-documents-button:hover { border-color: #7eb5ad; color: var(--teal); }
 .request-documents-button { border-color: #b9d9d4; background: #f1f8f7; color: var(--teal); }
 .select-column { width: 48px; min-width: 48px; text-align: center; }
+.column-filter-row th { height: 42px; padding: 5px 6px; background: #f1f5f6; }
+.column-filter-row input, .column-filter-row select { width: 100%; height: 29px; min-width: 52px; border: 1px solid #d4dde1; border-radius: 5px; padding: 0 6px; background: white; color: #59697a; font-size: 8px; outline: none; }
+.column-filter-row input:focus, .column-filter-row select:focus { border-color: #6baea5; box-shadow: 0 0 0 2px rgba(19,124,114,.1); }
+.score-filter { display: flex; gap: 3px; }
+.score-filter input { min-width: 34px; }
+.clear-column-filters { border: 0; background: transparent; color: var(--teal); font-size: 8px; font-weight: 700; }
 .group-project-button { min-width: 126px; display: grid; gap: 3px; border: 1px solid #d8e5e2; border-radius: 7px; padding: 7px 10px; background: #f3f9f8; color: var(--teal); text-align: left; }
 .group-project-button strong { font-family: Georgia, serif; font-size: 16px; }
 .group-project-button span { font-size: 8px; font-weight: 700; white-space: nowrap; }
@@ -509,6 +515,12 @@ td { height: 80px; font-size: 12px; }
 .global-validity-note { display: flex; gap: 11px; border: 1px solid #bddbd6; border-radius: 9px; padding: 14px 16px; background: #eff8f6; color: var(--teal); }
 .global-validity-note p { margin: 0; color: #607184; font-size: 10px; line-height: 1.55; }
 .global-validity-note strong { display: block; color: var(--teal); }
+.required-fields-note { display: grid; gap: 4px; margin: 14px 0; border-left: 3px solid var(--teal); padding: 10px 12px; background: #eff8f6; }
+.required-fields-note strong { color: var(--teal); font-size: 11px; }
+.required-fields-note span { color: #607184; font-size: 9px; line-height: 1.5; }
+.optional-contractor-fields { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+.optional-contractor-fields summary { cursor: pointer; color: var(--teal); font-size: 10px; font-weight: 750; }
+.optional-contractor-fields .form-grid { margin-top: 14px; }
 .project-table-title { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 28px 16px; border-bottom: 1px solid var(--line); }
 .project-table-title h2 { margin: 0; }
 .project-table-title p:last-child { margin: 5px 0 0; color: #778594; font-size: 11px; }

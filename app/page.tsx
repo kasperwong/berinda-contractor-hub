@@ -117,6 +117,10 @@ function formatValidationDate(contractor: Contractor) {
   return expiry ? expiry.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Approval pending";
 }
 
+function contractorTrades(contractor: Contractor) {
+  return contractor.trade.split(/[,;|]/).map((trade) => trade.trim()).filter(Boolean);
+}
+
 const initialContractors: Contractor[] = [
   {
     id: "chuan-luck",
@@ -383,6 +387,7 @@ export default function Home() {
   const [statusFilter, setStatusFilter] = useState("All status");
   const [tradeFilter, setTradeFilter] = useState("All trades");
   const [locationFilter, setLocationFilter] = useState("All locations");
+  const [columnFilters, setColumnFilters] = useState({ name: "", contact: "", grade: "All grades", scoreMin: "", scoreMax: "", status: "All status", approval: "", projects: "", groupProjects: "" });
   const [activeContractor, setActiveContractor] = useState(initialContractors[0]);
   const [selectedContractors, setSelectedContractors] = useState<string[]>([
     initialContractors[0].id,
@@ -436,11 +441,20 @@ export default function Home() {
         contractor.mobile.includes(term) ||
         contractor.officePhone.includes(term);
       const matchesStatus = statusFilter === "All status" || contractorValidity(contractor) === statusFilter;
-      const matchesTrade = tradeFilter === "All trades" || contractor.trade === tradeFilter;
+      const matchesTrade = tradeFilter === "All trades" || contractorTrades(contractor).includes(tradeFilter);
       const matchesLocation = locationFilter === "All locations" || contractor.location === locationFilter;
-      return matchesSearch && matchesStatus && matchesTrade && matchesLocation;
+      const nameMatch = !columnFilters.name || contractor.name.toLowerCase().includes(columnFilters.name.toLowerCase());
+      const contactMatch = !columnFilters.contact || `${contractor.contactName} ${contractor.mobile}`.toLowerCase().includes(columnFilters.contact.toLowerCase());
+      const gradeMatch = columnFilters.grade === "All grades" || contractor.grade === columnFilters.grade;
+      const scoreMinMatch = !columnFilters.scoreMin || contractor.score >= Number(columnFilters.scoreMin);
+      const scoreMaxMatch = !columnFilters.scoreMax || contractor.score <= Number(columnFilters.scoreMax);
+      const columnStatusMatch = columnFilters.status === "All status" || contractorValidity(contractor) === columnFilters.status;
+      const approvalMatch = !columnFilters.approval || contractor.approvalDate.toLowerCase().includes(columnFilters.approval.toLowerCase());
+      const projectsMatch = !columnFilters.projects || contractor.projects.length >= Number(columnFilters.projects);
+      const groupProjectsMatch = !columnFilters.groupProjects || (groupCompanyProjects[contractor.id]?.length ?? 0) >= Number(columnFilters.groupProjects);
+      return matchesSearch && matchesStatus && matchesTrade && matchesLocation && nameMatch && contactMatch && gradeMatch && scoreMinMatch && scoreMaxMatch && columnStatusMatch && approvalMatch && projectsMatch && groupProjectsMatch;
     });
-  }, [contractorRows, locationFilter, query, statusFilter, tradeFilter]);
+  }, [columnFilters, contractorRows, locationFilter, query, statusFilter, tradeFilter]);
   const sortedContractors = [...filtered].sort((a, b) => {
     const value = (contractor: Contractor) => {
       if (contractorSort.key === "projects") return contractor.projects.length;
@@ -462,7 +476,7 @@ export default function Home() {
     const search = groupProjectQuery.trim().toLowerCase();
     const matchesSearch = !search || [project.groupCompany, project.contractorName, project.name, project.scope, project.location, String(project.value), String(project.year)].some((value) => value.toLowerCase().includes(search));
     const matchesCompany = groupProjectCompanyFilter === "All companies" || project.groupCompany === groupProjectCompanyFilter;
-    const matchesTrade = groupProjectTradeFilter === "All trades" || project.trade === groupProjectTradeFilter;
+    const matchesTrade = groupProjectTradeFilter === "All trades" || project.trade.split(/[,;|]/).map((trade) => trade.trim()).includes(groupProjectTradeFilter);
     return matchesSearch && matchesCompany && matchesTrade;
   });
   const sortedGroupProjectRecords = [...filteredGroupProjectRecords].sort((a, b) => {
@@ -472,12 +486,12 @@ export default function Home() {
     return groupProjectSort.direction === "asc" ? comparison : -comparison;
   });
   const groupProjectCompanies = Array.from(new Set(allGroupProjectRecords.map((project) => project.groupCompany))).sort();
-  const availableTrades = Array.from(new Set(contractorRows.map((contractor) => contractor.trade))).sort();
+  const availableTrades = Array.from(new Set(contractorRows.flatMap((contractor) => contractorTrades(contractor)))).sort();
   const availableLocations = Array.from(new Set(contractorRows.map((contractor) => contractor.location))).sort();
   const importContractorMatches = contractorRows.filter((contractor) => `${contractor.name} ${contractor.trade} ${contractor.location}`.toLowerCase().includes(importContractorSearch.trim().toLowerCase()));
   const selectedImportContractor = contractorRows.find((contractor) => contractor.id === selectedImportContractorId) ?? contractorRows[0];
   const exportContractors = contractorRows.filter((contractor) => {
-    const tradeMatches = !selectedExportTrades.length || selectedExportTrades.includes(contractor.trade);
+    const tradeMatches = !selectedExportTrades.length || selectedExportTrades.some((trade) => contractorTrades(contractor).includes(trade));
     const locationMatches = exportLocation === "All locations" || contractor.location === exportLocation;
     const minimum = Number(exportMinCost) || 0;
     const maximum = Number(exportMaxCost) || Number.POSITIVE_INFINITY;
@@ -491,7 +505,7 @@ export default function Home() {
       .map((project) => ({ ...project, contractor: contractor.name, contractorId: contractor.id, trade: contractor.trade, grade: contractor.grade })),
   );
   const nominationProjectGroups = contractorRows.map((contractor) => ({ contractor, projects: chosenProjectRecords.filter((project) => project.contractorId === contractor.id) })).filter((group) => group.projects.length);
-  const totalTrades = new Set(contractorRows.map((contractor) => contractor.trade).filter(Boolean)).size;
+  const totalTrades = new Set(contractorRows.flatMap((contractor) => contractorTrades(contractor))).size;
   const totalValidContractors = contractorRows.filter((contractor) => contractorValidity(contractor) === "Valid").length;
   const totalExpiredContractors = contractorRows.length - totalValidContractors;
 
@@ -538,7 +552,7 @@ export default function Home() {
     const maxCost = Number(matcherMaxCost) || Number.POSITIVE_INFINITY;
     const fromYear = Number(matcherFromYear) || 0;
     const toYear = Number(matcherToYear) || Number.POSITIVE_INFINITY;
-    const tradeMatches = matcherTrade === "All trades" || match.contractor.trade === matcherTrade;
+    const tradeMatches = matcherTrade === "All trades" || contractorTrades(match.contractor).includes(matcherTrade);
     return matcherTerms.length > 0 && match.relevance > 0 && tradeMatches && match.project.value >= minCost && match.project.value <= maxCost && match.projectYear >= fromYear && match.projectYear <= toYear;
   }).sort((a, b) => b.relevance - a.relevance || b.project.value - a.project.value).slice(0, 100);
 
@@ -836,24 +850,25 @@ export default function Home() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const name = String(form.get("name") ?? "").trim();
-    if (!name) return;
+    const trades = String(form.get("trade") ?? "").split(/[,;\n]/).map((trade) => trade.trim()).filter(Boolean);
+    if (!name || !trades.length) return;
     const contractor: Contractor = {
       id: `demo-${Date.now()}`,
       initials: name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase(),
       name,
-      trade: String(form.get("trade")),
-      contactName: String(form.get("contactName")),
-      mobile: String(form.get("mobile")),
-      officePhone: String(form.get("officePhone")),
-      email: String(form.get("email")),
-      grade: String(form.get("grade")),
-      location: String(form.get("location")),
-      score: Number(form.get("score")),
+      trade: Array.from(new Set(trades)).join(", "),
+      contactName: String(form.get("contactName") || "Not provided"),
+      mobile: String(form.get("mobile") || "Not provided"),
+      officePhone: String(form.get("officePhone") || "Not provided"),
+      email: String(form.get("email") || "Not provided"),
+      grade: String(form.get("grade") || "Not provided"),
+      location: String(form.get("location") || "Not provided"),
+      score: Number(form.get("score")) || 0,
       status: Number(form.get("score")) >= 65 ? "Approved" : "Review due",
       expiry: "Not assessed",
       updated: "Just now",
       preqDoneBy: "Not assigned",
-      preqDate: String(form.get("preqDate")),
+      preqDate: String(form.get("preqDate") || "Not provided"),
       approvalDate: String(form.get("approvalDate")) || "Pending",
       validationYears: groupValidationYears,
       projects: [],
@@ -1055,7 +1070,7 @@ export default function Home() {
           <div className={`data-layout ${showProjectPanel ? "" : "panel-hidden"}`}>
             <div className="table-wrap">
               <table>
-                <thead><tr><th className="select-column"><button className={`row-check ${sortedContractors.length > 0 && sortedContractors.every((contractor) => selectedContractors.includes(contractor.id)) ? "checked" : ""}`} onClick={toggleAllVisibleContractors} aria-label="Select all visible contractors">{sortedContractors.length > 0 && sortedContractors.every((contractor) => selectedContractors.includes(contractor.id)) ? "✓" : ""}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("name")}>Contractor name{contractorSortIndicator("name")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("contactName")}>Contact{contractorSortIndicator("contactName")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("grade")}>CIDB grade{contractorSortIndicator("grade")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("score")}>Pre-Q score{contractorSortIndicator("score")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("status")}>Status{contractorSortIndicator("status")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("approvalDate")}>Approval{contractorSortIndicator("approvalDate")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("projects")}>Projects{contractorSortIndicator("projects")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("groupProjects")}>Group company projects{contractorSortIndicator("groupProjects")}</button></th><th>Request document</th></tr></thead>
+                <thead><tr><th className="select-column"><button className={`row-check ${sortedContractors.length > 0 && sortedContractors.every((contractor) => selectedContractors.includes(contractor.id)) ? "checked" : ""}`} onClick={toggleAllVisibleContractors} aria-label="Select all visible contractors">{sortedContractors.length > 0 && sortedContractors.every((contractor) => selectedContractors.includes(contractor.id)) ? "✓" : ""}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("name")}>Contractor name{contractorSortIndicator("name")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("contactName")}>Contact{contractorSortIndicator("contactName")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("grade")}>CIDB grade{contractorSortIndicator("grade")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("score")}>Pre-Q score{contractorSortIndicator("score")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("status")}>Status{contractorSortIndicator("status")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("approvalDate")}>Approval{contractorSortIndicator("approvalDate")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("projects")}>Projects{contractorSortIndicator("projects")}</button></th><th><button className="directory-sortable" onClick={() => sortContractors("groupProjects")}>Group company projects{contractorSortIndicator("groupProjects")}</button></th><th>Request document</th></tr><tr className="column-filter-row"><th></th><th><input value={columnFilters.name} onChange={(event) => setColumnFilters((current) => ({ ...current, name: event.target.value }))} placeholder="Filter name" aria-label="Filter contractor name" /></th><th><input value={columnFilters.contact} onChange={(event) => setColumnFilters((current) => ({ ...current, contact: event.target.value }))} placeholder="Filter contact" aria-label="Filter contact" /></th><th><select value={columnFilters.grade} onChange={(event) => setColumnFilters((current) => ({ ...current, grade: event.target.value }))} aria-label="Filter CIDB grade"><option>All grades</option>{["G7", "G6", "G5", "G4", "Not provided"].map((grade) => <option key={grade}>{grade}</option>)}</select></th><th><div className="score-filter"><input type="number" min="0" max="100" value={columnFilters.scoreMin} onChange={(event) => setColumnFilters((current) => ({ ...current, scoreMin: event.target.value }))} placeholder="Min" aria-label="Minimum Pre-Q score" /><input type="number" min="0" max="100" value={columnFilters.scoreMax} onChange={(event) => setColumnFilters((current) => ({ ...current, scoreMax: event.target.value }))} placeholder="Max" aria-label="Maximum Pre-Q score" /></div></th><th><select value={columnFilters.status} onChange={(event) => setColumnFilters((current) => ({ ...current, status: event.target.value }))} aria-label="Filter status"><option>All status</option><option>Valid</option><option>Expired</option></select></th><th><input value={columnFilters.approval} onChange={(event) => setColumnFilters((current) => ({ ...current, approval: event.target.value }))} placeholder="Year/date" aria-label="Filter approval date" /></th><th><input type="number" min="0" value={columnFilters.projects} onChange={(event) => setColumnFilters((current) => ({ ...current, projects: event.target.value }))} placeholder="Min" aria-label="Minimum projects" /></th><th><input type="number" min="0" value={columnFilters.groupProjects} onChange={(event) => setColumnFilters((current) => ({ ...current, groupProjects: event.target.value }))} placeholder="Min" aria-label="Minimum group projects" /></th><th><button className="clear-column-filters" onClick={() => setColumnFilters({ name: "", contact: "", grade: "All grades", scoreMin: "", scoreMax: "", status: "All status", approval: "", projects: "", groupProjects: "" })}>Clear</button></th></tr></thead>
                 <tbody>
                   {sortedContractors.map((contractor) => {
                     const isActive = activeContractor.id === contractor.id;
@@ -1338,7 +1353,7 @@ export default function Home() {
             <button type="button" className="modal-close" onClick={() => setShowAddContractor(false)} aria-label="Close">×</button>
             <p className="eyebrow">BASIC CONTRACTOR INFORMATION</p><h2>Create contractor profile</h2><p>After creating the profile, import its project list and review the completed and ongoing projects.</p>
             <section className="excel-import-card"><div className="excel-import-heading"><div><span>XLSX</span><div><strong>Import contractor information from Excel</strong><small>Import one contractor or a full contractor list. The file is read in your browser for this demo.</small></div></div><button type="button" onClick={() => downloadFile("contractor-import-template.csv", "Contractor,Trade,Contact Name,H/Phone No,Office No,Email,Pre-Q Date,Score,Approval Date,CIDB Grade,Location\nExample Contractor Sdn Bhd,Landscape,Mr Example,0123456789,071234567,example@company.com,17/03/2026,70,19/03/2026,G7,Johor", "text/csv;charset=utf-8")}>Download template</button></div><label className="excel-dropzone"><input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => handleContractorExcelFile(event.target.files?.[0])} /><strong>{contractorImportFile || "Choose an Excel .xlsx file"}</strong><span>Recognised columns: Contractor, Trade, Contact Name, H/Phone No, Office No, Email, Pre-Q Date, Score, Approval Date, CIDB Grade and Location.</span></label>{contractorImportError && <p className="import-error">{contractorImportError}</p>}{contractorImportRows.length > 0 && <div className="excel-import-ready"><div><strong>{contractorImportRows.length} contractor row{contractorImportRows.length === 1 ? "" : "s"} ready</strong><span>Review the first row in the form, or import every valid row immediately.</span></div><div><button type="button" className="secondary-button" onClick={useFirstImportedRow}>Use first row</button><button type="button" className="primary-button" onClick={importAllContractors}>Import all</button></div></div>}</section>
-            <div className="form-grid"><label className="wide">Company name<input name="name" required placeholder="Legal company name" /></label><label>Trade<input name="trade" required placeholder="e.g. Landscape" /></label><label>Contact name<input name="contactName" required placeholder="Mr / Ms and name" /></label><label>Mobile / handphone number<input name="mobile" type="tel" required /></label><label>Office number<input name="officePhone" type="tel" required /></label><label className="wide">Email address<input name="email" type="email" required placeholder="company@example.com" /></label><label>Pre-Q date<input name="preqDate" type="date" required /></label><label>Pre-Q score<input name="score" type="number" min="0" max="100" defaultValue="0" required /></label><label>Approval date<input name="approvalDate" type="date" /></label><label>CIDB grade<select name="grade" defaultValue="G7"><option>G7</option><option>G6</option><option>G5</option><option>G4</option><option>Not provided</option></select></label><label>Location<select name="location" defaultValue="Johor"><option>Johor</option><option>Selangor</option><option>Kuala Lumpur</option><option>Other</option></select></label></div>
+            <div className="required-fields-note"><strong>Only two fields are required</strong><span>Enter the legal company name and one or more trades. The remaining information can be added later.</span></div><div className="form-grid"><label className="wide">Company name<input name="name" required placeholder="Legal company name" /></label><label className="wide">Trade(s)<input name="trade" required placeholder="e.g. Landscape, Civil works, Piling & foundation" /><small>Separate multiple trades with commas.</small></label></div><details className="optional-contractor-fields"><summary>Add optional information now</summary><div className="form-grid"><label>Contact name<input name="contactName" placeholder="Mr / Ms and name" /></label><label>Mobile / handphone number<input name="mobile" type="tel" /></label><label>Office number<input name="officePhone" type="tel" /></label><label className="wide">Email address<input name="email" type="email" placeholder="company@example.com" /></label><label>Pre-Q date<input name="preqDate" type="date" /></label><label>Pre-Q score<input name="score" type="number" min="0" max="100" defaultValue="0" /></label><label>Approval date<input name="approvalDate" type="date" /></label><label>CIDB grade<select name="grade" defaultValue="Not provided"><option>Not provided</option><option>G7</option><option>G6</option><option>G5</option><option>G4</option></select></label><label>Location<select name="location" defaultValue="Not provided"><option>Not provided</option><option>Johor</option><option>Selangor</option><option>Kuala Lumpur</option><option>Other</option></select></label></div></details>
             <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setShowAddContractor(false)}>Cancel</button><button className="primary-button" type="submit">Create profile</button></div>
           </form>
         </div>
