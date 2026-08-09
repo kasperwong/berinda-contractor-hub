@@ -68,7 +68,7 @@ type ProjectSortKey = "name" | "client" | "location" | "value" | "period" | "pro
 type ContractorSortKey = "name" | "trade" | "contactName" | "grade" | "score" | "status" | "approvalDate" | "projects" | "groupProjects";
 type GroupProjectSortKey = "groupCompany" | "contractorName" | "name" | "scope" | "value" | "year" | "location";
 
-const PROJECT_AI_PROMPT = `Read the attached contractor project-list document and extract every completed and ongoing project. Create a CSV file named contractor-projects.csv using exactly these columns in this order: Project Name, Scope, Building Type, Developer, Client / Main Contractor, Location, Contract Value RM, Commencement Date, Completion Date, Status, Progress, Source Page. Use one project per row. Status must be Completed or Ongoing. Contract Value RM must contain numbers only. Keep the original project scope wording. Leave a field blank when the source does not provide it. Do not invent information. Return the finished CSV file for download and no additional explanation.`;
+const PROJECT_AI_PROMPT = `Read the attached contractor project-list document and create a CSV file named contractor-projects.csv using exactly these columns in exactly this order: Project Name, Scope, Building Type, Developer, Client / Main Contractor, Location, Contract Value RM, Commencement Date, Completion Date, Status, Progress. Use one project per row. Status must be Completed or Ongoing. Contract Value RM must contain numbers only. Keep the original project scope wording. Keep dates in the source format or use DD/MM/YYYY when a date is available. Leave a field blank when the source does not provide it. Do not add extra columns. Do not invent information. Return the finished CSV file for download and no additional explanation.`;
 const CONTRACTOR_AI_PROMPT = `Read the attached contractor-list document and create a CSV file named contractor-list.csv using exactly these columns in this order: Contractor Name, Trade, Contact Name, Mobile, Office Phone, Email Address, Pre-Q Date, Pre-Q Score, Approval Date, CIDB Grade, Location. Use one contractor per row. Dates must use DD/MM/YYYY. Pre-Q Score must contain numbers only. Leave a field blank when the source does not provide it. Do not invent information. Return the finished CSV file for download and no additional explanation.`;
 
 function parseCsvRows(text: string) {
@@ -621,7 +621,7 @@ export default function Home() {
   }
 
   function downloadProjectTemplate() {
-    downloadFile("contractor-projects-template.csv", "Project Name,Scope,Building Type,Developer,Client / Main Contractor,Location,Contract Value RM,Commencement Date,Completion Date,Status,Progress,Source Page\n", "text/csv;charset=utf-8");
+    downloadFile("contractor-projects-template.csv", "Project Name,Scope,Building Type,Developer,Client / Main Contractor,Location,Contract Value RM,Commencement Date,Completion Date,Status,Progress\n", "text/csv;charset=utf-8");
   }
 
   function downloadContractorTemplate() {
