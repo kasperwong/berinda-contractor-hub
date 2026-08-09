@@ -122,12 +122,12 @@ async function parsePrefixedXlsxRows(file: File): Promise<unknown[][]> {
   });
   if (!rows.length) {
     const decode = (value: string) => value.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'");
-    const fallbackRows = Array.from(rawXml.matchAll(/<[^>]*row\b[^>]*>([\s\S]*?)<\/[^>]*row>/gi)).map((match) => {
+    const fallbackRows = Array.from(rawXml.matchAll(/<x:row[^>]*>([\s\S]*?)<\/x:row>/gi)).map((match) => {
       const values: unknown[] = [];
-      Array.from(match[1].matchAll(/<[^>]*c\b[^>]*\br="([A-Z]+)\d+"[^>]*>([\s\S]*?)<\/[^>]*c>/gi)).forEach((cell) => {
+      Array.from(match[1].matchAll(/<x:c[^>]*\br="([A-Z]+)\d+"[^>]*>([\s\S]*?)<\/x:c>/gi)).forEach((cell) => {
         const index = cell[1].split("").reduce((total, letter) => total * 26 + letter.charCodeAt(0) - 64, 0) - 1;
         const type = (cell[0].match(/\bt="([^"]+)"/) ?? [])[1];
-        const raw = decode((cell[2].match(/<[^>]*v\b[^>]*>([\s\S]*?)<\/[^>]*v>/i) ?? [])[1] ?? "");
+        const raw = decode((cell[2].match(/<x:v[^>]*>([\s\S]*?)<\/x:v>/i) ?? [])[1] ?? "");
         values[index] = type === "str" ? raw : raw !== "" && /^-?\d+(\.\d+)?$/.test(raw) ? Number(raw) : raw;
       });
       return values;
@@ -793,9 +793,11 @@ export default function Home() {
       let rows: unknown[][];
       if (file.name.toLowerCase().endsWith(".csv")) rows = parseCsvRows(await file.text());
       else {
-        try { rows = await (await import("read-excel-file/browser")).default(file); }
-        catch { rows = []; }
-        if (!rows.length) rows = await parsePrefixedXlsxRows(file);
+        rows = await parsePrefixedXlsxRows(file);
+        if (!rows.length) {
+          try { rows = await (await import("read-excel-file/browser")).default(file); }
+          catch { rows = []; }
+        }
       }
       if (rows.length < 2) throw new Error("The worksheet has no contractor rows.");
       const normalise = (value: unknown) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
