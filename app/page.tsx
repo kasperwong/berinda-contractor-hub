@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { chuanLuckProjects } from "./chuan-luck-projects";
 
 type Project = {
@@ -101,7 +101,8 @@ async function parsePrefixedXlsxRows(file: File): Promise<unknown[][]> {
   const archive = unzipSync(new Uint8Array(await file.arrayBuffer()));
   const sheetPath = Object.keys(archive).find((path) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(path));
   if (!sheetPath) return [];
-  const xml = new DOMParser().parseFromString(strFromU8(archive[sheetPath]), "application/xml");
+  const rawXml = strFromU8(archive[sheetPath]);
+  const xml = new DOMParser().parseFromString(rawXml, "application/xml");
   const sharedStrings = archive["xl/sharedStrings.xml"] ? Array.from(new DOMParser().parseFromString(strFromU8(archive["xl/sharedStrings.xml"]), "application/xml").getElementsByTagNameNS("*", "si")).map((item) => Array.from(item.getElementsByTagNameNS("*", "t")).map((text) => text.textContent ?? "").join("")) : [];
   const columnIndex = (reference: string) => { const letters = reference.replace(/\d/g, "").toUpperCase(); return letters.split("").reduce((total, letter) => total * 26 + letter.charCodeAt(0) - 64, 0) - 1; };
   const rows = Array.from(xml.getElementsByTagNameNS("*", "row")).map((row) => {
@@ -119,6 +120,20 @@ async function parsePrefixedXlsxRows(file: File): Promise<unknown[][]> {
     });
     return values;
   });
+  if (!rows.length) {
+    const decode = (value: string) => value.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+    const fallbackRows = Array.from(rawXml.matchAll(/<[^>]*row\b[^>]*>([\s\S]*?)<\/[^>]*row>/gi)).map((match) => {
+      const values: unknown[] = [];
+      Array.from(match[1].matchAll(/<[^>]*c\b[^>]*\br="([A-Z]+)\d+"[^>]*>([\s\S]*?)<\/[^>]*c>/gi)).forEach((cell) => {
+        const index = cell[1].split("").reduce((total, letter) => total * 26 + letter.charCodeAt(0) - 64, 0) - 1;
+        const type = (cell[0].match(/\bt="([^"]+)"/) ?? [])[1];
+        const raw = decode((cell[2].match(/<[^>]*v\b[^>]*>([\s\S]*?)<\/[^>]*v>/i) ?? [])[1] ?? "");
+        values[index] = type === "str" ? raw : raw !== "" && /^-?\d+(\.\d+)?$/.test(raw) ? Number(raw) : raw;
+      });
+      return values;
+    });
+    if (fallbackRows.length) return fallbackRows.map((row, rowIndex) => row.map((value, index) => rowIndex > 0 && (index === 7 || index === 8) && typeof value === "number" && value > 0 ? new Date(Date.UTC(1899, 11, 30) + value * 86400000) : value));
+  }
   const headers = (rows[0] ?? []).map((value) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, ""));
   return rows.map((row, rowIndex) => row.map((value, index) => rowIndex > 0 && /date$/.test(headers[index] ?? "") && typeof value === "number" && value > 0 ? new Date(Date.UTC(1899, 11, 30) + value * 86400000) : value));
 }
@@ -388,6 +403,24 @@ const money = (value: number) =>
 
 export default function Home() {
   const [contractorRows, setContractorRows] = useState(initialContractors);
+  const contractorStorageHydrated = useRef(false);
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("berinda-contractor-rows");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length) setContractorRows(parsed);
+      }
+    } catch {
+      // Continue with the demonstration records if local browser storage is unavailable.
+    } finally {
+      contractorStorageHydrated.current = true;
+    }
+  }, []);
+  useEffect(() => {
+    if (!contractorStorageHydrated.current) return;
+    try { window.localStorage.setItem("berinda-contractor-rows", JSON.stringify(contractorRows)); } catch { /* Storage is optional until Firebase is connected. */ }
+  }, [contractorRows]);
   const [groupCompanies, setGroupCompanies] = useState([
     { id: "berinda-group", name: "Berinda Group" },
     { id: "johor-land", name: "Johor Land Berhad" },
