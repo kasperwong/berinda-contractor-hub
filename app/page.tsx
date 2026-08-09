@@ -8,6 +8,8 @@ type Project = {
   name: string;
   scope: string;
   client: string;
+  projectType?: string;
+  developer?: string;
   location: string;
   value: number;
   period: string;
@@ -66,7 +68,7 @@ type ProjectSortKey = "name" | "client" | "location" | "value" | "period" | "pro
 type ContractorSortKey = "name" | "trade" | "contactName" | "grade" | "score" | "status" | "approvalDate" | "projects" | "groupProjects";
 type GroupProjectSortKey = "groupCompany" | "contractorName" | "name" | "scope" | "value" | "year" | "location";
 
-const PROJECT_AI_PROMPT = `Read the attached contractor project-list document and extract every completed and ongoing project. Create a CSV file named contractor-projects.csv using exactly these columns in this order: Project Name, Scope, Client, Location, Contract Value RM, Commencement Date, Completion Date, Status, Progress, Source Page. Use one project per row. Status must be Completed or Ongoing. Contract Value RM must contain numbers only. Keep the original project scope wording. Leave a field blank when the source does not provide it. Do not invent information. Return the finished CSV file for download and no additional explanation.`;
+const PROJECT_AI_PROMPT = `Read the attached contractor project-list document and extract every completed and ongoing project. Create a CSV file named contractor-projects.csv using exactly these columns in this order: Project Name, Scope, Building Type, Developer, Client / Main Contractor, Location, Contract Value RM, Commencement Date, Completion Date, Status, Progress, Source Page. Use one project per row. Status must be Completed or Ongoing. Contract Value RM must contain numbers only. Keep the original project scope wording. Leave a field blank when the source does not provide it. Do not invent information. Return the finished CSV file for download and no additional explanation.`;
 const CONTRACTOR_AI_PROMPT = `Read the attached contractor-list document and create a CSV file named contractor-list.csv using exactly these columns in this order: Contractor Name, Trade, Contact Name, Mobile, Office Phone, Email Address, Pre-Q Date, Pre-Q Score, Approval Date, CIDB Grade, Location. Use one contractor per row. Dates must use DD/MM/YYYY. Pre-Q Score must contain numbers only. Leave a field blank when the source does not provide it. Do not invent information. Return the finished CSV file for download and no additional explanation.`;
 
 function parseCsvRows(text: string) {
@@ -526,7 +528,7 @@ export default function Home() {
   const ongoingProjects = activeContractor.projects.filter((project) => project.status === "Ongoing");
   const projectSearchTerms = projectQuery.toLowerCase().split(",").map((term) => term.trim()).filter(Boolean);
   const projectMatchesSearch = (project: Project) => {
-    const searchable = [project.name, project.scope, project.client, project.location, project.period, project.status, project.progress ?? "", String(project.value)].join(" ").toLowerCase();
+    const searchable = [project.name, project.scope, project.projectType ?? "", project.developer ?? "", project.client, project.location, project.period, project.status, project.progress ?? "", String(project.value)].join(" ").toLowerCase();
     return projectSearchTerms.every((term) => searchable.includes(term));
   };
   const filteredCompletedProjects = completedProjects.filter(projectMatchesSearch);
@@ -542,7 +544,7 @@ export default function Home() {
   const matcherTerms = Array.from(new Set(matcherScope.toLowerCase().match(/[a-z0-9]+/g)?.filter((term) => term.length > 2 && !matcherStopWords.has(term)) ?? []));
   const relevantProjectMatches = contractorRows.flatMap((contractor) => contractor.projects.map((project) => {
     const projectYear = Number(`${project.name} ${project.period}`.match(/\b(19|20)\d{2}\b/)?.[0] ?? 0);
-    const searchable = `${project.name} ${project.scope} ${project.client} ${project.location} ${project.status}`.toLowerCase();
+    const searchable = `${project.name} ${project.scope} ${project.projectType ?? ""} ${project.developer ?? ""} ${project.client} ${project.location} ${project.status}`.toLowerCase();
     const matchedTerms = matcherTerms.filter((term) => searchable.includes(term));
     const coverage = matcherTerms.length ? matchedTerms.length / Math.min(matcherTerms.length, 18) : 0;
     const phraseBonus = matcherScope.trim().length > 12 && searchable.includes(matcherScope.trim().toLowerCase()) ? 20 : 0;
@@ -592,9 +594,17 @@ export default function Home() {
   }
 
   function exportNominationWord() {
-    const projectRows = chosenProjectRecords.map((project) => `<tr><td>${project.contractor}</td><td>${project.name}</td><td>${project.scope}</td><td>${project.client}</td><td>${project.location}</td><td>${money(project.value)}</td></tr>`).join("");
-    const html = `<html><body><h1>Selected Contractor Report</h1><p>Combined for reporting purposes from the Berinda Contractor Hub.</p><table border="1" cellspacing="0" cellpadding="6"><tr><th>Contractor</th><th>Project</th><th>Scope</th><th>Client</th><th>Location</th><th>Value</th></tr>${projectRows}</table></body></html>`;
+    const projectRows = chosenProjectRecords.map((project) => `<tr><td>${project.contractor}</td><td>${project.name}</td><td>${project.scope}</td><td>${project.projectType ?? "Not provided"}</td><td>${project.developer ?? "Not provided"}</td><td>${project.client}</td><td>${project.location}</td><td>${money(project.value)}</td><td>${project.period}</td><td>${project.status}</td><td>${project.progress ?? "Not provided"}</td><td>${project.sourcePage ?? "Not provided"}</td></tr>`).join("");
+    const html = `<html><body><h1>Selected Contractor Report</h1><p>Combined for reporting purposes from the Berinda Contractor Hub.</p><table border="1" cellspacing="0" cellpadding="6"><tr><th>Contractor</th><th>Project</th><th>Scope</th><th>Building Type</th><th>Developer</th><th>Client / Main Contractor</th><th>Location</th><th>Contract Value (RM)</th><th>Period</th><th>Status</th><th>Progress</th><th>Source Page</th></tr>${projectRows}</table></body></html>`;
     downloadFile("selected-contractor-report.doc", html, "application/msword");
+  }
+
+  function exportSelectedProjectsCsv() {
+    const rows = chosenProjectRecords.map((project) => [project.contractor, project.name, project.scope, project.projectType ?? "", project.developer ?? "", project.client, project.location, project.value, project.period, project.status, project.progress ?? "", project.sourcePage ?? ""]);
+    const csv = [["Contractor", "Project Name", "Scope", "Building Type", "Developer", "Client / Main Contractor", "Location", "Contract Value RM", "Period", "Status", "Progress", "Source Page"], ...rows]
+      .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
+      .join("\n");
+    downloadFile("selected-project-references.csv", csv, "text/csv;charset=utf-8");
   }
 
   function updateGroupValidationYears(value: number) {
@@ -611,7 +621,7 @@ export default function Home() {
   }
 
   function downloadProjectTemplate() {
-    downloadFile("contractor-projects-template.csv", "Project Name,Scope,Client,Location,Contract Value RM,Commencement Date,Completion Date,Status,Progress,Source Page\n", "text/csv;charset=utf-8");
+    downloadFile("contractor-projects-template.csv", "Project Name,Scope,Building Type,Developer,Client / Main Contractor,Location,Contract Value RM,Commencement Date,Completion Date,Status,Progress,Source Page\n", "text/csv;charset=utf-8");
   }
 
   function downloadContractorTemplate() {
@@ -774,7 +784,9 @@ export default function Home() {
           id: `imported-project-${Date.now()}-${index}`,
           name: String(get(row, "projectname", "project", "title") ?? "").trim(),
           scope: String(get(row, "scope", "projectscope", "description") ?? "").trim(),
-          client: String(get(row, "client", "clientname") ?? "").trim(),
+          projectType: String(get(row, "buildingtype", "projecttype", "type") ?? "").trim() || undefined,
+          developer: String(get(row, "developer", "developedby") ?? "").trim() || undefined,
+          client: String(get(row, "client", "clientname", "clientmaincontractor", "maincontractor") ?? "").trim(),
           location: String(get(row, "location", "projectlocation") ?? "").trim(),
           value: Number(String(get(row, "contractvaluerm", "contractvalue", "value", "cost") ?? "0").replace(/[^0-9.-]/g, "")) || 0,
           period: [commencement, completion].filter(Boolean).join(" – ") || "Not provided",
@@ -977,6 +989,7 @@ export default function Home() {
         <div className="project-content">
           <div className="project-title"><strong>{project.name}</strong><span className={project.status === "Completed" ? "completed" : "ongoing"}>{project.status}</span></div>
           <p>{project.scope}</p>
+          <p className="project-extra-fields"><strong>{project.projectType ?? "Building type not provided"}</strong> · Developer: {project.developer ?? "Not provided"}</p>
           <dl><div><dt>CLIENT</dt><dd>{project.client}</dd></div><div><dt>LOCATION</dt><dd>{project.location}</dd></div><div><dt>CONTRACT VALUE</dt><dd>{money(project.value)}</dd></div><div><dt>PERIOD</dt><dd>{project.period}</dd></div>{project.progress && <div><dt>PROGRESS</dt><dd>{project.progress}</dd></div>}{project.sourcePage && <div><dt>SOURCE</dt><dd>Submitted list · page {project.sourcePage}</dd></div>}</dl>
         </div>
       </article>
@@ -986,7 +999,7 @@ export default function Home() {
   function renderProfileProjectRows(projects: Project[]) {
     return projects.map((project) => (
       <div className="profile-project-row" key={project.id}>
-        <span><strong>{project.name}</strong><small>{project.scope}</small></span>
+        <span><strong>{project.name}</strong><small>{project.scope}</small><small>{project.projectType ?? "Building type not provided"} · Developer: {project.developer ?? "Not provided"}</small></span>
         <span>{project.client}<small>{project.location}</small></span>
         <span><strong>{money(project.value)}</strong></span>
         <span>{project.period}</span>
@@ -1448,7 +1461,7 @@ export default function Home() {
               {chosenProjectRecords.map((project) => <article key={project.id}><div><strong>{project.contractor}</strong><span>{project.name}</span></div><div><strong>{money(project.value)}</strong><span>{project.location}</span></div></article>)}
               {!chosenProjectRecords.length && <p>No project references selected yet.</p>}
             </div>
-            <div className="modal-actions"><button className="secondary-button" onClick={() => setShowSummary(false)}>Back to selection</button><button className="primary-button" onClick={exportNominationWord}>Export Word summary</button></div>
+            <div className="modal-actions"><button className="secondary-button" onClick={() => setShowSummary(false)}>Back to selection</button><button className="secondary-button" onClick={exportSelectedProjectsCsv}>Export project CSV</button><button className="primary-button" onClick={exportNominationWord}>Export Word summary</button></div>
           </section>
         </div>
       )}
