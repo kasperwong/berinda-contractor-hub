@@ -96,6 +96,33 @@ function parseCsvRows(text: string) {
   return rows;
 }
 
+async function parsePrefixedXlsxRows(file: File): Promise<unknown[][]> {
+  const { unzipSync, strFromU8 } = await import("fflate");
+  const archive = unzipSync(new Uint8Array(await file.arrayBuffer()));
+  const sheetPath = Object.keys(archive).find((path) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(path));
+  if (!sheetPath) return [];
+  const xml = new DOMParser().parseFromString(strFromU8(archive[sheetPath]), "application/xml");
+  const sharedStrings = archive["xl/sharedStrings.xml"] ? Array.from(new DOMParser().parseFromString(strFromU8(archive["xl/sharedStrings.xml"]), "application/xml").getElementsByTagNameNS("*", "si")).map((item) => Array.from(item.getElementsByTagNameNS("*", "t")).map((text) => text.textContent ?? "").join("")) : [];
+  const columnIndex = (reference: string) => { const letters = reference.replace(/\d/g, "").toUpperCase(); return letters.split("").reduce((total, letter) => total * 26 + letter.charCodeAt(0) - 64, 0) - 1; };
+  const rows = Array.from(xml.getElementsByTagNameNS("*", "row")).map((row) => {
+    const values: unknown[] = [];
+    Array.from(row.getElementsByTagNameNS("*", "c")).forEach((cell) => {
+      const index = columnIndex(cell.getAttribute("r") ?? "A1");
+      const type = cell.getAttribute("t");
+      const valueNode = cell.getElementsByTagNameNS("*", "v")[0];
+      const raw = valueNode?.textContent ?? "";
+      let value: unknown = raw;
+      if (type === "s") value = sharedStrings[Number(raw)] ?? "";
+      else if (type === "str" || type === "inlineStr") value = type === "inlineStr" ? Array.from(cell.getElementsByTagNameNS("*", "t")).map((text) => text.textContent ?? "").join("") : raw;
+      else if (raw !== "" && /^-?\d+(\.\d+)?$/.test(raw)) value = Number(raw);
+      values[index] = value;
+    });
+    return values;
+  });
+  const headers = (rows[0] ?? []).map((value) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, ""));
+  return rows.map((row, rowIndex) => row.map((value, index) => rowIndex > 0 && /date$/.test(headers[index] ?? "") && typeof value === "number" && value > 0 ? new Date(Date.UTC(1899, 11, 30) + value * 86400000) : value));
+}
+
 function parseContractorDate(value: string) {
   const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`) : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
@@ -730,9 +757,13 @@ export default function Home() {
       return;
     }
     try {
-      const rows = file.name.toLowerCase().endsWith(".csv")
-        ? parseCsvRows(await file.text())
-        : await (await import("read-excel-file/browser")).default(file);
+      let rows: unknown[][];
+      if (file.name.toLowerCase().endsWith(".csv")) rows = parseCsvRows(await file.text());
+      else {
+        try { rows = await (await import("read-excel-file/browser")).default(file); }
+        catch { rows = []; }
+        if (!rows.length) rows = await parsePrefixedXlsxRows(file);
+      }
       if (rows.length < 2) throw new Error("The worksheet has no contractor rows.");
       const normalise = (value: unknown) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
       const headers = rows[0].map(normalise);
