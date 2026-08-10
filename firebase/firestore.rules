@@ -323,6 +323,12 @@ service cloud.firestore {
       allow create, update: if roleIs(['admin', 'editor', 'group_admin', 'company_admin'])
         && request.resource.data.groupId == userProfile().groupId;
       allow delete: if false;
+
+      match /projectBatches/{batchId} {
+        allow read: if activeUser();
+        allow create, update: if roleIs(['admin', 'editor', 'group_admin', 'company_admin']);
+        allow delete: if false;
+      }
     }
 
     match /auditLogs/{logId} {

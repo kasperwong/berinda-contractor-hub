@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { chuanLuckProjects } from "./chuan-luck-projects";
 import { AuthGate, useAuthProfile } from "./auth-gate";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { getFirebaseClient } from "@/lib/firebase/client";
 
 type Project = {
@@ -439,11 +439,12 @@ function ContractorHubApp() {
   }, [contractorRows]);
   useEffect(() => {
     let cancelled = false;
-    getDoc(doc(db, "appState", "berinda-group")).then((snapshot) => {
+    Promise.all([getDoc(doc(db, "appState", "berinda-group")), getDocs(collection(db, "appState", "berinda-group", "projectBatches"))]).then(([snapshot, projectBatchSnapshot]) => {
       if (cancelled) return;
       if (snapshot.exists()) {
         const data = snapshot.data() as { contractorRows?: typeof initialContractors; groupCompanies?: Array<{ id: string; name: string }>; groupValidationYears?: number };
-        if (Array.isArray(data.contractorRows)) setContractorRows(data.contractorRows);
+        const batches = projectBatchSnapshot.docs.flatMap((item) => (item.data().projects ?? []) as Project[]);
+        if (Array.isArray(data.contractorRows)) setContractorRows(data.contractorRows.map((contractor) => ({ ...contractor, projects: batches.length ? batches.filter((project) => project.id.startsWith(`${contractor.id}::`)).map((project) => ({ ...project, id: project.id.replace(`${contractor.id}::`, "") })) : contractor.projects })));
         if (Array.isArray(data.groupCompanies)) setGroupCompanies(data.groupCompanies);
         if (typeof data.groupValidationYears === "number") setGroupValidationYears(data.groupValidationYears);
       }
@@ -453,7 +454,9 @@ function ContractorHubApp() {
   }, [db]);
   useEffect(() => {
     if (!firestoreHydrated.current) return;
-    void setDoc(doc(db, "appState", "berinda-group"), { groupId: "berinda-group", contractorRows, groupCompanies, groupValidationYears, updatedAt: new Date().toISOString() }, { merge: true });
+    const baseRows = contractorRows.map((contractor) => ({ ...contractor, projects: [] }));
+    const batches = contractorRows.flatMap((contractor) => contractor.projects.map((project) => ({ ...project, id: `${contractor.id}::${project.id}` })).reduce<Project[][]>((groups, project, index) => { const groupIndex = Math.floor(index / 40); (groups[groupIndex] ??= []).push(project); return groups; }, []).map((projects, index) => ({ id: `${contractor.id}-${index}`, projects })));
+    void Promise.all([setDoc(doc(db, "appState", "berinda-group"), { groupId: "berinda-group", contractorRows: baseRows, groupCompanies, groupValidationYears, updatedAt: new Date().toISOString() }, { merge: true }), ...batches.map((batch) => setDoc(doc(db, "appState", "berinda-group", "projectBatches", batch.id), batch))]).catch(() => notify("Could not save this change. Please try again."));
   }, [db, contractorRows, groupCompanies, groupValidationYears]);
   const [newCompanyName, setNewCompanyName] = useState("");
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
