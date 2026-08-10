@@ -59,6 +59,8 @@ type Contractor = {
   preqDate: string;
   approvalDate: string;
   validationYears?: number;
+  recommendedMaxProjectValue?: number;
+  financeAssessedBy?: string;
   projects: Project[];
 };
 
@@ -93,7 +95,8 @@ type ContractorSortKey =
   | "status"
   | "approvalDate"
   | "projects"
-  | "groupProjects";
+  | "groupProjects"
+  | "recommendedMaxProjectValue";
 type GroupProjectSortKey =
   | "groupCompany"
   | "contractorName"
@@ -229,7 +232,8 @@ async function parsePrefixedXlsxRows(file: File): Promise<unknown[][]> {
           rowIndex > 0 &&
           (index === 7 || index === 8) &&
           typeof value === "number" &&
-          value > 0
+          value > 0 &&
+          !(value >= 1900 && value <= 2200)
             ? new Date(Date.UTC(1899, 11, 30) + value * 86400000)
             : value,
         ),
@@ -245,7 +249,8 @@ async function parsePrefixedXlsxRows(file: File): Promise<unknown[][]> {
       rowIndex > 0 &&
       /date$/.test(headers[index] ?? "") &&
       typeof value === "number" &&
-      value > 0
+      value > 0 &&
+      !(value >= 1900 && value <= 2200)
         ? new Date(Date.UTC(1899, 11, 30) + value * 86400000)
         : value,
     ),
@@ -292,6 +297,17 @@ function contractorTrades(contractor: Contractor) {
 
 function cleanForFirestore<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function formatProjectDate(value?: string) {
+  const source = value?.trim();
+  if (!source || source === "-") return "-";
+  if (/^(19|20)\d{2}$/.test(source)) return source;
+  const parsed = new Date(source);
+  if (Number.isNaN(parsed.getTime())) return source.replace(/\s+\d{2}:\d{2}:\d{2}.*$/, "");
+  const recoveredExcelValue = Math.round((parsed.getTime() - Date.UTC(1899, 11, 30)) / 86400000);
+  if (parsed.getUTCFullYear() < 1910 && recoveredExcelValue >= 1900 && recoveredExcelValue <= 2200) return String(recoveredExcelValue);
+  return parsed.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 const initialContractors: Contractor[] = [
@@ -584,7 +600,11 @@ const money = (value: number) =>
 function ContractorHubApp() {
   const authProfile = useAuthProfile();
   const isAdmin = authProfile?.role === "admin";
+  const canEdit = isAdmin || authProfile?.role === "editor";
   const [contractorRows, setContractorRows] = useState(initialContractors);
+  const [archivedContractors, setArchivedContractors] = useState<
+    Array<Contractor & { archivedAt: string }>
+  >([]);
   const [groupCompanies, setGroupCompanies] = useState([
     { id: "berinda-group", name: "Berinda Group" },
     { id: "johor-land", name: "Johor Land Berhad" },
@@ -635,6 +655,7 @@ function ContractorHubApp() {
         if (snapshot.exists()) {
           const data = snapshot.data() as {
             contractorRows?: typeof initialContractors;
+            archivedContractors?: Array<Contractor & { archivedAt: string }>;
             groupCompanies?: Array<{ id: string; name: string }>;
             groupValidationYears?: number;
           };
@@ -657,6 +678,8 @@ function ContractorHubApp() {
                   : contractor.projects,
               })),
             );
+          if (Array.isArray(data.archivedContractors))
+            setArchivedContractors(data.archivedContractors);
           if (Array.isArray(data.groupCompanies))
             setGroupCompanies(data.groupCompanies);
           if (typeof data.groupValidationYears === "number")
@@ -703,6 +726,7 @@ function ContractorHubApp() {
         cleanForFirestore({
           groupId: "berinda-group",
           contractorRows: baseRows,
+          archivedContractors,
           groupCompanies,
           groupValidationYears,
           updatedAt: new Date().toISOString(),
@@ -716,7 +740,7 @@ function ContractorHubApp() {
         ),
       ),
     ]).catch(() => notify("Could not save this change. Please try again."));
-  }, [db, contractorRows, groupCompanies, groupValidationYears]);
+  }, [db, contractorRows, archivedContractors, groupCompanies, groupValidationYears]);
   const [newCompanyName, setNewCompanyName] = useState("");
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [editingCompanyName, setEditingCompanyName] = useState("");
@@ -761,6 +785,7 @@ function ContractorHubApp() {
     approval: string;
     projects: string;
     groupProjects: string;
+    recommendedMax: string;
   }>({
     name: "",
     trade: "",
@@ -772,6 +797,7 @@ function ContractorHubApp() {
     approval: "",
     projects: "",
     groupProjects: "",
+    recommendedMax: "",
   });
   const [activeContractor, setActiveContractor] = useState(
     initialContractors[0],
@@ -815,6 +841,7 @@ function ContractorHubApp() {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
+  const [contractorActionMenu, setContractorActionMenu] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [toast, setToast] = useState("");
   const [profileTab, setProfileTab] = useState<
@@ -843,6 +870,24 @@ function ContractorHubApp() {
   const [matcherFromYear, setMatcherFromYear] = useState("");
   const [matcherToYear, setMatcherToYear] = useState("");
   const addContractorFormRef = useRef<HTMLFormElement>(null);
+
+  function groupProjectsFor(contractor: Contractor): GroupCompanyProject[] {
+    const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const detected = contractor.projects.flatMap((project) => {
+      const parties = normalize(`${project.developer ?? ""} ${project.client ?? ""}`);
+      const company = groupCompanies.find((candidate) => {
+        const fullName = normalize(candidate.name);
+        const coreName = fullName.replace(/\b(sdn bhd|berhad|bhd)\b/g, "").replace(/\s+/g, " ").trim();
+        return parties.includes(fullName) || (candidate.id !== "berinda-group" && coreName.length >= 6 && parties.includes(coreName));
+      });
+      if (!company) return [];
+      const yearSource = formatProjectDate(project.completionDate ?? project.commencementDate ?? project.period);
+      const year = Number(yearSource.match(/(?:19|20)\d{2}/)?.[0]) || new Date().getFullYear();
+      return [{ id: `detected-${contractor.id}-${project.id}`, name: project.name, scope: project.scope, value: project.value, year, location: project.location, groupCompany: company.name }];
+    });
+    const combined = [...(groupCompanyProjects[contractor.id] ?? []), ...detected];
+    return combined.filter((project, index) => combined.findIndex((candidate) => candidate.name.toLowerCase() === project.name.toLowerCase() && candidate.groupCompany === project.groupCompany) === index);
+  }
 
   const filtered = useMemo(() => {
     const term = query.toLowerCase().trim();
@@ -904,8 +949,11 @@ function ContractorHubApp() {
         contractor.projects.length >= Number(columnFilters.projects);
       const groupProjectsMatch =
         !columnFilters.groupProjects ||
-        (groupCompanyProjects[contractor.id]?.length ?? 0) >=
+        groupProjectsFor(contractor).length >=
           Number(columnFilters.groupProjects);
+      const recommendedMaxMatch =
+        !columnFilters.recommendedMax ||
+        (contractor.recommendedMaxProjectValue ?? 0) >= Number(columnFilters.recommendedMax);
       return (
         matchesSearch &&
         matchesStatus &&
@@ -920,12 +968,14 @@ function ContractorHubApp() {
         columnStatusMatch &&
         approvalMatch &&
         projectsMatch &&
-        groupProjectsMatch
+        groupProjectsMatch &&
+        recommendedMaxMatch
       );
     });
   }, [
     columnFilters,
     contractorRows,
+    groupCompanies,
     locationFilter,
     query,
     statusFilter,
@@ -935,7 +985,9 @@ function ContractorHubApp() {
     const value = (contractor: Contractor) => {
       if (contractorSort.key === "projects") return contractor.projects.length;
       if (contractorSort.key === "groupProjects")
-        return groupCompanyProjects[contractor.id]?.length ?? 0;
+        return groupProjectsFor(contractor).length;
+      if (contractorSort.key === "recommendedMaxProjectValue")
+        return contractor.recommendedMaxProjectValue ?? 0;
       if (contractorSort.key === "grade")
         return Number(contractor.grade.replace(/\D/g, "")) || 0;
       if (contractorSort.key === "approvalDate")
@@ -955,7 +1007,7 @@ function ContractorHubApp() {
     return contractorSort.direction === "asc" ? comparison : -comparison;
   });
   const allGroupProjectRecords = contractorRows.flatMap((contractor) =>
-    (groupCompanyProjects[contractor.id] ?? []).map((project) => ({
+    groupProjectsFor(contractor).map((project) => ({
       ...project,
       contractorName: contractor.name,
       contractorId: contractor.id,
@@ -2060,6 +2112,8 @@ function ContractorHubApp() {
       email: String(form.get("email")),
       grade: String(form.get("grade")),
       location: String(form.get("location")),
+      recommendedMaxProjectValue: Number(form.get("recommendedMaxProjectValue")) || 0,
+      financeAssessedBy: String(form.get("financeAssessedBy") || "Not assessed"),
       updated: "Just now",
     };
     setActiveContractor(updatedContractor);
@@ -2069,7 +2123,23 @@ function ContractorHubApp() {
       ),
     );
     setShowEditProfile(false);
-    notify("Contractor profile updated for this demonstration session.");
+    notify("Contractor profile updated and saved.");
+  }
+
+  function archiveContractor(contractor: Contractor) {
+    if (!canEdit || !window.confirm(`Archive ${contractor.name}? It will be removed from the active contractor list, but retained for the administrator.`)) return;
+    setArchivedContractors((current) => [
+      { ...contractor, archivedAt: new Date().toISOString() },
+      ...current.filter((item) => item.id !== contractor.id),
+    ]);
+    setContractorRows((current) => current.filter((item) => item.id !== contractor.id));
+    setSelectedContractors((current) => current.filter((id) => id !== contractor.id));
+    if (activeContractor.id === contractor.id) {
+      const next = contractorRows.find((item) => item.id !== contractor.id);
+      if (next) setActiveContractor(next);
+    }
+    setContractorActionMenu(null);
+    notify(`${contractor.name} moved to the archive.`);
   }
 
   function toggleContractor(contractor: Contractor) {
@@ -2515,6 +2585,16 @@ function ContractorHubApp() {
                             {contractorSortIndicator("groupProjects")}
                           </button>
                         </th>
+                        <th>
+                          <button
+                            className="directory-sortable"
+                            onClick={() => sortContractors("recommendedMaxProjectValue")}
+                          >
+                            Recommended max project value
+                            {contractorSortIndicator("recommendedMaxProjectValue")}
+                          </button>
+                        </th>
+                        <th>Actions</th>
                         <th>Request document</th>
                       </tr>
                       <tr className="column-filter-row">
@@ -2669,6 +2749,22 @@ function ContractorHubApp() {
                           />
                         </th>
                         <th>
+                          <input
+                            type="number"
+                            min="0"
+                            value={columnFilters.recommendedMax}
+                            onChange={(event) =>
+                              setColumnFilters((current) => ({
+                                ...current,
+                                recommendedMax: event.target.value,
+                              }))
+                            }
+                            placeholder="Min RM"
+                            aria-label="Minimum recommended project value"
+                          />
+                        </th>
+                        <th></th>
+                        <th>
                           <button
                             className="clear-column-filters"
                             onClick={() =>
@@ -2683,6 +2779,7 @@ function ContractorHubApp() {
                                 approval: "",
                                 projects: "",
                                 groupProjects: "",
+                                recommendedMax: "",
                               })
                             }
                           >
@@ -2918,6 +3015,7 @@ function ContractorHubApp() {
                             onClick={() =>
                               setColumnFilters({
                                 name: "",
+                                trade: "",
                                 contact: "",
                                 grade: "All grades",
                                 scoreMin: "",
@@ -2926,6 +3024,7 @@ function ContractorHubApp() {
                                 approval: "",
                                 projects: "",
                                 groupProjects: "",
+                                recommendedMax: "",
                               })
                             }
                           >
@@ -3052,11 +3151,47 @@ function ContractorHubApp() {
                                 }}
                               >
                                 <strong>
-                                  {groupCompanyProjects[contractor.id]
-                                    ?.length ?? 0}
+                                  {groupProjectsFor(contractor).length}
                                 </strong>
                                 <span>View group projects →</span>
                               </button>
+                            </td>
+                            <td>
+                              <div className="finance-limit-cell">
+                                <strong>
+                                  {contractor.recommendedMaxProjectValue
+                                    ? money(contractor.recommendedMaxProjectValue)
+                                    : "Not assessed"}
+                                </strong>
+                                <small>{contractor.financeAssessedBy ?? "Finance assessment pending"}</small>
+                              </div>
+                            </td>
+                            <td className="contractor-actions-cell">
+                              {canEdit && (
+                                <div className="contractor-actions">
+                                  <button
+                                    type="button"
+                                    className="contractor-menu-trigger"
+                                    aria-label={`Actions for ${contractor.name}`}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setContractorActionMenu((current) => current === contractor.id ? null : contractor.id);
+                                    }}
+                                  >
+                                    â‹¯
+                                  </button>
+                                  {contractorActionMenu === contractor.id && (
+                                    <div className="contractor-action-menu" onClick={(event) => event.stopPropagation()}>
+                                      <button type="button" onClick={() => {
+                                        setActiveContractor(contractor);
+                                        setShowEditProfile(true);
+                                        setContractorActionMenu(null);
+                                      }}>Edit / update</button>
+                                      <button type="button" className="danger" onClick={() => archiveContractor(contractor)}>Delete to archive</button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </td>
                             <td>
                               <button
@@ -5243,15 +5378,13 @@ function ContractorHubApp() {
               </div>
               <div>
                 <strong>
-                  {groupCompanyProjects[groupProjectsContractor.id]?.length ??
-                    0}
+                  {groupProjectsFor(groupProjectsContractor).length}
                 </strong>
                 <span>GROUP PROJECTS</span>
               </div>
             </div>
             <div className="group-project-table-wrap">
-              {(groupCompanyProjects[groupProjectsContractor.id]?.length ?? 0) >
-              0 ? (
+              {groupProjectsFor(groupProjectsContractor).length > 0 ? (
                 <table className="full-project-table group-project-table">
                   <thead>
                     <tr>
@@ -5264,7 +5397,7 @@ function ContractorHubApp() {
                     </tr>
                   </thead>
                   <tbody>
-                    {groupCompanyProjects[groupProjectsContractor.id].map(
+                    {groupProjectsFor(groupProjectsContractor).map(
                       (project) => (
                         <tr key={project.id}>
                           <td>
@@ -5460,8 +5593,8 @@ function ContractorHubApp() {
                         <td>
                           <strong>{money(project.value)}</strong>
                         </td>
-                        <td>{project.commencementDate ?? dates[0] ?? "-"}</td>
-                        <td>{project.completionDate ?? dates[1] ?? "-"}</td>
+                        <td>{formatProjectDate(project.commencementDate ?? dates[0])}</td>
+                        <td>{formatProjectDate(project.completionDate ?? dates[1])}</td>
                         <td>
                           <span
                             className={`table-project-status ${project.status.toLowerCase()}`}
@@ -5741,6 +5874,24 @@ function ContractorHubApp() {
                   name="name"
                   required
                   defaultValue={activeContractor.name}
+                />
+              </label>
+              <label>
+                Recommended maximum project value (RM)
+                <input
+                  name="recommendedMaxProjectValue"
+                  type="number"
+                  min="0"
+                  step="1000"
+                  defaultValue={activeContractor.recommendedMaxProjectValue ?? 0}
+                />
+              </label>
+              <label>
+                Assessed by (Finance Department Head)
+                <input
+                  name="financeAssessedBy"
+                  defaultValue={activeContractor.financeAssessedBy ?? ""}
+                  placeholder="Name of Finance Department Head"
                 />
               </label>
               <label>

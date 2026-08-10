@@ -90,6 +90,7 @@ h1 { margin: 0; font-family: Georgia, serif; font-size: 28px; font-weight: 650; 
 .filters select { height: 36px; border: 1px solid #dbe0e6; border-radius: 7px; padding: 0 9px; background: white; color: #596679; font-size: 9px; outline: none; }
 .data-layout { display: grid; grid-template-columns: minmax(650px, 1fr) 362px; }
 .table-wrap { min-width: 0; overflow: auto; border-right: 1px solid var(--line); }
+.table-wrap > table { min-width: 1800px; }
 table { width: 100%; border-collapse: collapse; white-space: nowrap; }
 .table-wrap table > thead:not(.directory-enhanced-head) { display: none; }
 .trade-cell strong { white-space: normal; line-height: 1.35; }
@@ -577,23 +578,43 @@ td { height: 80px; font-size: 12px; }
 .project-status-tabs button.active { border-color: var(--teal); background: var(--teal); color: white; }
 .project-table-toolbar .table-search { width: min(520px, 48%); margin: 0; }
 .full-project-table-wrap { min-height: 0; flex: 1; overflow: auto; }
-.full-project-table { min-width: 1320px; table-layout: fixed; white-space: normal; }
-.full-project-table th { position: sticky; z-index: 2; top: 0; height: 44px; font-size: 9px; }
+.full-project-table { min-width: 2000px; table-layout: fixed; white-space: normal; }
+.full-project-table th { position: sticky; z-index: 2; top: 0; height: 54px; padding: 8px 10px; font-size: 9px; line-height: 1.25; white-space: normal; overflow-wrap: anywhere; }
 .sortable-heading { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 5px; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; font-weight: 750; letter-spacing: inherit; text-align: left; text-transform: uppercase; }
 .sortable-heading:hover { color: var(--teal); }
 .full-project-table th:nth-child(1) { width: 58px; }
-.full-project-table th:nth-child(2) { width: 43%; }
-.full-project-table th:nth-child(3) { width: 14%; }
-.full-project-table th:nth-child(4) { width: 10%; }
-.full-project-table th:nth-child(5) { width: 9%; }
-.full-project-table th:nth-child(6) { width: 10%; }
-.full-project-table th:nth-child(7) { width: 8%; }
-.full-project-table th:nth-child(8) { width: 6%; }
+.full-project-table th:nth-child(2) { width: 260px; }
+.full-project-table th:nth-child(3) { width: 420px; }
+.full-project-table th:nth-child(4) { width: 150px; }
+.full-project-table th:nth-child(5) { width: 180px; }
+.full-project-table th:nth-child(6) { width: 220px; }
+.full-project-table th:nth-child(7) { width: 150px; }
+.full-project-table th:nth-child(8) { width: 120px; }
+.full-project-table th:nth-child(9), .full-project-table th:nth-child(10) { width: 130px; }
+.full-project-table th:nth-child(11), .full-project-table th:nth-child(12) { width: 105px; }
+.full-project-table.group-project-table { min-width: 1040px; }
+.full-project-table.group-project-table th:nth-child(1) { width: 19%; }
+.full-project-table.group-project-table th:nth-child(2) { width: 27%; }
+.full-project-table.group-project-table th:nth-child(3) { width: 12%; }
+.full-project-table.group-project-table th:nth-child(4) { width: 7%; }
+.full-project-table.group-project-table th:nth-child(5) { width: 15%; }
+.full-project-table.group-project-table th:nth-child(6) { width: 20%; }
 .full-project-table td { height: auto; padding: 14px 10px; vertical-align: top; color: #526175; font-size: 10px; line-height: 1.45; white-space: normal; }
 .full-project-table td strong, .full-project-table td small { display: block; }
 .full-project-table td:nth-child(2) > strong { color: #263a4d; font-size: 11px; }
 .full-project-table td:nth-child(2) > small { margin-top: 6px; color: #667586; font-size: 9.5px; line-height: 1.55; }
 .full-project-table td:nth-child(7) > small { margin-top: 5px; }
+.finance-limit-cell { min-width: 130px; display: grid; gap: 4px; }
+.finance-limit-cell strong { color: #173b59; white-space: nowrap; }
+.finance-limit-cell small { max-width: 170px; color: #718093; font-size: 8px; line-height: 1.35; }
+.contractor-actions-cell { position: relative; }
+.contractor-actions { position: relative; display: inline-block; }
+.contractor-menu-trigger { width: 34px; height: 34px; border: 1px solid #d7e0e7; border-radius: 7px; background: white; color: #193753; font-size: 20px; line-height: 1; }
+.contractor-action-menu { position: absolute; z-index: 12; top: 38px; right: 0; width: 150px; display: grid; overflow: hidden; border: 1px solid #d6dee5; border-radius: 8px; background: white; box-shadow: 0 12px 28px rgba(15,37,62,.18); }
+.contractor-action-menu button { border: 0; border-bottom: 1px solid #edf1f4; padding: 10px 12px; background: white; color: #193753; font-size: 9px; font-weight: 700; text-align: left; }
+.contractor-action-menu button:last-child { border-bottom: 0; }
+.contractor-action-menu button:hover { background: #f3f7f9; }
+.contractor-action-menu button.danger { color: #b34444; }
 .table-project-status { display: inline-block; padding: 4px 7px; border-radius: 99px; font-size: 8px; font-weight: 750; }
 .table-project-status.completed { background: var(--teal-soft); color: var(--teal); }
 .table-project-status.ongoing { background: var(--blue-soft); color: #4b71a2; }
