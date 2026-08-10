@@ -552,6 +552,9 @@ td { height: 80px; font-size: 12px; }
 .account-menu-popover small { color: #77879a; text-transform: capitalize; }
 .account-menu-popover > button { width: 100%; padding: 9px 10px; border: 0; border-radius: 7px; text-align: left; color: #24415f; background: transparent; cursor: pointer; }
 .account-menu-popover > button:hover { background: #eef4f8; }
+.overview-screen > .module-hero { display: none; }
+.top-actions > .primary-button { display: none; }
+.sidebar nav .nav-item:nth-child(4) { display: none; }
 .optional-contractor-fields { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
 .optional-contractor-fields summary { cursor: pointer; color: var(--teal); font-size: 10px; font-weight: 750; }
 .optional-contractor-fields .form-grid { margin-top: 14px; }

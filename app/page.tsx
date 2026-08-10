@@ -483,7 +483,7 @@ function ContractorHubApp() {
     initialContractors[0].projects[0].id,
   ]);
   const [activeSection, setActiveSection] = useState<"overview" | "add" | "contractors" | "groupProjects" | "nominations" | "imports" | "reports" | "settings">("overview");
-  useEffect(() => { if (activeSection === "settings" && !isAdmin) setActiveSection("overview"); }, [activeSection, isAdmin]);
+  useEffect(() => { if (activeSection === "settings" && !isAdmin) setActiveSection("overview"); if (activeSection === "groupProjects") setActiveSection("overview"); }, [activeSection, isAdmin]);
   const [showProjectPanel, setShowProjectPanel] = useState(false);
   const [projectListStatus, setProjectListStatus] = useState<"All" | "Completed" | "Ongoing" | null>(null);
   const [showUpload, setShowUpload] = useState(false);
@@ -1226,7 +1226,7 @@ function ContractorHubApp() {
           </div>
         </section>
         </> : (
-          <section className="module-screen">
+          <section className={`module-screen ${activeSection}-screen`}>
             {activeSection === "overview" && <>
               <div className="module-hero"><div><p className="eyebrow">SHARED CONTRACTOR DATABASE</p><h2>Group contractor overview</h2><p>A clear view of the contractor records shared by companies across the group.</p></div><button className="primary-button" onClick={() => setActiveSection("contractors")}>Look for contractor →</button></div>
               <div className="module-stat-grid"><article><small>TOTAL TRADES</small><strong>{totalTrades}</strong><span>Registered work categories</span></article><article><small>TOTAL CONTRACTORS</small><strong>{contractorRows.length}</strong><span>Shared contractor records</span></article><article><small>VALID CONTRACTORS</small><strong>{totalValidContractors}</strong><span>Within validation period</span></article><article><small>EXPIRED CONTRACTORS</small><strong>{totalExpiredContractors}</strong><span>Require renewed approval</span></article></div>
@@ -1429,7 +1429,7 @@ function ContractorHubApp() {
             <div className="group-project-table-wrap">
               {(groupCompanyProjects[groupProjectsContractor.id]?.length ?? 0) > 0 ? <table className="full-project-table group-project-table"><thead><tr><th>Project</th><th>Scope</th><th>Contract value</th><th>Year</th><th>Location</th><th>Group company</th></tr></thead><tbody>{groupCompanyProjects[groupProjectsContractor.id].map((project) => <tr key={project.id}><td><strong>{project.name}</strong></td><td><span className="group-project-scope">{project.scope}</span></td><td><strong>{money(project.value)}</strong></td><td>{project.year}</td><td>{project.location}</td><td><strong>{project.groupCompany}</strong></td></tr>)}</tbody></table> : <div className="group-project-empty"><strong>No group company projects recorded</strong><span>This contractor does not yet have a project linked to a company within the group.</span></div>}
             </div>
-            <div className="project-table-footer"><span>Information shown is from the shared contractor database.</span><button className="primary-button" onClick={() => setGroupProjectsContractor(null)}>Done</button></div>
+            <div className="project-table-footer"><span>Information shown is from the shared contractor database.</span><div><button className="secondary-button" onClick={() => { notify("Select this contractor in Find contractors to include it in the report."); setGroupProjectsContractor(null); setActiveSection("contractors"); }}>Add to report</button><button className="primary-button" onClick={() => setGroupProjectsContractor(null)}>Done</button></div></div>
           </section>
         </div>
       )}
