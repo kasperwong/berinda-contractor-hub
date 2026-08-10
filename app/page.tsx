@@ -13,6 +13,8 @@ type Project = {
   client: string;
   projectType?: string;
   developer?: string;
+  commencementDate?: string;
+  completionDate?: string;
   location: string;
   value: number;
   period: string;
@@ -878,6 +880,8 @@ function ContractorHubApp() {
           scope: String(get(row, "scope", "projectscope", "description") ?? "").trim(),
           projectType: String(get(row, "buildingtype", "projecttype", "type") ?? "").trim() || undefined,
           developer: String(get(row, "developer", "developedby") ?? "").trim() || undefined,
+          commencementDate: commencement || undefined,
+          completionDate: completion || undefined,
           client: String(get(row, "client", "clientname", "clientmaincontractor", "maincontractor") ?? "").trim(),
           location: String(get(row, "location", "projectlocation") ?? "").trim(),
           value: Number(String(get(row, "contractvaluerm", "contractvalue", "value", "cost") ?? "0").replace(/[^0-9.-]/g, "")) || 0,
