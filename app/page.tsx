@@ -863,9 +863,12 @@ function ContractorHubApp() {
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) { setProjectImportError("Please use a CSV or Excel file smaller than 10 MB."); return; }
     try {
-      const rows = (file.name.toLowerCase().endsWith(".csv")
-        ? parseCsvRows(await file.text())
-        : (await (await import("read-excel-file/browser")).default(file)) as unknown as unknown[][]) as unknown[][];
+      let rows: unknown[][];
+      if (file.name.toLowerCase().endsWith(".csv")) rows = parseCsvRows(await file.text());
+      else {
+        rows = await parsePrefixedXlsxRows(file);
+        if (!rows.length) rows = (await (await import("read-excel-file/browser")).default(file)) as unknown as unknown[][];
+      }
       if (rows.length < 2) throw new Error("The file has no project rows.");
       const normalise = (value: unknown) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
       const headers = rows[0].map(normalise);
