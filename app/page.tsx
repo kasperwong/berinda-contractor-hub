@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { chuanLuckProjects } from "./chuan-luck-projects";
+import { AuthGate } from "./auth-gate";
 
 type Project = {
   id: string;
@@ -401,7 +402,7 @@ const money = (value: number) =>
     maximumFractionDigits: 1,
   }).format(value);
 
-export default function Home() {
+function ContractorHubApp() {
   const [contractorRows, setContractorRows] = useState(initialContractors);
   const contractorStorageHydrated = useRef(false);
   useEffect(() => {
@@ -1534,4 +1535,8 @@ export default function Home() {
       {toast && <div className="toast" role="status"><span>✓</span>{toast}</div>}
     </div>
   );
+}
+
+export default function Home() {
+  return <AuthGate><ContractorHubApp /></AuthGate>;
 }

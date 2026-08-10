@@ -27,15 +27,15 @@ service cloud.firestore {
     }
 
     function groupAdmin() {
-      return roleIs(['group_admin']);
+      return roleIs(['admin', 'group_admin']);
     }
 
     function privilegedReviewer() {
-      return roleIs(['group_admin', 'reviewer', 'auditor']);
+      return roleIs(['admin', 'group_admin', 'reviewer', 'auditor']);
     }
 
     function ownsCompany(companyId) {
-      return roleIs(['company_admin']) && userProfile().companyId == companyId;
+      return roleIs(['editor', 'company_admin']) && userProfile().companyId == companyId;
     }
 
     function contractorRecord(contractorId) {
@@ -306,11 +306,10 @@ service cloud.firestore {
       allow read: if activeUser()
         && sameGroup(resource.data.groupId)
         && (resource.data.requestedBy == request.auth.uid || roleIs(['group_admin', 'reviewer']));
-      allow create: if activeUser()
-        && request.resource.data.groupId == userProfile().groupId
-        && request.resource.data.companyId == userProfile().companyId
+      allow create: if signedIn()
         && request.resource.data.requestedBy == request.auth.uid
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status == 'pending'
+        && request.resource.data.email is string;
       allow update: if roleIs(['group_admin', 'reviewer'])
         && sameGroup(resource.data.groupId)
         && request.resource.data.groupId == resource.data.groupId
