@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { chuanLuckProjects } from "./chuan-luck-projects";
-import { AuthGate } from "./auth-gate";
+import { AuthGate, useAuthProfile } from "./auth-gate";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { getFirebaseClient } from "@/lib/firebase/client";
 
@@ -405,6 +405,8 @@ const money = (value: number) =>
   }).format(value);
 
 function ContractorHubApp() {
+  const authProfile = useAuthProfile();
+  const isAdmin = authProfile?.role === "admin";
   const [contractorRows, setContractorRows] = useState(initialContractors);
   const [groupCompanies, setGroupCompanies] = useState([
     { id: "berinda-group", name: "Berinda Group" },
@@ -481,6 +483,7 @@ function ContractorHubApp() {
     initialContractors[0].projects[0].id,
   ]);
   const [activeSection, setActiveSection] = useState<"overview" | "add" | "contractors" | "groupProjects" | "nominations" | "imports" | "reports" | "settings">("overview");
+  useEffect(() => { if (activeSection === "settings" && !isAdmin) setActiveSection("overview"); }, [activeSection, isAdmin]);
   const [showProjectPanel, setShowProjectPanel] = useState(false);
   const [projectListStatus, setProjectListStatus] = useState<"All" | "Completed" | "Ongoing" | null>(null);
   const [showUpload, setShowUpload] = useState(false);
