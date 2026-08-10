@@ -106,6 +106,68 @@ type GroupProjectSortKey =
   | "year"
   | "location";
 
+type ContractorExportField =
+  | "name"
+  | "trade"
+  | "contactName"
+  | "mobile"
+  | "officePhone"
+  | "email"
+  | "grade"
+  | "score"
+  | "status"
+  | "approvalDate"
+  | "validUntil"
+  | "location"
+  | "recommendedMax";
+
+type ProjectExportField =
+  | "name"
+  | "scope"
+  | "projectType"
+  | "developer"
+  | "client"
+  | "location"
+  | "value"
+  | "commencementDate"
+  | "completionDate"
+  | "status"
+  | "progress";
+
+const CONTRACTOR_EXPORT_FIELDS: Array<{
+  key: ContractorExportField;
+  label: string;
+}> = [
+  { key: "name", label: "Contractor name" },
+  { key: "trade", label: "Trade(s)" },
+  { key: "contactName", label: "Contact name" },
+  { key: "mobile", label: "H/P number" },
+  { key: "officePhone", label: "Office number" },
+  { key: "email", label: "Email" },
+  { key: "grade", label: "CIDB grade" },
+  { key: "score", label: "Pre-Q score" },
+  { key: "status", label: "Validity status" },
+  { key: "approvalDate", label: "Approval date" },
+  { key: "validUntil", label: "Valid until" },
+  { key: "location", label: "Location" },
+  { key: "recommendedMax", label: "Recommended max project value" },
+];
+
+const PROJECT_EXPORT_FIELDS: Array<{ key: ProjectExportField; label: string }> =
+  [
+    { key: "name", label: "Project name" },
+    { key: "scope", label: "Scope" },
+    { key: "projectType", label: "Building type" },
+    { key: "developer", label: "Developer" },
+    { key: "client", label: "Client / Main contractor" },
+    { key: "location", label: "Location" },
+    { key: "value", label: "Contract value" },
+    { key: "commencementDate", label: "Commencement" },
+    { key: "completionDate", label: "Completion" },
+    { key: "status", label: "Status" },
+    { key: "progress", label: "Progress" },
+  ];
+
 const PROJECT_AI_PROMPT = `Read the attached contractor project-list document and create a CSV file named contractor-projects.csv using exactly these columns in exactly this order: Project Name, Scope, Building Type, Developer, Client / Main Contractor, Location, Contract Value RM, Commencement Date, Completion Date, Status, Progress. Use one project per row. Status must be Completed or Ongoing. Contract Value RM must contain numbers only. Keep the original project scope wording. Keep dates in the source format or use DD/MM/YYYY when a date is available. Leave a field blank when the source does not provide it. Do not add extra columns. Do not invent information. Return the finished CSV file for download and no additional explanation.`;
 const CONTRACTOR_AI_PROMPT = `Read the attached contractor-list document and create a CSV file named contractor-list.csv using exactly these columns in this order: Contractor Name, Trade, Contact Name, Mobile, Office Phone, Email Address, Pre-Q Date, Pre-Q Score, Approval Date, CIDB Grade, Location. Use one contractor per row. Dates must use DD/MM/YYYY. Pre-Q Score must contain numbers only. Leave a field blank when the source does not provide it. Do not invent information. Return the finished CSV file for download and no additional explanation.`;
 
@@ -304,10 +366,22 @@ function formatProjectDate(value?: string) {
   if (!source || source === "-") return "-";
   if (/^(19|20)\d{2}$/.test(source)) return source;
   const parsed = new Date(source);
-  if (Number.isNaN(parsed.getTime())) return source.replace(/\s+\d{2}:\d{2}:\d{2}.*$/, "");
-  const recoveredExcelValue = Math.round((parsed.getTime() - Date.UTC(1899, 11, 30)) / 86400000);
-  if (parsed.getUTCFullYear() < 1910 && recoveredExcelValue >= 1900 && recoveredExcelValue <= 2200) return String(recoveredExcelValue);
-  return parsed.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  if (Number.isNaN(parsed.getTime()))
+    return source.replace(/\s+\d{2}:\d{2}:\d{2}.*$/, "");
+  const recoveredExcelValue = Math.round(
+    (parsed.getTime() - Date.UTC(1899, 11, 30)) / 86400000,
+  );
+  if (
+    parsed.getUTCFullYear() < 1910 &&
+    recoveredExcelValue >= 1900 &&
+    recoveredExcelValue <= 2200
+  )
+    return String(recoveredExcelValue);
+  return parsed.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 const initialContractors: Contractor[] = [
@@ -740,7 +814,13 @@ function ContractorHubApp() {
         ),
       ),
     ]).catch(() => notify("Could not save this change. Please try again."));
-  }, [db, contractorRows, archivedContractors, groupCompanies, groupValidationYears]);
+  }, [
+    db,
+    contractorRows,
+    archivedContractors,
+    groupCompanies,
+    groupValidationYears,
+  ]);
   const [newCompanyName, setNewCompanyName] = useState("");
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [editingCompanyName, setEditingCompanyName] = useState("");
@@ -761,6 +841,40 @@ function ContractorHubApp() {
   const [exportLocation, setExportLocation] = useState("All locations");
   const [exportMinCost, setExportMinCost] = useState("");
   const [exportMaxCost, setExportMaxCost] = useState("");
+  const [exportMode, setExportMode] = useState<
+    "contractors" | "nomination" | "projects"
+  >("contractors");
+  const [contractorExportScope, setContractorExportScope] = useState<
+    "all" | "selected"
+  >("all");
+  const [contractorExportValidity, setContractorExportValidity] =
+    useState("All status");
+  const [contractorExportFields, setContractorExportFields] = useState<
+    ContractorExportField[]
+  >(["name", "contactName", "mobile", "email"]);
+  const [nominationTrade, setNominationTrade] = useState("All trades");
+  const [nominationMinScore, setNominationMinScore] = useState("");
+  const [nominationValidOnly, setNominationValidOnly] = useState(true);
+  const [nominationMinCapacity, setNominationMinCapacity] = useState("");
+  const [nominationProjectFilter, setNominationProjectFilter] = useState<
+    "All" | "Completed" | "Ongoing" | "Group"
+  >("All");
+  const [nominationContractorFields, setNominationContractorFields] = useState<
+    ContractorExportField[]
+  >(["name", "trade", "grade", "score", "status", "recommendedMax"]);
+  const [nominationProjectFields, setNominationProjectFields] = useState<
+    ProjectExportField[]
+  >(["name", "scope", "client", "location", "value", "status"]);
+  const [projectReferenceContractorId, setProjectReferenceContractorId] =
+    useState(initialContractors[0].id);
+  const [projectReferenceFilter, setProjectReferenceFilter] = useState<
+    "All" | "Completed" | "Ongoing" | "Group"
+  >("All");
+  const [projectReferenceSelectedIds, setProjectReferenceSelectedIds] =
+    useState<string[]>([]);
+  const [projectReferenceFields, setProjectReferenceFields] = useState<
+    ProjectExportField[]
+  >(["name", "scope", "client", "location", "value", "status"]);
   const [groupProjectQuery, setGroupProjectQuery] = useState("");
   const [groupProjectCompanyFilter, setGroupProjectCompanyFilter] =
     useState("All companies");
@@ -841,7 +955,9 @@ function ContractorHubApp() {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
-  const [contractorActionMenu, setContractorActionMenu] = useState<string | null>(null);
+  const [contractorActionMenu, setContractorActionMenu] = useState<
+    string | null
+  >(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [toast, setToast] = useState("");
   const [profileTab, setProfileTab] = useState<
@@ -872,21 +988,99 @@ function ContractorHubApp() {
   const addContractorFormRef = useRef<HTMLFormElement>(null);
 
   function groupProjectsFor(contractor: Contractor): GroupCompanyProject[] {
-    const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const normalize = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
     const detected = contractor.projects.flatMap((project) => {
-      const parties = normalize(`${project.developer ?? ""} ${project.client ?? ""}`);
+      const parties = normalize(
+        `${project.developer ?? ""} ${project.client ?? ""}`,
+      );
       const company = groupCompanies.find((candidate) => {
         const fullName = normalize(candidate.name);
-        const coreName = fullName.replace(/\b(sdn bhd|berhad|bhd)\b/g, "").replace(/\s+/g, " ").trim();
-        return parties.includes(fullName) || (candidate.id !== "berinda-group" && coreName.length >= 6 && parties.includes(coreName));
+        const coreName = fullName
+          .replace(/\b(sdn bhd|berhad|bhd)\b/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+        return (
+          parties.includes(fullName) ||
+          (candidate.id !== "berinda-group" &&
+            coreName.length >= 6 &&
+            parties.includes(coreName))
+        );
       });
       if (!company) return [];
-      const yearSource = formatProjectDate(project.completionDate ?? project.commencementDate ?? project.period);
-      const year = Number(yearSource.match(/(?:19|20)\d{2}/)?.[0]) || new Date().getFullYear();
-      return [{ id: `detected-${contractor.id}-${project.id}`, name: project.name, scope: project.scope, value: project.value, year, location: project.location, groupCompany: company.name }];
+      const yearSource = formatProjectDate(
+        project.completionDate ?? project.commencementDate ?? project.period,
+      );
+      const year =
+        Number(yearSource.match(/(?:19|20)\d{2}/)?.[0]) ||
+        new Date().getFullYear();
+      return [
+        {
+          id: `detected-${contractor.id}-${project.id}`,
+          name: project.name,
+          scope: project.scope,
+          value: project.value,
+          year,
+          location: project.location,
+          groupCompany: company.name,
+        },
+      ];
     });
-    const combined = [...(groupCompanyProjects[contractor.id] ?? []), ...detected];
-    return combined.filter((project, index) => combined.findIndex((candidate) => candidate.name.toLowerCase() === project.name.toLowerCase() && candidate.groupCompany === project.groupCompany) === index);
+    const combined = [
+      ...(groupCompanyProjects[contractor.id] ?? []),
+      ...detected,
+    ];
+    return combined.filter(
+      (project, index) =>
+        combined.findIndex(
+          (candidate) =>
+            candidate.name.toLowerCase() === project.name.toLowerCase() &&
+            candidate.groupCompany === project.groupCompany,
+        ) === index,
+    );
+  }
+
+  function reportProjectsFor(
+    contractor: Contractor,
+  ): Array<Project & { withinGroup?: boolean; groupCompany?: string }> {
+    const groupRecords = groupProjectsFor(contractor);
+    const regular = contractor.projects.map((project) => {
+      const groupRecord = groupRecords.find(
+        (record) => record.name.toLowerCase() === project.name.toLowerCase(),
+      );
+      return {
+        ...project,
+        withinGroup: Boolean(groupRecord),
+        groupCompany: groupRecord?.groupCompany,
+      };
+    });
+    const synthetic = groupRecords
+      .filter(
+        (record) =>
+          !regular.some(
+            (project) =>
+              project.name.toLowerCase() === record.name.toLowerCase(),
+          ),
+      )
+      .map((record) => ({
+        id: `group-reference-${contractor.id}-${record.id}`,
+        name: record.name,
+        scope: record.scope,
+        client: record.groupCompany,
+        developer: record.groupCompany,
+        location: record.location,
+        value: record.value,
+        period: String(record.year),
+        commencementDate: String(record.year),
+        completionDate: String(record.year),
+        status: "Completed" as const,
+        withinGroup: true,
+        groupCompany: record.groupCompany,
+      }));
+    return [...regular, ...synthetic];
   }
 
   const filtered = useMemo(() => {
@@ -953,7 +1147,8 @@ function ContractorHubApp() {
           Number(columnFilters.groupProjects);
       const recommendedMaxMatch =
         !columnFilters.recommendedMax ||
-        (contractor.recommendedMaxProjectValue ?? 0) >= Number(columnFilters.recommendedMax);
+        (contractor.recommendedMaxProjectValue ?? 0) >=
+          Number(columnFilters.recommendedMax);
       return (
         matchesSearch &&
         matchesStatus &&
@@ -1091,6 +1286,61 @@ function ContractorHubApp() {
       );
     return tradeMatches && locationMatches && costMatches;
   });
+  const contractorListExportRows = exportContractors.filter((contractor) => {
+    const scopeMatches =
+      contractorExportScope === "all" ||
+      selectedContractors.includes(contractor.id);
+    const validityMatches =
+      contractorExportValidity === "All status" ||
+      contractorValidity(contractor) === contractorExportValidity;
+    return scopeMatches && validityMatches;
+  });
+  const nominationCandidates = contractorRows.filter((contractor) => {
+    const tradeMatches =
+      nominationTrade === "All trades" ||
+      contractorTrades(contractor).includes(nominationTrade);
+    const scoreMatches =
+      !nominationMinScore || contractor.score >= Number(nominationMinScore);
+    const validityMatches =
+      !nominationValidOnly || contractorValidity(contractor) === "Valid";
+    const capacityMatches =
+      !nominationMinCapacity ||
+      (contractor.recommendedMaxProjectValue ?? 0) >=
+        Number(nominationMinCapacity);
+    return tradeMatches && scoreMatches && validityMatches && capacityMatches;
+  });
+  const nominationSelectedContractors = nominationCandidates.filter(
+    (contractor) => selectedContractors.includes(contractor.id),
+  );
+  const nominationVisibleProjects = nominationSelectedContractors.flatMap(
+    (contractor) =>
+      reportProjectsFor(contractor)
+        .filter(
+          (project) =>
+            nominationProjectFilter === "All" ||
+            (nominationProjectFilter === "Group"
+              ? project.withinGroup
+              : project.status === nominationProjectFilter),
+        )
+        .map((project) => ({
+          ...project,
+          contractorId: contractor.id,
+          contractorName: contractor.name,
+        })),
+  );
+  const projectReferenceContractor =
+    contractorRows.find(
+      (contractor) => contractor.id === projectReferenceContractorId,
+    ) ?? contractorRows[0];
+  const projectReferenceProjects = projectReferenceContractor
+    ? reportProjectsFor(projectReferenceContractor).filter(
+        (project) =>
+          projectReferenceFilter === "All" ||
+          (projectReferenceFilter === "Group"
+            ? project.withinGroup
+            : project.status === projectReferenceFilter),
+      )
+    : [];
 
   const chosenProjectRecords = contractorRows.flatMap((contractor) =>
     contractor.projects
@@ -1433,6 +1683,211 @@ function ContractorHubApp() {
       current.includes(trade)
         ? current.filter((item) => item !== trade)
         : [...current, trade],
+    );
+  }
+
+  function toggleField<T extends string>(
+    value: T,
+    setter: React.Dispatch<React.SetStateAction<T[]>>,
+  ) {
+    setter((current) =>
+      current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value],
+    );
+  }
+
+  function contractorExportValue(
+    contractor: Contractor,
+    field: ContractorExportField,
+  ) {
+    const values: Record<ContractorExportField, string | number> = {
+      name: contractor.name,
+      trade: contractor.trade,
+      contactName: contractor.contactName,
+      mobile: contractor.mobile,
+      officePhone: contractor.officePhone,
+      email: contractor.email,
+      grade: contractor.grade,
+      score: contractor.score,
+      status: contractorValidity(contractor),
+      approvalDate: contractor.approvalDate,
+      validUntil: formatValidationDate(contractor),
+      location: contractor.location,
+      recommendedMax: contractor.recommendedMaxProjectValue
+        ? `RM ${contractor.recommendedMaxProjectValue.toLocaleString("en-MY")}`
+        : "Not assessed",
+    };
+    return values[field];
+  }
+
+  function projectExportValue(
+    project: Project & { groupCompany?: string },
+    field: ProjectExportField,
+  ) {
+    const dates = project.period.split(" â€“ ");
+    const values: Record<ProjectExportField, string | number> = {
+      name: project.name,
+      scope: project.scope,
+      projectType: project.projectType ?? "Not provided",
+      developer: project.developer ?? "Not provided",
+      client: project.client || "Not provided",
+      location: project.location || "Not provided",
+      value: project.value
+        ? `RM ${project.value.toLocaleString("en-MY")}`
+        : "Not provided",
+      commencementDate: formatProjectDate(project.commencementDate ?? dates[0]),
+      completionDate: formatProjectDate(project.completionDate ?? dates[1]),
+      status: project.status,
+      progress: project.progress ?? "Not provided",
+    };
+    return values[field];
+  }
+
+  const escapeHtml = (value: unknown) =>
+    String(value).replace(
+      /[&<>"']/g,
+      (character) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#039;",
+        })[character] ?? character,
+    );
+  const csvCell = (value: unknown) =>
+    `"${String(value).replaceAll('"', '""')}"`;
+  function reportTable(headers: string[], rows: Array<Array<string | number>>) {
+    return `<table><thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  }
+  function reportDocument(title: string, subtitle: string, content: string) {
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@page{size:A4 landscape;margin:12mm}body{font-family:Arial,sans-serif;color:#183047;font-size:10px}h1{font-family:Georgia,serif;font-size:24px;margin:0 0 5px}p{color:#667789;margin:0 0 18px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cfd9df;padding:6px;vertical-align:top;text-align:left}th{background:#edf3f5;font-size:9px;text-transform:uppercase}td{line-height:1.4}.section{margin-top:20px}.section h2{font-size:15px}</style></head><body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)} · Generated ${new Date().toLocaleDateString("en-GB")}</p>${content}</body></html>`;
+  }
+  function printReport(title: string, subtitle: string, content: string) {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow)
+      return notify("Please allow pop-ups to print this report.");
+    printWindow.document.write(reportDocument(title, subtitle, content));
+    printWindow.document.close();
+    printWindow.focus();
+    window.setTimeout(() => printWindow.print(), 250);
+  }
+
+  function contractorListReportContent() {
+    const fields = contractorExportFields.length
+      ? contractorExportFields
+      : (["name"] as ContractorExportField[]);
+    return reportTable(
+      fields.map(
+        (field) =>
+          CONTRACTOR_EXPORT_FIELDS.find((option) => option.key === field)
+            ?.label ?? field,
+      ),
+      contractorListExportRows.map((contractor) =>
+        fields.map((field) => contractorExportValue(contractor, field)),
+      ),
+    );
+  }
+  function exportConfiguredContractorList() {
+    const fields = contractorExportFields.length
+      ? contractorExportFields
+      : (["name"] as ContractorExportField[]);
+    const headers = fields.map(
+      (field) =>
+        CONTRACTOR_EXPORT_FIELDS.find((option) => option.key === field)
+          ?.label ?? field,
+    );
+    const csv = [
+      headers,
+      ...contractorListExportRows.map((contractor) =>
+        fields.map((field) => contractorExportValue(contractor, field)),
+      ),
+    ]
+      .map((row) => row.map(csvCell).join(","))
+      .join("\n");
+    downloadFile("contractor-list.csv", csv, "text/csv;charset=utf-8");
+  }
+
+  function nominationReportContent() {
+    const contractorFields = nominationContractorFields.length
+      ? nominationContractorFields
+      : (["name"] as ContractorExportField[]);
+    const projectFields = nominationProjectFields.length
+      ? nominationProjectFields
+      : (["name"] as ProjectExportField[]);
+    const projects = nominationSelectedContractors.flatMap((contractor) =>
+      reportProjectsFor(contractor)
+        .filter((project) => selectedProjects.includes(project.id))
+        .map((project) => ({ ...project, contractorName: contractor.name })),
+    );
+    const contractorTable = reportTable(
+      contractorFields.map(
+        (field) =>
+          CONTRACTOR_EXPORT_FIELDS.find((option) => option.key === field)
+            ?.label ?? field,
+      ),
+      nominationSelectedContractors.map((contractor) =>
+        contractorFields.map((field) =>
+          contractorExportValue(contractor, field),
+        ),
+      ),
+    );
+    const projectTable = reportTable(
+      [
+        "Contractor",
+        ...projectFields.map(
+          (field) =>
+            PROJECT_EXPORT_FIELDS.find((option) => option.key === field)
+              ?.label ?? field,
+        ),
+      ],
+      projects.map((project) => [
+        project.contractorName,
+        ...projectFields.map((field) => projectExportValue(project, field)),
+      ]),
+    );
+    return `<div class="section"><h2>Selected contractors</h2>${contractorTable}</div><div class="section"><h2>Selected project references</h2>${projectTable}</div>`;
+  }
+  function exportConfiguredNominationReport() {
+    downloadFile(
+      "contractor-nomination-report.doc",
+      reportDocument(
+        "Contractor Nomination Report",
+        `${nominationTrade} · ${nominationSelectedContractors.length} contractors`,
+        nominationReportContent(),
+      ),
+      "application/msword",
+    );
+  }
+
+  function projectReferenceReportContent() {
+    const fields = projectReferenceFields.length
+      ? projectReferenceFields
+      : (["name"] as ProjectExportField[]);
+    const projects = reportProjectsFor(projectReferenceContractor).filter(
+      (project) => projectReferenceSelectedIds.includes(project.id),
+    );
+    return reportTable(
+      fields.map(
+        (field) =>
+          PROJECT_EXPORT_FIELDS.find((option) => option.key === field)?.label ??
+          field,
+      ),
+      projects.map((project) =>
+        fields.map((field) => projectExportValue(project, field)),
+      ),
+    );
+  }
+  function exportConfiguredProjectReference() {
+    downloadFile(
+      "project-reference-report.doc",
+      reportDocument(
+        "Project Reference Report",
+        projectReferenceContractor.name,
+        projectReferenceReportContent(),
+      ),
+      "application/msword",
     );
   }
 
@@ -2112,8 +2567,11 @@ function ContractorHubApp() {
       email: String(form.get("email")),
       grade: String(form.get("grade")),
       location: String(form.get("location")),
-      recommendedMaxProjectValue: Number(form.get("recommendedMaxProjectValue")) || 0,
-      financeAssessedBy: String(form.get("financeAssessedBy") || "Not assessed"),
+      recommendedMaxProjectValue:
+        Number(form.get("recommendedMaxProjectValue")) || 0,
+      financeAssessedBy: String(
+        form.get("financeAssessedBy") || "Not assessed",
+      ),
       updated: "Just now",
     };
     setActiveContractor(updatedContractor);
@@ -2127,13 +2585,23 @@ function ContractorHubApp() {
   }
 
   function archiveContractor(contractor: Contractor) {
-    if (!canEdit || !window.confirm(`Archive ${contractor.name}? It will be removed from the active contractor list, but retained for the administrator.`)) return;
+    if (
+      !canEdit ||
+      !window.confirm(
+        `Archive ${contractor.name}? It will be removed from the active contractor list, but retained for the administrator.`,
+      )
+    )
+      return;
     setArchivedContractors((current) => [
       { ...contractor, archivedAt: new Date().toISOString() },
       ...current.filter((item) => item.id !== contractor.id),
     ]);
-    setContractorRows((current) => current.filter((item) => item.id !== contractor.id));
-    setSelectedContractors((current) => current.filter((id) => id !== contractor.id));
+    setContractorRows((current) =>
+      current.filter((item) => item.id !== contractor.id),
+    );
+    setSelectedContractors((current) =>
+      current.filter((id) => id !== contractor.id),
+    );
     if (activeContractor.id === contractor.id) {
       const next = contractorRows.find((item) => item.id !== contractor.id);
       if (next) setActiveContractor(next);
@@ -2299,7 +2767,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.10
+              Version 0.11
             </button>
           </div>
         </div>
@@ -2588,10 +3056,14 @@ function ContractorHubApp() {
                         <th>
                           <button
                             className="directory-sortable"
-                            onClick={() => sortContractors("recommendedMaxProjectValue")}
+                            onClick={() =>
+                              sortContractors("recommendedMaxProjectValue")
+                            }
                           >
                             Recommended max project value
-                            {contractorSortIndicator("recommendedMaxProjectValue")}
+                            {contractorSortIndicator(
+                              "recommendedMaxProjectValue",
+                            )}
                           </button>
                         </th>
                         <th>Actions</th>
@@ -3160,10 +3632,15 @@ function ContractorHubApp() {
                               <div className="finance-limit-cell">
                                 <strong>
                                   {contractor.recommendedMaxProjectValue
-                                    ? money(contractor.recommendedMaxProjectValue)
+                                    ? money(
+                                        contractor.recommendedMaxProjectValue,
+                                      )
                                     : "Not assessed"}
                                 </strong>
-                                <small>{contractor.financeAssessedBy ?? "Finance assessment pending"}</small>
+                                <small>
+                                  {contractor.financeAssessedBy ??
+                                    "Finance assessment pending"}
+                                </small>
                               </div>
                             </td>
                             <td className="contractor-actions-cell">
@@ -3175,19 +3652,41 @@ function ContractorHubApp() {
                                     aria-label={`Actions for ${contractor.name}`}
                                     onClick={(event) => {
                                       event.stopPropagation();
-                                      setContractorActionMenu((current) => current === contractor.id ? null : contractor.id);
+                                      setContractorActionMenu((current) =>
+                                        current === contractor.id
+                                          ? null
+                                          : contractor.id,
+                                      );
                                     }}
                                   >
                                     â‹¯
                                   </button>
                                   {contractorActionMenu === contractor.id && (
-                                    <div className="contractor-action-menu" onClick={(event) => event.stopPropagation()}>
-                                      <button type="button" onClick={() => {
-                                        setActiveContractor(contractor);
-                                        setShowEditProfile(true);
-                                        setContractorActionMenu(null);
-                                      }}>Edit / update</button>
-                                      <button type="button" className="danger" onClick={() => archiveContractor(contractor)}>Delete to archive</button>
+                                    <div
+                                      className="contractor-action-menu"
+                                      onClick={(event) =>
+                                        event.stopPropagation()
+                                      }
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveContractor(contractor);
+                                          setShowEditProfile(true);
+                                          setContractorActionMenu(null);
+                                        }}
+                                      >
+                                        Edit / update
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="danger"
+                                        onClick={() =>
+                                          archiveContractor(contractor)
+                                        }
+                                      >
+                                        Delete to archive
+                                      </button>
                                     </div>
                                   )}
                                 </div>
@@ -3989,9 +4488,13 @@ function ContractorHubApp() {
                               type="button"
                               className="primary-button"
                               disabled={projectImportSaving}
-                              onClick={() => void importProjectRowsToContractor()}
+                              onClick={() =>
+                                void importProjectRowsToContractor()
+                              }
                             >
-                              {projectImportSaving ? "Saving projects…" : "Import projects"}
+                              {projectImportSaving
+                                ? "Saving projects…"
+                                : "Import projects"}
                             </button>
                           </div>
                         )}
@@ -4126,7 +4629,570 @@ function ContractorHubApp() {
                     </p>
                   </div>
                 </div>
-                <div className="export-workspace">
+                <div
+                  className="report-type-tabs"
+                  role="tablist"
+                  aria-label="Export report type"
+                >
+                  <button
+                    className={exportMode === "contractors" ? "active" : ""}
+                    onClick={() => setExportMode("contractors")}
+                  >
+                    <span>1</span>Contractor list
+                  </button>
+                  <button
+                    className={exportMode === "nomination" ? "active" : ""}
+                    onClick={() => setExportMode("nomination")}
+                  >
+                    <span>2</span>Nomination report
+                  </button>
+                  <button
+                    className={exportMode === "projects" ? "active" : ""}
+                    onClick={() => setExportMode("projects")}
+                  >
+                    <span>3</span>Project reference report
+                  </button>
+                </div>
+
+                {exportMode === "contractors" && (
+                  <section className="report-builder">
+                    <header>
+                      <div>
+                        <p className="eyebrow">CONTRACTOR DIRECTORY</p>
+                        <h3>Contractor list</h3>
+                        <p>
+                          Filter the database, choose all matching or only
+                          ticked contractors, then select the columns to print.
+                        </p>
+                      </div>
+                      <b>{contractorListExportRows.length} records</b>
+                    </header>
+                    <div className="report-builder-grid">
+                      <div className="report-controls">
+                        <h4>1. Choose contractors</h4>
+                        <label>Trades</label>
+                        <div className="trade-checkboxes compact-fields">
+                          {availableTrades.map((trade) => (
+                            <button
+                              type="button"
+                              className={
+                                selectedExportTrades.includes(trade)
+                                  ? "selected"
+                                  : ""
+                              }
+                              key={trade}
+                              onClick={() => toggleExportTrade(trade)}
+                            >
+                              <span>
+                                {selectedExportTrades.includes(trade)
+                                  ? "âœ“"
+                                  : ""}
+                              </span>
+                              {trade}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="report-filter-row">
+                          <label>
+                            Status
+                            <select
+                              value={contractorExportValidity}
+                              onChange={(event) =>
+                                setContractorExportValidity(event.target.value)
+                              }
+                            >
+                              <option>All status</option>
+                              <option>Valid</option>
+                              <option>Expired</option>
+                            </select>
+                          </label>
+                          <label>
+                            Output scope
+                            <select
+                              value={contractorExportScope}
+                              onChange={(event) =>
+                                setContractorExportScope(
+                                  event.target.value as "all" | "selected",
+                                )
+                              }
+                            >
+                              <option value="all">
+                                All matching contractors
+                              </option>
+                              <option value="selected">
+                                Only ticked contractors
+                              </option>
+                            </select>
+                          </label>
+                          <label>
+                            Location
+                            <select
+                              value={exportLocation}
+                              onChange={(event) =>
+                                setExportLocation(event.target.value)
+                              }
+                            >
+                              <option>All locations</option>
+                              {availableLocations.map((location) => (
+                                <option key={location}>{location}</option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                        <div className="report-candidate-list">
+                          {exportContractors.map((contractor) => (
+                            <label key={contractor.id}>
+                              <input
+                                type="checkbox"
+                                checked={selectedContractors.includes(
+                                  contractor.id,
+                                )}
+                                onChange={() => toggleContractor(contractor)}
+                              />
+                              <span>
+                                <strong>{contractor.name}</strong>
+                                <small>
+                                  {contractor.trade} ·{" "}
+                                  {contractorValidity(contractor)}
+                                </small>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="report-controls">
+                        <h4>2. Select information to print</h4>
+                        <p className="field-note">
+                          Default: contractor name, contact name, H/P number and
+                          email.
+                        </p>
+                        <div className="report-field-grid">
+                          {CONTRACTOR_EXPORT_FIELDS.map((field) => (
+                            <label key={field.key}>
+                              <input
+                                type="checkbox"
+                                checked={contractorExportFields.includes(
+                                  field.key,
+                                )}
+                                onChange={() =>
+                                  toggleField(
+                                    field.key,
+                                    setContractorExportFields,
+                                  )
+                                }
+                              />
+                              {field.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <footer>
+                      <span>
+                        {contractorListExportRows.length} contractors ·{" "}
+                        {contractorExportFields.length} columns
+                      </span>
+                      <div>
+                        <button
+                          className="secondary-button"
+                          disabled={!contractorListExportRows.length}
+                          onClick={exportConfiguredContractorList}
+                        >
+                          Download CSV
+                        </button>
+                        <button
+                          className="primary-button"
+                          disabled={!contractorListExportRows.length}
+                          onClick={() =>
+                            printReport(
+                              "Contractor List",
+                              `${selectedExportTrades.length ? selectedExportTrades.join(", ") : "All trades"} · ${contractorExportValidity}`,
+                              contractorListReportContent(),
+                            )
+                          }
+                        >
+                          Print / Save PDF
+                        </button>
+                      </div>
+                    </footer>
+                  </section>
+                )}
+
+                {exportMode === "nomination" && (
+                  <section className="report-builder">
+                    <header>
+                      <div>
+                        <p className="eyebrow">CONTRACTOR NOMINATION</p>
+                        <h3>Nomination report</h3>
+                        <p>
+                          Set the requirement, tick compliant contractors, and
+                          choose multiple completed, ongoing or group projects.
+                        </p>
+                      </div>
+                      <b>{nominationSelectedContractors.length} selected</b>
+                    </header>
+                    <div className="nomination-requirements">
+                      <label>
+                        Trade
+                        <select
+                          value={nominationTrade}
+                          onChange={(event) =>
+                            setNominationTrade(event.target.value)
+                          }
+                        >
+                          <option>All trades</option>
+                          {availableTrades.map((trade) => (
+                            <option key={trade}>{trade}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Minimum Pre-Q score
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={nominationMinScore}
+                          onChange={(event) =>
+                            setNominationMinScore(event.target.value)
+                          }
+                          placeholder="No minimum"
+                        />
+                      </label>
+                      <label>
+                        Minimum recommended capacity (RM)
+                        <input
+                          type="number"
+                          min="0"
+                          value={nominationMinCapacity}
+                          onChange={(event) =>
+                            setNominationMinCapacity(event.target.value)
+                          }
+                          placeholder="No minimum"
+                        />
+                      </label>
+                      <label className="inline-check">
+                        <input
+                          type="checkbox"
+                          checked={nominationValidOnly}
+                          onChange={(event) =>
+                            setNominationValidOnly(event.target.checked)
+                          }
+                        />
+                        Valid contractors only
+                      </label>
+                    </div>
+                    <div className="report-builder-grid">
+                      <div className="report-controls">
+                        <h4>1. Select compliant contractors</h4>
+                        <div className="report-candidate-list tall">
+                          {nominationCandidates.map((contractor) => (
+                            <label key={contractor.id}>
+                              <input
+                                type="checkbox"
+                                checked={selectedContractors.includes(
+                                  contractor.id,
+                                )}
+                                onChange={() => toggleContractor(contractor)}
+                              />
+                              <span>
+                                <strong>{contractor.name}</strong>
+                                <small>
+                                  {contractor.trade} · Pre-Q {contractor.score}{" "}
+                                  · {contractorValidity(contractor)} · Capacity{" "}
+                                  {contractor.recommendedMaxProjectValue
+                                    ? money(
+                                        contractor.recommendedMaxProjectValue,
+                                      )
+                                    : "not assessed"}
+                                </small>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="report-controls">
+                        <div className="report-control-heading">
+                          <h4>2. Select project references</h4>
+                          <select
+                            value={nominationProjectFilter}
+                            onChange={(event) =>
+                              setNominationProjectFilter(
+                                event.target
+                                  .value as typeof nominationProjectFilter,
+                              )
+                            }
+                          >
+                            <option>All</option>
+                            <option>Completed</option>
+                            <option>Ongoing</option>
+                            <option value="Group">Within group</option>
+                          </select>
+                        </div>
+                        <div className="report-project-list tall">
+                          {nominationVisibleProjects.map((project) => (
+                            <label
+                              key={`${project.contractorId}-${project.id}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedProjects.includes(project.id)}
+                                onChange={() => toggleProject(project.id)}
+                              />
+                              <span>
+                                <strong>{project.name}</strong>
+                                <small>
+                                  {project.contractorName} · {project.status} ·{" "}
+                                  {money(project.value)}
+                                  {project.withinGroup
+                                    ? ` · Within group (${project.groupCompany})`
+                                    : ""}
+                                </small>
+                              </span>
+                            </label>
+                          ))}
+                          {!nominationVisibleProjects.length && (
+                            <p className="field-note">
+                              Select at least one compliant contractor to view
+                              its projects.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="report-field-sections">
+                      <div>
+                        <h4>3. Contractor information</h4>
+                        <div className="report-field-grid">
+                          {CONTRACTOR_EXPORT_FIELDS.map((field) => (
+                            <label key={field.key}>
+                              <input
+                                type="checkbox"
+                                checked={nominationContractorFields.includes(
+                                  field.key,
+                                )}
+                                onChange={() =>
+                                  toggleField(
+                                    field.key,
+                                    setNominationContractorFields,
+                                  )
+                                }
+                              />
+                              {field.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <h4>4. Project information</h4>
+                        <div className="report-field-grid">
+                          {PROJECT_EXPORT_FIELDS.map((field) => (
+                            <label key={field.key}>
+                              <input
+                                type="checkbox"
+                                checked={nominationProjectFields.includes(
+                                  field.key,
+                                )}
+                                onChange={() =>
+                                  toggleField(
+                                    field.key,
+                                    setNominationProjectFields,
+                                  )
+                                }
+                              />
+                              {field.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <footer>
+                      <span>
+                        {nominationSelectedContractors.length} contractors ·{" "}
+                        {selectedProjects.length} selected projects
+                      </span>
+                      <div>
+                        <button
+                          className="secondary-button"
+                          disabled={!nominationSelectedContractors.length}
+                          onClick={exportConfiguredNominationReport}
+                        >
+                          Download Word
+                        </button>
+                        <button
+                          className="primary-button"
+                          disabled={!nominationSelectedContractors.length}
+                          onClick={() =>
+                            printReport(
+                              "Contractor Nomination Report",
+                              `${nominationTrade} · ${nominationSelectedContractors.length} contractors`,
+                              nominationReportContent(),
+                            )
+                          }
+                        >
+                          Print / Save PDF
+                        </button>
+                      </div>
+                    </footer>
+                  </section>
+                )}
+
+                {exportMode === "projects" && (
+                  <section className="report-builder">
+                    <header>
+                      <div>
+                        <p className="eyebrow">EXPERIENCE REFERENCE</p>
+                        <h3>Project reference report</h3>
+                        <p>
+                          Select one contractor, choose multiple projects, and
+                          control exactly which project information appears.
+                        </p>
+                      </div>
+                      <b>{projectReferenceSelectedIds.length} projects</b>
+                    </header>
+                    <div className="project-reference-toolbar">
+                      <label>
+                        Contractor
+                        <select
+                          value={projectReferenceContractorId}
+                          onChange={(event) => {
+                            setProjectReferenceContractorId(event.target.value);
+                            setProjectReferenceSelectedIds([]);
+                          }}
+                        >
+                          {contractorRows.map((contractor) => (
+                            <option key={contractor.id} value={contractor.id}>
+                              {contractor.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Project type
+                        <select
+                          value={projectReferenceFilter}
+                          onChange={(event) =>
+                            setProjectReferenceFilter(
+                              event.target
+                                .value as typeof projectReferenceFilter,
+                            )
+                          }
+                        >
+                          <option>All</option>
+                          <option>Completed</option>
+                          <option>Ongoing</option>
+                          <option value="Group">Within group</option>
+                        </select>
+                      </label>
+                      <button
+                        className="secondary-button"
+                        onClick={() =>
+                          setProjectReferenceSelectedIds(
+                            projectReferenceProjects.map(
+                              (project) => project.id,
+                            ),
+                          )
+                        }
+                      >
+                        Select all shown
+                      </button>
+                      <button
+                        className="secondary-button"
+                        onClick={() => setProjectReferenceSelectedIds([])}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    <div className="report-builder-grid">
+                      <div className="report-controls">
+                        <h4>1. Select projects</h4>
+                        <div className="report-project-list large">
+                          {projectReferenceProjects.map((project) => (
+                            <label key={project.id}>
+                              <input
+                                type="checkbox"
+                                checked={projectReferenceSelectedIds.includes(
+                                  project.id,
+                                )}
+                                onChange={() =>
+                                  setProjectReferenceSelectedIds((current) =>
+                                    current.includes(project.id)
+                                      ? current.filter(
+                                          (id) => id !== project.id,
+                                        )
+                                      : [...current, project.id],
+                                  )
+                                }
+                              />
+                              <span>
+                                <strong>{project.name}</strong>
+                                <small>
+                                  {project.status} · {money(project.value)} ·{" "}
+                                  {project.location}
+                                  {project.withinGroup
+                                    ? ` · Within group (${project.groupCompany})`
+                                    : ""}
+                                </small>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="report-controls">
+                        <h4>2. Select information to print</h4>
+                        <div className="report-field-grid">
+                          {PROJECT_EXPORT_FIELDS.map((field) => (
+                            <label key={field.key}>
+                              <input
+                                type="checkbox"
+                                checked={projectReferenceFields.includes(
+                                  field.key,
+                                )}
+                                onChange={() =>
+                                  toggleField(
+                                    field.key,
+                                    setProjectReferenceFields,
+                                  )
+                                }
+                              />
+                              {field.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <footer>
+                      <span>
+                        {projectReferenceContractor?.name} ·{" "}
+                        {projectReferenceSelectedIds.length} selected projects
+                      </span>
+                      <div>
+                        <button
+                          className="secondary-button"
+                          disabled={!projectReferenceSelectedIds.length}
+                          onClick={exportConfiguredProjectReference}
+                        >
+                          Download Word
+                        </button>
+                        <button
+                          className="primary-button"
+                          disabled={!projectReferenceSelectedIds.length}
+                          onClick={() =>
+                            printReport(
+                              "Project Reference Report",
+                              projectReferenceContractor.name,
+                              projectReferenceReportContent(),
+                            )
+                          }
+                        >
+                          Print / Save PDF
+                        </button>
+                      </div>
+                    </footer>
+                  </section>
+                )}
+
+                <div className="export-workspace legacy-export-workspace">
                   <section className="export-card nomination-export-card">
                     <div>
                       <p className="eyebrow">NOMINATION / COMBINED REPORT</p>
@@ -5593,8 +6659,16 @@ function ContractorHubApp() {
                         <td>
                           <strong>{money(project.value)}</strong>
                         </td>
-                        <td>{formatProjectDate(project.commencementDate ?? dates[0])}</td>
-                        <td>{formatProjectDate(project.completionDate ?? dates[1])}</td>
+                        <td>
+                          {formatProjectDate(
+                            project.commencementDate ?? dates[0],
+                          )}
+                        </td>
+                        <td>
+                          {formatProjectDate(
+                            project.completionDate ?? dates[1],
+                          )}
+                        </td>
                         <td>
                           <span
                             className={`table-project-status ${project.status.toLowerCase()}`}
@@ -5883,7 +6957,9 @@ function ContractorHubApp() {
                   type="number"
                   min="0"
                   step="1000"
-                  defaultValue={activeContractor.recommendedMaxProjectValue ?? 0}
+                  defaultValue={
+                    activeContractor.recommendedMaxProjectValue ?? 0
+                  }
                 />
               </label>
               <label>
@@ -6478,13 +7554,14 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.10</h2>
+            <h2 id="changelog-title">Version 0.11</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Cleaner project dates and table layout, automatic group-company matching,
-                  contractor edit/archive actions and Finance-assessed project limits.
+                  Three configurable export builders added for contractor
+                  lists, nomination reports and contractor project-reference
+                  reports.
                 </p>
               </article>
               <article>
