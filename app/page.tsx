@@ -2767,7 +2767,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.11
+              Version 0.12
             </button>
           </div>
         </div>
@@ -4409,28 +4409,36 @@ function ContractorHubApp() {
                           </article>
                           <article>
                             <b>OPTION B · CHATGPT</b>
-                            <h4>Convert an existing project list with AI</h4>
+                            <h4>Use the Contractor Project Extractor</h4>
                             <p>
-                              Attach the source PDF, Word or Excel file to
-                              ChatGPT, paste our prompt, then download the CSV
-                              it produces.
+                              Open the dedicated extractor, upload the
+                              contractor's PDF, Word or Excel project list, then
+                              download the system-ready file it generates.
                             </p>
-                            <button
+                            <a
                               className="secondary-button"
-                              onClick={() =>
-                                copyImportPrompt(
-                                  PROJECT_AI_PROMPT,
-                                  "Project extraction prompt",
-                                )
-                              }
+                              href="https://chatgpt.com/g/g-6a78397ba0548191ba0fce580f885126-contractor-project-extractor"
+                              target="_blank"
+                              rel="noopener noreferrer"
                             >
-                              Copy ChatGPT prompt
-                            </button>
+                              Open Project Extractor ↗
+                            </a>
                           </article>
                         </div>
                         <details className="prompt-preview">
-                          <summary>View the project extraction prompt</summary>
+                          <summary>Fallback: view and copy the extraction prompt</summary>
                           <pre>{PROJECT_AI_PROMPT}</pre>
+                          <button
+                            className="secondary-button"
+                            onClick={() =>
+                              copyImportPrompt(
+                                PROJECT_AI_PROMPT,
+                                "Project extraction prompt",
+                              )
+                            }
+                          >
+                            Copy fallback prompt
+                          </button>
                         </details>
                       </div>
                     </div>
@@ -7554,14 +7562,14 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.11</h2>
+            <h2 id="changelog-title">Version 0.12</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Three configurable export builders added for contractor
-                  lists, nomination reports and contractor project-reference
-                  reports.
+                  Project-import Step 2 now links directly to the dedicated
+                  Contractor Project Extractor, with the controlled prompt kept
+                  as a fallback.
                 </p>
               </article>
               <article>
