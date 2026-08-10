@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { isSignInWithEmailLink, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailLink, signOut, type User } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { getFirebaseClient } from "@/lib/firebase/client";
 
 const EMAIL_KEY = "berinda-auth-email";
@@ -29,6 +29,17 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       if (nextUser) {
         const profileSnapshot = await getDoc(doc(db, "users", nextUser.uid));
         setProfile(profileSnapshot.exists() ? profileSnapshot.data() as Profile : null);
+        if (!profileSnapshot.exists()) {
+          await setDoc(doc(db, "accessRequests", nextUser.uid), {
+            id: nextUser.uid,
+            email: nextUser.email ?? "",
+            groupId: "berinda-group",
+            companyId: "pending",
+            requestedBy: nextUser.uid,
+            status: "pending",
+            requestedAt: serverTimestamp(),
+          }, { merge: true });
+        }
       } else setProfile(null);
       setLoading(false);
     });

@@ -303,9 +303,9 @@ service cloud.firestore {
     }
 
     match /accessRequests/{requestId} {
-      allow read: if activeUser()
-        && sameGroup(resource.data.groupId)
-        && (resource.data.requestedBy == request.auth.uid || roleIs(['group_admin', 'reviewer']));
+      allow read: if signedIn()
+        && (resource.data.requestedBy == request.auth.uid
+          || (groupAdmin() && resource.data.groupId == userProfile().groupId));
       allow create: if signedIn()
         && request.resource.data.requestedBy == request.auth.uid
         && request.resource.data.status == 'pending'
