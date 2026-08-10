@@ -2299,7 +2299,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.9
+              Version 0.10
             </button>
           </div>
         </div>
@@ -6478,13 +6478,13 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.9</h2>
+            <h2 id="changelog-title">Version 0.10</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Project table aligned with the Excel import columns and
-                  project-import reliability improved.
+                  Cleaner project dates and table layout, automatic group-company matching,
+                  contractor edit/archive actions and Finance-assessed project limits.
                 </p>
               </article>
               <article>
