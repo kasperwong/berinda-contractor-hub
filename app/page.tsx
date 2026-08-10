@@ -449,7 +449,7 @@ export default function Home() {
   const [statusFilter, setStatusFilter] = useState("All status");
   const [tradeFilter, setTradeFilter] = useState("All trades");
   const [locationFilter, setLocationFilter] = useState("All locations");
-  const [columnFilters, setColumnFilters] = useState({ name: "", trade: "", contact: "", grade: "All grades", scoreMin: "", scoreMax: "", status: "All status", approval: "", projects: "", groupProjects: "" });
+  const [columnFilters, setColumnFilters] = useState<{ name: string; trade?: string; contact: string; grade: string; scoreMin: string; scoreMax: string; status: string; approval: string; projects: string; groupProjects: string }>({ name: "", trade: "", contact: "", grade: "All grades", scoreMin: "", scoreMax: "", status: "All status", approval: "", projects: "", groupProjects: "" });
   const [activeContractor, setActiveContractor] = useState(initialContractors[0]);
   const [selectedContractors, setSelectedContractors] = useState<string[]>([
     initialContractors[0].id,
@@ -506,7 +506,7 @@ export default function Home() {
       const matchesTrade = tradeFilter === "All trades" || contractorTrades(contractor).includes(tradeFilter);
       const matchesLocation = locationFilter === "All locations" || contractor.location === locationFilter;
       const nameMatch = !columnFilters.name || contractor.name.toLowerCase().includes(columnFilters.name.toLowerCase());
-      const tradeColumnMatch = !columnFilters.trade || contractorTrades(contractor).some((trade) => trade.toLowerCase().includes(columnFilters.trade.toLowerCase()));
+      const tradeColumnMatch = !columnFilters.trade || contractorTrades(contractor).some((trade) => trade.toLowerCase().includes((columnFilters.trade ?? "").toLowerCase()));
       const contactMatch = !columnFilters.contact || `${contractor.contactName} ${contractor.mobile}`.toLowerCase().includes(columnFilters.contact.toLowerCase());
       const gradeMatch = columnFilters.grade === "All grades" || contractor.grade === columnFilters.grade;
       const scoreMinMatch = !columnFilters.scoreMin || contractor.score >= Number(columnFilters.scoreMin);
@@ -795,7 +795,7 @@ export default function Home() {
       else {
         rows = await parsePrefixedXlsxRows(file);
         if (!rows.length) {
-          try { rows = await (await import("read-excel-file/browser")).default(file); }
+          try { rows = (await (await import("read-excel-file/browser")).default(file)) as unknown as unknown[][]; }
           catch { rows = []; }
         }
       }
@@ -835,9 +835,9 @@ export default function Home() {
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) { setProjectImportError("Please use a CSV or Excel file smaller than 10 MB."); return; }
     try {
-      const rows = file.name.toLowerCase().endsWith(".csv")
+      const rows = (file.name.toLowerCase().endsWith(".csv")
         ? parseCsvRows(await file.text())
-        : await (await import("read-excel-file/browser")).default(file);
+        : (await (await import("read-excel-file/browser")).default(file)) as unknown as unknown[][]) as unknown[][];
       if (rows.length < 2) throw new Error("The file has no project rows.");
       const normalise = (value: unknown) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
       const headers = rows[0].map(normalise);
