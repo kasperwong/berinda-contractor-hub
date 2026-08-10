@@ -552,6 +552,12 @@ td { height: 80px; font-size: 12px; }
 .account-menu-popover small { color: #77879a; text-transform: capitalize; }
 .account-menu-popover > button { width: 100%; padding: 9px 10px; border: 0; border-radius: 7px; text-align: left; color: #24415f; background: transparent; cursor: pointer; }
 .account-menu-popover > button:hover { background: #eef4f8; }
+.version-button { display: block; margin-top: 6px; padding: 0; border: 0; color: #aabbd0; background: transparent; font: inherit; font-size: 10px; cursor: pointer; text-align: left; }
+.version-button:hover, .version-button:focus-visible { color: #f1bb4a; text-decoration: underline; }
+.changelog-modal { width: min(520px, calc(100vw - 32px)); }
+.changelog-list { display: grid; gap: 10px; margin-top: 20px; }
+.changelog-list article { padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: #fafcfd; }
+.changelog-list p { margin: 5px 0 0; color: var(--muted); line-height: 1.5; }
 .overview-screen > .module-hero { display: none; }
 .top-actions > .primary-button { display: none; }
 .sidebar nav .nav-item:nth-child(4) { display: none; }
@@ -830,6 +836,21 @@ td { height: 80px; font-size: 12px; }
 }
 
 @media (max-width: 620px) {
+  .sidebar { position: fixed; z-index: 35; inset: auto 0 0; width: 100%; height: 76px; padding: 0; border-top: 1px solid rgba(255,255,255,.15); }
+  .sidebar .brand, .sidebar-bottom { display: none; }
+  .sidebar nav { display: flex; align-items: stretch; width: 100%; overflow-x: auto; }
+  .sidebar nav .nav-item { flex: 0 0 78px; min-height: 76px; display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 8px 4px; font-size: 10px; line-height: 1.1; white-space: normal; }
+  .sidebar nav .nav-item > span { font-size: 18px; }
+  .sidebar nav .nav-item b { position: absolute; margin: -28px 0 0 34px; display: grid; min-width: 17px; height: 17px; place-items: center; border-radius: 50%; font-size: 9px; background: #31537b; }
+  .sidebar nav .nav-item:nth-child(4) { display: none; }
+  main { width: 100%; margin-left: 0; padding: 18px 14px 104px; }
+  .topbar { min-height: 0; }
+  .topbar h1 { font-size: 34px; }
+  .module-stat-grid { grid-template-columns: 1fr; }
+  .workspace-card, .module-screen { min-width: 0; }
+  .table-wrap, .full-project-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .account-menu-popover { left: 12px; right: 12px; bottom: 86px; width: auto; }
+  .modal { max-height: calc(100dvh - 24px); }
   .topbar { align-items: flex-start; gap: 15px; }
   .top-actions .secondary-button, .icon-button { display: none; }
   .metrics { grid-template-columns: 1fr; }

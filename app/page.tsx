@@ -499,6 +499,7 @@ function ContractorHubApp() {
   const [groupProjectsContractor, setGroupProjectsContractor] = useState<Contractor | null>(null);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [toast, setToast] = useState("");
   const [profileTab, setProfileTab] = useState<"overview" | "preq" | "projects" | "documents" | "activity">("overview");
@@ -1115,6 +1116,7 @@ function ContractorHubApp() {
           <div>
             <strong>BERINDA</strong>
             <span>Contractor Hub</span>
+            <button className="version-button" onClick={() => setShowChangelog(true)}>Version 0.9</button>
           </div>
         </div>
 
@@ -1561,6 +1563,16 @@ function ContractorHubApp() {
               {!chosenProjectRecords.length && <p>No project references selected yet.</p>}
             </div>
             <div className="modal-actions"><button className="secondary-button" onClick={() => setShowSummary(false)}>Back to selection</button><button className="secondary-button" onClick={exportSelectedProjectsCsv}>Export project CSV</button><button className="primary-button" onClick={exportNominationWord}>Export Word summary</button></div>
+          </section>
+        </div>
+      )}
+      {showChangelog && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setShowChangelog(false)}>
+          <section className="modal changelog-modal" role="dialog" aria-modal="true" aria-labelledby="changelog-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" onClick={() => setShowChangelog(false)} aria-label="Close change log">×</button>
+            <p className="eyebrow">RELEASE NOTES</p><h2 id="changelog-title">Version 0.9</h2>
+            <div className="changelog-list"><article><strong>Latest update</strong><p>Project table aligned with the Excel import columns and project-import reliability improved.</p></article><article><strong>Data security</strong><p>Company-email sign-in, Admin/Editor/Viewer access and Firestore shared data storage added.</p></article><article><strong>Workspace improvements</strong><p>Contractor search, selection, nomination reporting and group document-request flows are available.</p></article></div>
+            <div className="modal-actions"><button className="primary-button" onClick={() => setShowChangelog(false)}>Done</button></div>
           </section>
         </div>
       )}
