@@ -318,6 +318,13 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /appState/{stateId} {
+      allow read: if activeUser();
+      allow create, update: if roleIs(['admin', 'editor', 'group_admin', 'company_admin'])
+        && request.resource.data.groupId == userProfile().groupId;
+      allow delete: if false;
+    }
+
     match /auditLogs/{logId} {
       allow read: if sameGroup(resource.data.groupId)
         && roleIs(['group_admin', 'auditor']);

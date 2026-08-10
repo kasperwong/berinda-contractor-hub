@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { chuanLuckProjects } from "./chuan-luck-projects";
 import { AuthGate } from "./auth-gate";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { getFirebaseClient } from "@/lib/firebase/client";
 
 type Project = {
   id: string;
@@ -404,6 +406,15 @@ const money = (value: number) =>
 
 function ContractorHubApp() {
   const [contractorRows, setContractorRows] = useState(initialContractors);
+  const [groupCompanies, setGroupCompanies] = useState([
+    { id: "berinda-group", name: "Berinda Group" },
+    { id: "johor-land", name: "Johor Land Berhad" },
+    { id: "bukit-indah-city", name: "Bukit Indah City Sdn Bhd" },
+    { id: "berinda-properties", name: "Berinda Properties Sdn Bhd" },
+  ]);
+  const [groupValidationYears, setGroupValidationYears] = useState(3);
+  const firestoreHydrated = useRef(false);
+  const { db } = getFirebaseClient();
   const contractorStorageHydrated = useRef(false);
   useEffect(() => {
     try {
@@ -422,16 +433,27 @@ function ContractorHubApp() {
     if (!contractorStorageHydrated.current) return;
     try { window.localStorage.setItem("berinda-contractor-rows", JSON.stringify(contractorRows)); } catch { /* Storage is optional until Firebase is connected. */ }
   }, [contractorRows]);
-  const [groupCompanies, setGroupCompanies] = useState([
-    { id: "berinda-group", name: "Berinda Group" },
-    { id: "johor-land", name: "Johor Land Berhad" },
-    { id: "bukit-indah-city", name: "Bukit Indah City Sdn Bhd" },
-    { id: "berinda-properties", name: "Berinda Properties Sdn Bhd" },
-  ]);
+  useEffect(() => {
+    let cancelled = false;
+    getDoc(doc(db, "appState", "berinda-group")).then((snapshot) => {
+      if (cancelled) return;
+      if (snapshot.exists()) {
+        const data = snapshot.data() as { contractorRows?: typeof initialContractors; groupCompanies?: Array<{ id: string; name: string }>; groupValidationYears?: number };
+        if (Array.isArray(data.contractorRows)) setContractorRows(data.contractorRows);
+        if (Array.isArray(data.groupCompanies)) setGroupCompanies(data.groupCompanies);
+        if (typeof data.groupValidationYears === "number") setGroupValidationYears(data.groupValidationYears);
+      }
+      firestoreHydrated.current = true;
+    }).catch(() => { firestoreHydrated.current = true; });
+    return () => { cancelled = true; };
+  }, [db]);
+  useEffect(() => {
+    if (!firestoreHydrated.current) return;
+    void setDoc(doc(db, "appState", "berinda-group"), { groupId: "berinda-group", contractorRows, groupCompanies, groupValidationYears, updatedAt: new Date().toISOString() }, { merge: true });
+  }, [db, contractorRows, groupCompanies, groupValidationYears]);
   const [newCompanyName, setNewCompanyName] = useState("");
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [editingCompanyName, setEditingCompanyName] = useState("");
-  const [groupValidationYears, setGroupValidationYears] = useState(3);
   const [importTab, setImportTab] = useState<"projects" | "contractors">("projects");
   const [importContractorSearch, setImportContractorSearch] = useState("");
   const [selectedImportContractorId, setSelectedImportContractorId] = useState(initialContractors[0].id);
