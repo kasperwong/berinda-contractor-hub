@@ -938,16 +938,13 @@ function ContractorHubApp() {
   >("all");
   const [contractorExportValidity, setContractorExportValidity] =
     useState("All status");
+  const [contractorExportSearch, setContractorExportSearch] = useState("");
   const [contractorExportFields, setContractorExportFields] = useState<
     ContractorExportField[]
   >(["name", "contactName", "mobile", "email"]);
-  const [nominationTrade, setNominationTrade] = useState("All trades");
-  const [nominationMinScore, setNominationMinScore] = useState("");
-  const [nominationValidOnly, setNominationValidOnly] = useState(true);
-  const [nominationMinCapacity, setNominationMinCapacity] = useState("");
-  const [nominationProjectFilter, setNominationProjectFilter] = useState<
-    "All" | "Completed" | "Ongoing" | "Group"
-  >("All");
+  const [nominationContractorSearch, setNominationContractorSearch] =
+    useState("");
+  const [nominationSelectedOnly, setNominationSelectedOnly] = useState(false);
   const [nominationContractorFields, setNominationContractorFields] = useState<
     ContractorExportField[]
   >(["name", "trade", "grade", "score", "status", "recommendedMax"]);
@@ -959,8 +956,6 @@ function ContractorHubApp() {
   const [projectReferenceFilter, setProjectReferenceFilter] = useState<
     "All" | "Completed" | "Ongoing" | "Group"
   >("All");
-  const [projectReferenceSelectedOnly, setProjectReferenceSelectedOnly] =
-    useState(false);
   const [projectReferenceSelectedIds, setProjectReferenceSelectedIds] =
     useState<string[]>([]);
   const [projectReferenceFields, setProjectReferenceFields] = useState<
@@ -1408,6 +1403,13 @@ function ContractorHubApp() {
       (contractor) => contractor.id === selectedImportContractorId,
     ) ?? contractorRows[0];
   const exportContractors = contractorRows.filter((contractor) => {
+    const search = contractorExportSearch.trim().toLowerCase();
+    const searchMatches =
+      !search ||
+      contractor.name.toLowerCase().includes(search) ||
+      contractorTrades(contractor).some((trade) =>
+        trade.toLowerCase().includes(search),
+      );
     const tradeMatches =
       !selectedExportTrades.length ||
       selectedExportTrades.some((trade) =>
@@ -1423,7 +1425,7 @@ function ContractorHubApp() {
       contractor.projects.some(
         (project) => project.value >= minimum && project.value <= maximum,
       );
-    return tradeMatches && locationMatches && costMatches;
+    return searchMatches && tradeMatches && locationMatches && costMatches;
   });
   const contractorListExportRows = exportContractors.filter((contractor) => {
     const scopeMatches =
@@ -1435,37 +1437,19 @@ function ContractorHubApp() {
     return scopeMatches && validityMatches;
   });
   const nominationCandidates = contractorRows.filter((contractor) => {
-    const tradeMatches =
-      nominationTrade === "All trades" ||
-      contractorTrades(contractor).includes(nominationTrade);
-    const scoreMatches =
-      !nominationMinScore || contractor.score >= Number(nominationMinScore);
-    const validityMatches =
-      !nominationValidOnly || contractorValidity(contractor) === "Valid";
-    const capacityMatches =
-      !nominationMinCapacity ||
-      (contractor.recommendedMaxProjectValue ?? 0) >=
-        Number(nominationMinCapacity);
-    return tradeMatches && scoreMatches && validityMatches && capacityMatches;
+    const search = nominationContractorSearch.trim().toLowerCase();
+    const searchMatches =
+      !search ||
+      contractor.name.toLowerCase().includes(search) ||
+      contractorTrades(contractor).some((trade) =>
+        trade.toLowerCase().includes(search),
+      );
+    const selectionMatches =
+      !nominationSelectedOnly || selectedContractors.includes(contractor.id);
+    return searchMatches && selectionMatches;
   });
-  const nominationSelectedContractors = nominationCandidates.filter(
+  const nominationSelectedContractors = contractorRows.filter(
     (contractor) => selectedContractors.includes(contractor.id),
-  );
-  const nominationVisibleProjects = nominationSelectedContractors.flatMap(
-    (contractor) =>
-      reportProjectsFor(contractor)
-        .filter(
-          (project) =>
-            nominationProjectFilter === "All" ||
-            (nominationProjectFilter === "Group"
-              ? project.withinGroup
-              : project.status === nominationProjectFilter),
-        )
-        .map((project) => ({
-          ...project,
-          contractorId: contractor.id,
-          contractorName: contractor.name,
-        })),
   );
   const projectReferenceContractor =
     contractorRows.find(
@@ -1478,8 +1462,7 @@ function ContractorHubApp() {
             (projectReferenceFilter === "Group"
               ? project.withinGroup
               : project.status === projectReferenceFilter)) &&
-          (!projectReferenceSelectedOnly ||
-            projectReferenceSelectedIds.includes(project.id)),
+          projectReferenceSelectedIds.includes(project.id),
       )
     : [];
 
@@ -2082,7 +2065,7 @@ function ContractorHubApp() {
       "contractor-nomination-report.doc",
       reportDocument(
         "Contractor Nomination Report",
-        `${nominationTrade} · ${nominationSelectedContractors.length} contractors`,
+        `${nominationSelectedContractors.length} selected contractors`,
         nominationReportContent(),
       ),
       "application/msword",
@@ -2220,6 +2203,7 @@ function ContractorHubApp() {
   function openProjectList(
     contractor: Contractor,
     status: "All" | "Completed" | "Ongoing",
+    initialSelection: string[] = selectedProjects,
   ) {
     setActiveContractor(contractor);
     setProjectQuery("");
@@ -2235,7 +2219,7 @@ function ContractorHubApp() {
       contractor.projects.map((project) => project.id),
     );
     setProjectListDraftSelection(
-      selectedProjects.filter((id) => contractorProjectIds.has(id)),
+      initialSelection.filter((id) => contractorProjectIds.has(id)),
     );
     setProjectListStatus(status);
   }
@@ -3167,7 +3151,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.22
+              Version 0.23
             </button>
           </div>
         </div>
@@ -4988,6 +4972,16 @@ function ContractorHubApp() {
                     <div className="report-builder-grid">
                       <div className="report-controls">
                         <h4>1. Choose contractors</h4>
+                        <label className="report-direct-search">
+                          Search name or trade
+                          <input
+                            value={contractorExportSearch}
+                            onChange={(event) =>
+                              setContractorExportSearch(event.target.value)
+                            }
+                            placeholder="Type contractor name or trade..."
+                          />
+                        </label>
                         <label>Trades</label>
                         <div className="trade-checkboxes compact-fields">
                           {availableTrades.map((trade) => (
@@ -5186,136 +5180,67 @@ function ContractorHubApp() {
                         <p className="eyebrow">CONTRACTOR NOMINATION</p>
                         <h3>Nomination report</h3>
                         <p>
-                          Set the requirement, tick compliant contractors, and
-                          choose multiple completed, ongoing or group projects.
+                          Choose contractors, open each project register, and
+                          add the relevant project references to this report.
                         </p>
                       </div>
                       <b>{nominationSelectedContractors.length} selected</b>
                     </header>
-                    <div className="nomination-requirements">
-                      <label>
-                        Trade
-                        <select
-                          value={nominationTrade}
-                          onChange={(event) =>
-                            setNominationTrade(event.target.value)
-                          }
-                        >
-                          <option>All trades</option>
-                          {availableTrades.map((trade) => (
-                            <option key={trade}>{trade}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        Minimum Pre-Q score
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={nominationMinScore}
-                          onChange={(event) =>
-                            setNominationMinScore(event.target.value)
-                          }
-                          placeholder="No minimum"
-                        />
-                      </label>
-                      <label>
-                        Minimum recommended capacity (RM)
-                        <input
-                          type="number"
-                          min="0"
-                          value={nominationMinCapacity}
-                          onChange={(event) =>
-                            setNominationMinCapacity(event.target.value)
-                          }
-                          placeholder="No minimum"
-                        />
-                      </label>
-                      <label className="inline-check">
-                        <input
-                          type="checkbox"
-                          checked={nominationValidOnly}
-                          onChange={(event) =>
-                            setNominationValidOnly(event.target.checked)
-                          }
-                        />
-                        Valid contractors only
-                      </label>
-                    </div>
-                    <div className="report-builder-grid">
-                      <div className="report-controls">
+                    <div className="report-builder-grid nomination-single-column">
+                      <div className="report-controls nomination-contractor-panel">
                         <h4>1. Select compliant contractors</h4>
-                        <div className="report-candidate-list tall">
-                          {nominationCandidates.map((contractor) => (
-                            <label key={contractor.id}>
-                              <input
-                                type="checkbox"
-                                checked={selectedContractors.includes(
-                                  contractor.id,
-                                )}
-                                onChange={() => toggleContractor(contractor)}
-                              />
-                              <span>
-                                <strong>{contractor.name}</strong>
-                                <small>
-                                  {contractor.trade} · Pre-Q {contractor.score}{" "}
-                                  · {contractorValidity(contractor)} · Capacity{" "}
-                                  {contractor.recommendedMaxProjectValue
-                                    ? money(
-                                        contractor.recommendedMaxProjectValue,
-                                      )
-                                    : "not assessed"}
-                                </small>
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="report-controls">
-                        <div className="report-control-heading">
-                          <h4>2. Select project references</h4>
-                          <select
-                            value={nominationProjectFilter}
-                            onChange={(event) =>
-                              setNominationProjectFilter(
-                                event.target
-                                  .value as typeof nominationProjectFilter,
-                              )
-                            }
+                        <div className="nomination-contractor-toolbar">
+                          <label className="report-direct-search">
+                            Search contractor name or trade
+                            <input
+                              value={nominationContractorSearch}
+                              onChange={(event) =>
+                                setNominationContractorSearch(event.target.value)
+                              }
+                              placeholder="Type contractor name or trade..."
+                            />
+                          </label>
+                          <button
+                            className={nominationSelectedOnly ? "secondary-button active-filter-button" : "secondary-button"}
+                            onClick={() => setNominationSelectedOnly((current) => !current)}
                           >
-                            <option>All</option>
-                            <option>Completed</option>
-                            <option>Ongoing</option>
-                            <option value="Group">Within group</option>
-                          </select>
+                            {nominationSelectedOnly ? "Show all contractors" : "Show selected only"}
+                          </button>
+                          <button
+                            className="secondary-button"
+                            onClick={() => setActiveSection("contractors")}
+                          >
+                            Find contractors
+                          </button>
                         </div>
-                        <div className="report-project-list tall">
-                          {nominationVisibleProjects.map((project) => (
-                            <label
-                              key={`${project.contractorId}-${project.id}`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selectedProjects.includes(project.id)}
-                                onChange={() => toggleProject(project.id)}
-                              />
-                              <span>
-                                <strong>{project.name}</strong>
-                                <small>
-                                  {project.contractorName} · {project.status} ·{" "}
-                                  {money(project.value)}
-                                  {project.withinGroup
-                                    ? ` · Within group (${project.groupCompany})`
-                                    : ""}
-                                </small>
-                              </span>
-                            </label>
+                        <div className="report-candidate-list tall nomination-contractor-list">
+                          {nominationCandidates.map((contractor) => (
+                            <div className="nomination-contractor-row" key={contractor.id}>
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedContractors.includes(contractor.id)}
+                                  onChange={() => toggleContractor(contractor)}
+                                />
+                                <span>
+                                  <strong>{contractor.name}</strong>
+                                  <small>
+                                    {contractor.trade} · Pre-Q {contractor.score} · {contractorValidity(contractor)} · Capacity {contractor.recommendedMaxProjectValue ? money(contractor.recommendedMaxProjectValue) : "not assessed"}
+                                  </small>
+                                </span>
+                              </label>
+                              <button
+                                type="button"
+                                className="secondary-button nomination-project-button"
+                                onClick={() => openProjectList(contractor, "All")}
+                              >
+                                Select projects ({selectedProjects.filter((projectId) => reportProjectsFor(contractor).some((project) => project.id === projectId)).length})
+                              </button>
+                            </div>
                           ))}
-                          {!nominationVisibleProjects.length && (
+                          {!nominationCandidates.length && (
                             <p className="field-note">
-                              Select at least one compliant contractor to view
-                              its projects.
+                              No contractors match this search.
                             </p>
                           )}
                         </div>
@@ -5323,7 +5248,7 @@ function ContractorHubApp() {
                     </div>
                     <div className="report-field-sections">
                       <div>
-                        <h4>3. Contractor information</h4>
+                        <h4>2. Contractor information</h4>
                         <div className="report-field-grid">
                           {orderedFieldOptions(
                             CONTRACTOR_EXPORT_FIELDS,
@@ -5349,7 +5274,7 @@ function ContractorHubApp() {
                         </div>
                       </div>
                       <div>
-                        <h4>4. Project information</h4>
+                        <h4>3. Project information</h4>
                         <div className="report-field-grid">
                           {orderedFieldOptions(
                             PROJECT_EXPORT_FIELDS,
@@ -5394,7 +5319,7 @@ function ContractorHubApp() {
                           onClick={() =>
                             printReport(
                               "Contractor Nomination Report",
-                              `${nominationTrade} · ${nominationSelectedContractors.length} contractors`,
+                              `${nominationSelectedContractors.length} selected contractors`,
                               nominationReportContent(),
                             )
                           }
@@ -5427,7 +5352,6 @@ function ContractorHubApp() {
                           onChange={(event) => {
                             setProjectReferenceContractorId(event.target.value);
                             setProjectReferenceSelectedIds([]);
-                            setProjectReferenceSelectedOnly(false);
                           }}
                         >
                           {contractorRows.map((contractor) => (
@@ -5457,38 +5381,20 @@ function ContractorHubApp() {
                       <button
                         className="secondary-button"
                         onClick={() =>
-                          setProjectReferenceSelectedIds(
-                            projectReferenceProjects.map(
-                              (project) => project.id,
-                            ),
+                          openProjectList(
+                            projectReferenceContractor,
+                            "All",
+                            projectReferenceSelectedIds,
                           )
                         }
                       >
-                        Select all shown
-                      </button>
-                      <button
-                        className={
-                          projectReferenceSelectedOnly
-                            ? "secondary-button active-filter-button"
-                            : "secondary-button"
-                        }
-                        disabled={!projectReferenceSelectedIds.length}
-                        onClick={() =>
-                          setProjectReferenceSelectedOnly((current) => !current)
-                        }
-                      >
-                        {projectReferenceSelectedOnly
-                          ? "Show all projects"
-                          : "Show selected only"}
+                        Open contractor projects
                       </button>
                       <button
                         className="secondary-button"
-                        onClick={() => {
-                          setProjectReferenceSelectedIds([]);
-                          setProjectReferenceSelectedOnly(false);
-                        }}
+                        onClick={() => setProjectReferenceSelectedIds([])}
                       >
-                        Clear
+                        Clear selected projects
                       </button>
                     </div>
                     <div className="report-builder-grid">
@@ -5959,11 +5865,25 @@ function ContractorHubApp() {
             Request documents
           </button>
           <button
+            className="secondary-button"
+            disabled={!selectedContractors.length}
+            onClick={() => {
+              setContractorExportScope("selected");
+              setExportMode("contractors");
+              setActiveSection("reports");
+            }}
+          >
+            Add to contractor list
+          </button>
+          <button
             className="primary-button"
             disabled={!selectedContractors.length}
-            onClick={() => setActiveSection("nominations")}
+            onClick={() => {
+              setExportMode("nomination");
+              setActiveSection("reports");
+            }}
           >
-            Open combined report <span>→</span>
+            Add to nomination report <span>→</span>
           </button>
         </div>
       )}
@@ -8425,14 +8345,16 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.22</h2>
+            <h2 id="changelog-title">Version 0.23</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Export columns can now be moved earlier or later before a
-                  report is generated. Contract values place RM in the heading,
-                  and project lists can be limited to selected items only.
+                  Selected contractors now have direct actions for document
+                  requests, contractor lists and nomination reports. Report
+                  builders include faster search and direct project-register
+                  selection, while project reference reports show only chosen
+                  projects.
                 </p>
               </article>
               <article>

@@ -1253,6 +1253,9 @@ tbody tr.active-row {
   background: #213c5a;
   color: white;
 }
+.selection-bar > button {
+  flex: 0 0 auto;
+}
 .app-shell.sidebar-collapsed .selection-bar {
   left: calc(76px + 28px);
 }
@@ -2909,12 +2912,67 @@ td {
   background: white;
 }
 .project-reference-toolbar {
-  grid-template-columns: minmax(240px, 1.5fr) minmax(145px, 0.8fr) repeat(3, auto);
+  grid-template-columns: minmax(240px, 1.5fr) minmax(145px, 0.8fr) auto auto;
   align-items: end;
   margin: 0;
   padding: 16px 22px;
   border-bottom: 1px solid var(--line);
   background: #f7f9fa;
+}
+.report-direct-search {
+  display: grid;
+  gap: 5px;
+  color: #5c6b7c;
+  font-size: 9px;
+  font-weight: 700;
+}
+.report-direct-search input {
+  width: 100%;
+  height: 38px;
+  border: 1px solid #d6dfe5;
+  border-radius: 7px;
+  padding: 0 11px;
+  background: white;
+  color: #2c4053;
+  font: inherit;
+}
+.nomination-single-column {
+  grid-template-columns: 1fr;
+}
+.nomination-contractor-panel {
+  border-right: 0;
+}
+.nomination-contractor-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto auto;
+  align-items: end;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+.nomination-contractor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #edf1f3;
+}
+.nomination-contractor-row:last-child {
+  border-bottom: 0;
+}
+.nomination-contractor-row:hover {
+  background: #f4faf8;
+}
+.nomination-contractor-row > label {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+  cursor: pointer;
+}
+.nomination-project-button {
+  min-height: 34px;
+  white-space: nowrap;
 }
 .active-filter-button {
   border-color: var(--teal) !important;
@@ -5551,6 +5609,13 @@ td {
   .nomination-requirements,
   .project-reference-toolbar {
     padding: 14px 16px;
+  }
+  .nomination-contractor-toolbar,
+  .nomination-contractor-row {
+    grid-template-columns: 1fr;
+  }
+  .nomination-project-button {
+    width: 100%;
   }
   .report-builder > footer {
     align-items: stretch;
