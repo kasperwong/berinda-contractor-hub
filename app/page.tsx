@@ -2671,6 +2671,10 @@ function ContractorHubApp() {
   function handleEditProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const score = Math.min(
+      100,
+      Math.max(0, Number(form.get("score")) || 0),
+    );
     const updatedContractor = {
       ...activeContractor,
       name: String(form.get("name")),
@@ -2681,6 +2685,8 @@ function ContractorHubApp() {
       email: String(form.get("email")),
       grade: String(form.get("grade")),
       location: String(form.get("location")),
+      score,
+      status: (score >= 65 ? "Approved" : "Review due") as Contractor["status"],
       recommendedMaxProjectValue:
         Number(form.get("recommendedMaxProjectValue")) || 0,
       financeAssessedBy: String(
@@ -2881,7 +2887,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.14
+              Version 0.15
             </button>
           </div>
         </div>
@@ -7161,6 +7167,17 @@ function ContractorHubApp() {
                 />
               </label>
               <label>
+                Pre-Q score
+                <input
+                  name="score"
+                  type="number"
+                  min="0"
+                  max="100"
+                  required
+                  defaultValue={activeContractor.score}
+                />
+              </label>
+              <label>
                 Location
                 <input
                   name="location"
@@ -7695,10 +7712,18 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.14</h2>
+            <h2 id="changelog-title">Version 0.15</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
+                <p>
+                  Contractor administrators can now correct the Pre-Q score
+                  from the profile edit screen while retaining all existing
+                  project history.
+                </p>
+              </article>
+              <article>
+                <strong>Project report selection</strong>
                 <p>
                   Select multiple completed or ongoing projects directly from
                   the contractor project register, then add the confirmed
