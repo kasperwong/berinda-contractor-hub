@@ -5858,7 +5858,7 @@ td {
   gap: 14px;
 }
 .evaluation-metrics.overall-metrics {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 .evaluation-summary-heading {
   display: flex;
@@ -5873,6 +5873,13 @@ td {
 .evaluation-summary-heading h3 {
   margin: 0;
   color: var(--ink);
+}
+.evaluation-summary-heading h3 + small,
+.evaluation-section header h3 + small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
 }
 .evaluation-summary-heading > span {
   max-width: 50%;
@@ -5942,7 +5949,7 @@ td {
 }
 .evaluation-table th,
 .evaluation-table td {
-  padding: 13px 16px;
+  padding: 12px 8px;
   border-bottom: 1px solid var(--line);
   text-align: left;
   vertical-align: top;
@@ -5973,12 +5980,31 @@ td {
 .evaluation-keyword-table th:not(:first-child) {
   width: 19%;
 }
-.evaluation-detail-wrap th:nth-child(1) { width: 18%; }
-.evaluation-detail-wrap th:nth-child(2) { width: 38%; }
-.evaluation-detail-wrap th:nth-child(3) { width: 10%; }
-.evaluation-detail-wrap th:nth-child(4) { width: 8%; }
-.evaluation-detail-wrap th:nth-child(5) { width: 12%; }
+.evaluation-detail-wrap th:nth-child(1) { width: 28%; }
+.evaluation-detail-wrap th:nth-child(2) { width: 25%; }
+.evaluation-detail-wrap th:nth-child(3) { width: 14%; }
+.evaluation-detail-wrap th:nth-child(4) { width: 9%; }
+.evaluation-detail-wrap th:nth-child(5) { width: 10%; }
 .evaluation-detail-wrap th:nth-child(6) { width: 14%; }
+.evaluation-sort-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+}
+.evaluation-sort-button span {
+  color: #16867a;
+}
+.scope-highlight-card {
+  border-color: #a8d7d1 !important;
+  background: #f2fbf9 !important;
+}
 .project-summary-buttons .evaluation {
   color: #365d8c;
 }
@@ -5995,9 +6021,6 @@ td {
   }
   .evaluation-metrics {
     grid-template-columns: 1fr 1fr;
-  }
-  .evaluation-metrics.overall-metrics {
-    grid-template-columns: 1fr 1fr 1fr;
   }
 }
 
