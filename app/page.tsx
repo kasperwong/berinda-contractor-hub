@@ -1032,6 +1032,10 @@ function ContractorHubApp() {
   const [projectColumnFilters, setProjectColumnFilters] = useState<
     Record<ProjectTableColumnKey, string>
   >({ ...EMPTY_PROJECT_COLUMN_FILTERS });
+  const [projectValueMin, setProjectValueMin] = useState("");
+  const [projectValueMax, setProjectValueMax] = useState("");
+  const [projectYearFrom, setProjectYearFrom] = useState("");
+  const [projectYearTo, setProjectYearTo] = useState("");
   const [visibleProjectColumns, setVisibleProjectColumns] = useState<
     ProjectTableColumnKey[]
   >(PROJECT_TABLE_COLUMNS.map((column) => column.key));
@@ -1052,6 +1056,7 @@ function ContractorHubApp() {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [contractorActionMenu, setContractorActionMenu] = useState<
     string | null
   >(null);
@@ -1526,7 +1531,20 @@ function ContractorHubApp() {
       status: project.status,
       progress: project.progress ?? "",
     };
+    const projectValue = Number(project.value) || 0;
+    const commencementYearMatch = String(
+      project.commencementDate ?? dates[0] ?? project.period,
+    ).match(/\b(?:19|20)\d{2}\b/);
+    const commencementYear = commencementYearMatch
+      ? Number(commencementYearMatch[0])
+      : 0;
+    if (projectValueMin && projectValue < Number(projectValueMin)) return false;
+    if (projectValueMax && projectValue > Number(projectValueMax)) return false;
+    if (projectYearFrom && commencementYear < Number(projectYearFrom)) return false;
+    if (projectYearTo && commencementYear > Number(projectYearTo)) return false;
+
     return PROJECT_TABLE_COLUMNS.every(({ key }) => {
+      if (key === "value" || key === "commencementDate") return true;
       const filter = projectColumnFilters[key].trim().toLowerCase();
       return !filter || values[key].toLowerCase().includes(filter);
     });
@@ -2121,6 +2139,10 @@ function ContractorHubApp() {
     setActiveContractor(contractor);
     setProjectQuery("");
     setProjectColumnFilters({ ...EMPTY_PROJECT_COLUMN_FILTERS });
+    setProjectValueMin("");
+    setProjectValueMax("");
+    setProjectYearFrom("");
+    setProjectYearTo("");
     setProjectEditMode(false);
     setEditingProject(null);
     const contractorProjectIds = new Set(
@@ -2190,6 +2212,14 @@ function ContractorHubApp() {
   function toggleProjectColumn(key: ProjectTableColumnKey) {
     if (visibleProjectColumns.includes(key)) {
       setProjectColumnFilters((current) => ({ ...current, [key]: "" }));
+      if (key === "value") {
+        setProjectValueMin("");
+        setProjectValueMax("");
+      }
+      if (key === "commencementDate") {
+        setProjectYearFrom("");
+        setProjectYearTo("");
+      }
     }
     setVisibleProjectColumns((current) =>
       current.includes(key)
@@ -3029,7 +3059,7 @@ function ContractorHubApp() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">B</div>
@@ -3040,10 +3070,19 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.18
+              Version 0.19
             </button>
           </div>
         </div>
+        <button
+          type="button"
+          className="sidebar-toggle"
+          aria-label={sidebarCollapsed ? "Open sidebar" : "Collapse sidebar"}
+          title={sidebarCollapsed ? "Open sidebar" : "Collapse sidebar"}
+          onClick={() => setSidebarCollapsed((current) => !current)}
+        >
+          {sidebarCollapsed ? "›" : "‹"}
+        </button>
 
         <nav aria-label="Main navigation">
           <button
@@ -3272,14 +3311,6 @@ function ContractorHubApp() {
                         <th>
                           <button
                             className="directory-sortable"
-                            onClick={() => sortContractors("contactName")}
-                          >
-                            Contact{contractorSortIndicator("contactName")}
-                          </button>
-                        </th>
-                        <th>
-                          <button
-                            className="directory-sortable"
                             onClick={() => sortContractors("grade")}
                           >
                             CIDB grade{contractorSortIndicator("grade")}
@@ -3339,7 +3370,6 @@ function ContractorHubApp() {
                             )}
                           </button>
                         </th>
-                        <th>Actions</th>
                         <th>Request document</th>
                       </tr>
                       <tr className="column-filter-row">
@@ -3368,19 +3398,6 @@ function ContractorHubApp() {
                             }
                             placeholder="Filter trade"
                             aria-label="Filter trade"
-                          />
-                        </th>
-                        <th>
-                          <input
-                            value={columnFilters.contact}
-                            onChange={(event) =>
-                              setColumnFilters((current) => ({
-                                ...current,
-                                contact: event.target.value,
-                              }))
-                            }
-                            placeholder="Filter contact"
-                            aria-label="Filter contact"
                           />
                         </th>
                         <th>
@@ -3508,7 +3525,6 @@ function ContractorHubApp() {
                             aria-label="Minimum recommended project value"
                           />
                         </th>
-                        <th></th>
                         <th>
                           <button
                             className="clear-column-filters"
@@ -3802,8 +3818,65 @@ function ContractorHubApp() {
                               </button>
                             </td>
                             <td>
-                              <div className="contractor-cell contractor-name-only">
-                                <strong>{contractor.name}</strong>
+                              <div className="contractor-name-actions">
+                                <button
+                                  type="button"
+                                  className="contractor-profile-link"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setActiveContractor(contractor);
+                                    setShowProfile(true);
+                                  }}
+                                >
+                                  {contractor.name}
+                                </button>
+                                {canEdit && (
+                                  <div className="contractor-actions">
+                                    <button
+                                      type="button"
+                                      className="contractor-menu-trigger"
+                                      aria-label={`Actions for ${contractor.name}`}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        setContractorActionMenu((current) =>
+                                          current === contractor.id
+                                            ? null
+                                            : contractor.id,
+                                        );
+                                      }}
+                                    >
+                                      ⋯
+                                    </button>
+                                    {contractorActionMenu === contractor.id && (
+                                      <div
+                                        className="contractor-action-menu"
+                                        onClick={(event) =>
+                                          event.stopPropagation()
+                                        }
+                                      >
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActiveContractor(contractor);
+                                            setShowEditProfile(true);
+                                            setContractorActionMenu(null);
+                                          }}
+                                        >
+                                          Edit / update
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="danger"
+                                          onClick={() =>
+                                            archiveContractor(contractor)
+                                          }
+                                        >
+                                          Delete to archive
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </td>
                             <td>
@@ -3811,12 +3884,6 @@ function ContractorHubApp() {
                                 <strong>
                                   {contractorTrades(contractor).join(" · ")}
                                 </strong>
-                              </div>
-                            </td>
-                            <td>
-                              <div className="directory-detail">
-                                <strong>{contractor.contactName}</strong>
-                                <small>{contractor.mobile}</small>
                               </div>
                             </td>
                             <td>
@@ -3915,55 +3982,6 @@ function ContractorHubApp() {
                                     "Finance assessment pending"}
                                 </small>
                               </div>
-                            </td>
-                            <td className="contractor-actions-cell">
-                              {canEdit && (
-                                <div className="contractor-actions">
-                                  <button
-                                    type="button"
-                                    className="contractor-menu-trigger"
-                                    aria-label={`Actions for ${contractor.name}`}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      setContractorActionMenu((current) =>
-                                        current === contractor.id
-                                          ? null
-                                          : contractor.id,
-                                      );
-                                    }}
-                                  >
-                                    â‹¯
-                                  </button>
-                                  {contractorActionMenu === contractor.id && (
-                                    <div
-                                      className="contractor-action-menu"
-                                      onClick={(event) =>
-                                        event.stopPropagation()
-                                      }
-                                    >
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActiveContractor(contractor);
-                                          setShowEditProfile(true);
-                                          setContractorActionMenu(null);
-                                        }}
-                                      >
-                                        Edit / update
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="danger"
-                                        onClick={() =>
-                                          archiveContractor(contractor)
-                                        }
-                                      >
-                                        Delete to archive
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
                             </td>
                             <td>
                               <button
@@ -6995,12 +7013,22 @@ function ContractorHubApp() {
                     <th>
                       <button
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
                           setProjectColumnFilters({
                             ...EMPTY_PROJECT_COLUMN_FILTERS,
-                          })
+                          });
+                          setProjectValueMin("");
+                          setProjectValueMax("");
+                          setProjectYearFrom("");
+                          setProjectYearTo("");
+                        }}
+                        disabled={
+                          !Object.values(projectColumnFilters).some(Boolean) &&
+                          !projectValueMin &&
+                          !projectValueMax &&
+                          !projectYearFrom &&
+                          !projectYearTo
                         }
-                        disabled={!Object.values(projectColumnFilters).some(Boolean)}
                       >
                         Clear
                       </button>
@@ -7024,6 +7052,58 @@ function ContractorHubApp() {
                               <option>Completed</option>
                               <option>Ongoing</option>
                             </select>
+                          ) : column.key === "value" ? (
+                            <div className="project-range-filter">
+                              <input
+                                type="number"
+                                min="0"
+                                inputMode="decimal"
+                                aria-label="Minimum contract value RM"
+                                value={projectValueMin}
+                                onChange={(event) =>
+                                  setProjectValueMin(event.target.value)
+                                }
+                                placeholder="Min"
+                              />
+                              <input
+                                type="number"
+                                min="0"
+                                inputMode="decimal"
+                                aria-label="Maximum contract value RM"
+                                value={projectValueMax}
+                                onChange={(event) =>
+                                  setProjectValueMax(event.target.value)
+                                }
+                                placeholder="Max"
+                              />
+                            </div>
+                          ) : column.key === "commencementDate" ? (
+                            <div className="project-range-filter">
+                              <input
+                                type="number"
+                                min="1900"
+                                max="2100"
+                                inputMode="numeric"
+                                aria-label="Commencement year from"
+                                value={projectYearFrom}
+                                onChange={(event) =>
+                                  setProjectYearFrom(event.target.value)
+                                }
+                                placeholder="From"
+                              />
+                              <input
+                                type="number"
+                                min="1900"
+                                max="2100"
+                                inputMode="numeric"
+                                aria-label="Commencement year to"
+                                value={projectYearTo}
+                                onChange={(event) =>
+                                  setProjectYearTo(event.target.value)
+                                }
+                                placeholder="To"
+                              />
+                            </div>
                           ) : (
                             <input
                               aria-label={`Filter ${column.label}`}
@@ -7035,9 +7115,6 @@ function ContractorHubApp() {
                                 )
                               }
                               placeholder="Filter"
-                              inputMode={
-                                column.key === "value" ? "decimal" : undefined
-                              }
                             />
                           )}
                         </th>
@@ -8155,14 +8232,22 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.18</h2>
+            <h2 id="changelog-title">Version 0.19</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Admin and Editor users can enable manual project editing from
-                  the contractor project register and update every stored
-                  project field without changing its project ID.
+                  Project value and commencement year now support range
+                  filters. Contractor and project tables fit the available
+                  screen width, and the desktop sidebar can be collapsed.
+                </p>
+              </article>
+              <article>
+                <strong>Contractor directory</strong>
+                <p>
+                  Contractor names now open the complete profile, contact
+                  details were removed from the directory table, and edit or
+                  archive actions sit beside the contractor name.
                 </p>
               </article>
               <article>
