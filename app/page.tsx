@@ -1258,7 +1258,7 @@ function ContractorHubApp() {
     setEvaluationKeywordInput("");
   }
 
-  const evaluationRecords = contractorRows
+  const evaluationAllRecords = contractorRows
     .filter(
       (contractor) =>
         evaluationContractorId === "all" ||
@@ -1271,8 +1271,8 @@ function ContractorHubApp() {
         contractorName: contractor.name,
         evaluationYear: projectEvaluationYear(project),
       })),
-    )
-    .filter((project) => {
+    );
+  const evaluationRecords = evaluationAllRecords.filter((project) => {
       const from = Number(evaluationYearFrom) || 0;
       const to = Number(evaluationYearTo) || Number.POSITIVE_INFINITY;
       return (
@@ -1280,6 +1280,24 @@ function ContractorHubApp() {
         (project.evaluationYear >= from && project.evaluationYear <= to)
       );
     });
+  const evaluationOverallCompleted = evaluationAllRecords.filter(
+    (project) => project.status === "Completed",
+  );
+  const evaluationOverallValue = evaluationAllRecords.reduce(
+    (sum, project) => sum + project.value,
+    0,
+  );
+  const evaluationHighestValue = evaluationAllRecords.reduce(
+    (highest, project) => Math.max(highest, project.value),
+    0,
+  );
+  const evaluationRangeLabel = evaluationYearFrom
+    ? evaluationYearTo
+      ? `From ${evaluationYearFrom} to ${evaluationYearTo}`
+      : `From ${evaluationYearFrom} onward`
+    : evaluationYearTo
+      ? `Up to ${evaluationYearTo}`
+      : "All available years";
   const evaluationMatches = evaluationKeywords.length
     ? evaluationRecords.filter((project) =>
         evaluationKeywords.some((keyword) =>
@@ -1287,12 +1305,6 @@ function ContractorHubApp() {
         ),
       )
     : evaluationRecords;
-  const evaluationCompleted = evaluationMatches.filter(
-    (project) => project.status === "Completed",
-  );
-  const evaluationOngoing = evaluationMatches.filter(
-    (project) => project.status === "Ongoing",
-  );
   const evaluationKeywordRows = (evaluationKeywords.length
     ? evaluationKeywords
     : ["All projects"]
@@ -1313,8 +1325,6 @@ function ContractorHubApp() {
       completedValue: completed.reduce((sum, project) => sum + project.value, 0),
       ongoingCount: ongoing.length,
       ongoingValue: ongoing.reduce((sum, project) => sum + project.value, 0),
-      totalCount: projects.length,
-      totalValue: projects.reduce((sum, project) => sum + project.value, 0),
     };
   });
 
@@ -2135,6 +2145,89 @@ function ContractorHubApp() {
     printWindow.document.close();
     printWindow.focus();
     window.setTimeout(() => printWindow.print(), 250);
+  }
+
+  function evaluationReportContent() {
+    const overallSummary = reportTable(
+      [
+        "All completed projects",
+        "Total contract sum (RM)",
+        "Highest project value (RM)",
+      ],
+      [[
+        evaluationOverallCompleted.length,
+        evaluationOverallValue.toLocaleString("en-MY", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
+        evaluationHighestValue.toLocaleString("en-MY", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
+      ]],
+    );
+    const keywordSummary = reportTable(
+      [
+        "Keyword",
+        "Completed projects",
+        "Completed total cost (RM)",
+        "Ongoing projects",
+        "Ongoing total cost (RM)",
+      ],
+      evaluationKeywordRows.map((row) => [
+        row.keyword,
+        row.completedCount,
+        row.completedValue.toLocaleString("en-MY", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
+        row.ongoingCount,
+        row.ongoingValue.toLocaleString("en-MY", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
+      ]),
+    );
+    const projectDetails = reportTable(
+      [
+        "Contractor",
+        "Project",
+        "Status",
+        "Year",
+        "Location",
+        "Contract value (RM)",
+      ],
+      evaluationMatches.map((project) => [
+        project.contractorName,
+        project.name,
+        project.status,
+        project.evaluationYear || "Not provided",
+        project.location || "Not provided",
+        project.value.toLocaleString("en-MY", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
+      ]),
+    );
+    return `<div class="section"><h2>Overall project experience</h2>${overallSummary}</div><div class="section"><h2>${escapeHtml(evaluationRangeLabel)} — keyword summary</h2>${keywordSummary}</div><div class="section"><h2>Projects included in evaluation</h2>${projectDetails}</div>`;
+  }
+
+  function exportEvaluationReport() {
+    const contractorLabel =
+      evaluationContractorId === "all"
+        ? "All contractors"
+        : contractorRows.find(
+            (contractor) => contractor.id === evaluationContractorId,
+          )?.name ?? "Selected contractor";
+    downloadFile(
+      "project-evaluation-report.doc",
+      reportDocument(
+        "Project Evaluation Report",
+        `${contractorLabel} · ${evaluationRangeLabel}`,
+        evaluationReportContent(),
+      ),
+      "application/msword",
+    );
   }
 
   function contractorListReportContent() {
@@ -3322,7 +3415,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.28
+              Version 0.29
             </button>
           </div>
         </div>
@@ -4976,6 +5069,13 @@ function ContractorHubApp() {
                       year range and multiple project keywords.
                     </p>
                   </div>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={exportEvaluationReport}
+                  >
+                    ↓ Export evaluation report
+                  </button>
                 </div>
                 <section className="evaluation-workspace">
                   <div className="evaluation-controls">
@@ -5087,68 +5187,63 @@ function ContractorHubApp() {
                     </div>
                   </div>
 
-                  <div className="evaluation-metrics">
+                  <div className="evaluation-summary-heading">
+                    <div>
+                      <p className="eyebrow">OVERALL</p>
+                      <h3>Overall project experience</h3>
+                    </div>
+                    <span>
+                      {evaluationContractorId === "all"
+                        ? "All contractors"
+                        : contractorRows.find(
+                            (contractor) =>
+                              contractor.id === evaluationContractorId,
+                          )?.name}
+                    </span>
+                  </div>
+                  <div className="evaluation-metrics overall-metrics">
                     <article>
-                      <small>MATCHING PROJECTS</small>
-                      <strong>{evaluationMatches.length}</strong>
-                      <span>Completed and ongoing</span>
+                      <small>ALL COMPLETED PROJECTS</small>
+                      <strong>{evaluationOverallCompleted.length}</strong>
+                      <span>Complete project history</span>
                     </article>
                     <article>
-                      <small>COMPLETED</small>
-                      <strong>{evaluationCompleted.length}</strong>
-                      <span>
-                        {money(
-                          evaluationCompleted.reduce(
-                            (sum, project) => sum + project.value,
-                            0,
-                          ),
-                        )}
-                      </span>
-                    </article>
-                    <article>
-                      <small>ONGOING</small>
-                      <strong>{evaluationOngoing.length}</strong>
-                      <span>
-                        {money(
-                          evaluationOngoing.reduce(
-                            (sum, project) => sum + project.value,
-                            0,
-                          ),
-                        )}
-                      </span>
-                    </article>
-                    <article>
-                      <small>TOTAL CONTRACT VALUE</small>
+                      <small>TOTAL CONTRACT SUM</small>
                       <strong className="evaluation-total-value">
-                        {money(
-                          evaluationMatches.reduce(
-                            (sum, project) => sum + project.value,
-                            0,
-                          ),
-                        )}
+                        {money(evaluationOverallValue)}
                       </strong>
-                      <span>Matching project value</span>
+                      <span>All completed and ongoing projects</span>
+                    </article>
+                    <article>
+                      <small>HIGHEST PROJECT VALUE</small>
+                      <strong className="evaluation-total-value">
+                        {money(evaluationHighestValue)}
+                      </strong>
+                      <span>Largest recorded contract</span>
                     </article>
                   </div>
 
                   <section className="evaluation-section">
                     <header>
                       <div>
-                        <p className="eyebrow">KEYWORD SUMMARY</p>
-                        <h3>Experience by keyword</h3>
+                        <p className="eyebrow">PERIOD SUMMARY</p>
+                        <h3>{evaluationRangeLabel}</h3>
+                        <small>
+                          Each keyword is calculated separately for the
+                          selected period.
+                        </small>
                       </div>
+                      <b>{evaluationMatches.length} matching projects</b>
                     </header>
                     <div className="evaluation-table-wrap">
-                      <table className="evaluation-table">
+                      <table className="evaluation-table evaluation-keyword-table">
                         <thead>
                           <tr>
                             <th>Keyword</th>
-                            <th>Completed</th>
-                            <th>Completed value (RM)</th>
-                            <th>Ongoing</th>
-                            <th>Ongoing value (RM)</th>
-                            <th>Total projects</th>
-                            <th>Total value (RM)</th>
+                            <th>Completed projects</th>
+                            <th>Completed total cost (RM)</th>
+                            <th>Ongoing projects</th>
+                            <th>Ongoing total cost (RM)</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -5159,8 +5254,6 @@ function ContractorHubApp() {
                               <td>{money(row.completedValue)}</td>
                               <td>{row.ongoingCount}</td>
                               <td>{money(row.ongoingValue)}</td>
-                              <td>{row.totalCount}</td>
-                              <td>{money(row.totalValue)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -8619,14 +8712,21 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.28</h2>
+            <h2 id="changelog-title">Version 0.29</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Added Project Evaluation with contractor and year filters,
-                  multiple keyword analysis, completed and ongoing project
-                  counts, and total contract-value summaries.
+                  Project Evaluation now includes an overall experience
+                  summary, year-range keyword breakdowns, a full-width layout
+                  without horizontal overflow and a downloadable report.
+                </p>
+              </article>
+              <article>
+                <strong>Project evaluation</strong>
+                <p>
+                  Analyse multiple keywords separately with completed and
+                  ongoing project counts and contract-value totals.
                 </p>
               </article>
               <article>

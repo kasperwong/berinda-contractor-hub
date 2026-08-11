@@ -5763,6 +5763,13 @@ td {
 .evaluation-workspace {
   display: grid;
   gap: 20px;
+  min-width: 0;
+  max-width: 100%;
+}
+.projectEvaluation-screen,
+.projectEvaluation-screen > * {
+  min-width: 0;
+  max-width: 100%;
 }
 .evaluation-controls {
   display: grid;
@@ -5850,6 +5857,29 @@ td {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
 }
+.evaluation-metrics.overall-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.evaluation-summary-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 2px;
+}
+.evaluation-summary-heading .eyebrow {
+  margin-bottom: 4px;
+}
+.evaluation-summary-heading h3 {
+  margin: 0;
+  color: var(--ink);
+}
+.evaluation-summary-heading > span {
+  max-width: 50%;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
+}
 .evaluation-metrics article {
   display: grid;
   gap: 7px;
@@ -5898,12 +5928,17 @@ td {
 }
 .evaluation-table-wrap {
   width: 100%;
-  overflow: auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .evaluation-table {
   width: 100%;
-  min-width: 790px;
+  min-width: 0;
+  table-layout: fixed;
   border-collapse: collapse;
+  white-space: normal;
 }
 .evaluation-table th,
 .evaluation-table td {
@@ -5912,6 +5947,8 @@ td {
   text-align: left;
   vertical-align: top;
   font-size: 11px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .evaluation-table th {
   background: #f6f8fa;
@@ -5930,6 +5967,18 @@ td {
 .evaluation-detail-wrap {
   max-height: 520px;
 }
+.evaluation-keyword-table th:first-child {
+  width: 24%;
+}
+.evaluation-keyword-table th:not(:first-child) {
+  width: 19%;
+}
+.evaluation-detail-wrap th:nth-child(1) { width: 18%; }
+.evaluation-detail-wrap th:nth-child(2) { width: 38%; }
+.evaluation-detail-wrap th:nth-child(3) { width: 10%; }
+.evaluation-detail-wrap th:nth-child(4) { width: 8%; }
+.evaluation-detail-wrap th:nth-child(5) { width: 12%; }
+.evaluation-detail-wrap th:nth-child(6) { width: 14%; }
 .project-summary-buttons .evaluation {
   color: #365d8c;
 }
@@ -5947,11 +5996,17 @@ td {
   .evaluation-metrics {
     grid-template-columns: 1fr 1fr;
   }
+  .evaluation-metrics.overall-metrics {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
 }
 
 @media (max-width: 620px) {
   .evaluation-controls,
   .evaluation-metrics {
+    grid-template-columns: 1fr;
+  }
+  .evaluation-metrics.overall-metrics {
     grid-template-columns: 1fr;
   }
   .evaluation-keyword-entry {
