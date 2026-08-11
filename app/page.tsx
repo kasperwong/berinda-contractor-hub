@@ -3115,7 +3115,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.20
+              Version 0.21
             </button>
           </div>
         </div>
@@ -7125,7 +7125,7 @@ function ContractorHubApp() {
                           </td>
                         )}
                         {visibleProjectColumns.includes("name") && (
-                          <td>
+                          <td className="project-name-cell">
                             <strong>{project.name}</strong>
                           </td>
                         )}
@@ -8243,15 +8243,14 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.20</h2>
+            <h2 id="changelog-title">Version 0.21</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Group, completed and ongoing project totals now share one
-                  Projects column. Approval is shown beneath status, and
-                  selected contractors can be combined into uploader-specific
-                  document request email drafts.
+                  Project names in the contractor project register now use the
+                  same compact text size and line height as the other project
+                  details for easier table scanning.
                 </p>
               </article>
               <article>

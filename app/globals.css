@@ -3782,6 +3782,12 @@ td {
   font-size: 8px;
   overflow-wrap: anywhere;
 }
+.full-project-table:not(.group-project-table) .project-name-cell strong {
+  color: #526175;
+  font-size: inherit;
+  font-weight: 600;
+  line-height: inherit;
+}
 .contractor-actions {
   position: relative;
   display: inline-block;
