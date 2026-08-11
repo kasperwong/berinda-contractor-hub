@@ -361,6 +361,39 @@ function cleanForFirestore<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function projectFingerprint(project: Project) {
+  const normalize = (value: unknown) =>
+    String(value ?? "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .replace(/[^a-z0-9 ]/g, "")
+      .trim();
+  return [
+    normalize(project.name),
+    normalize(project.scope),
+    normalize(project.projectType),
+    normalize(project.developer),
+    normalize(project.client),
+    normalize(project.location),
+    Math.round(Number(project.value) || 0),
+    normalize(formatProjectDate(project.commencementDate)),
+    normalize(formatProjectDate(project.completionDate)),
+  ].join("|");
+}
+
+function dedupeProjects(projects: Project[]) {
+  const unique = new Map<string, Project>();
+  projects.forEach((project) => {
+    const fingerprint = projectFingerprint(project);
+    const existing = unique.get(fingerprint);
+    unique.set(
+      fingerprint,
+      existing ? { ...existing, ...project, id: existing.id } : project,
+    );
+  });
+  return Array.from(unique.values());
+}
+
 function formatProjectDate(value?: string) {
   const source = value?.trim();
   if (!source || source === "-") return "-";
@@ -732,24 +765,32 @@ function ContractorHubApp() {
             archivedContractors?: Array<Contractor & { archivedAt: string }>;
             groupCompanies?: Array<{ id: string; name: string }>;
             groupValidationYears?: number;
+            projectBatchManifest?: string[];
           };
-          const batches = projectBatchSnapshot.docs.flatMap(
+          const activeBatchDocs = Array.isArray(data.projectBatchManifest)
+            ? projectBatchSnapshot.docs.filter((item) =>
+                data.projectBatchManifest?.includes(item.id),
+              )
+            : projectBatchSnapshot.docs;
+          const batches = activeBatchDocs.flatMap(
             (item) => (item.data().projects ?? []) as Project[],
           );
           if (Array.isArray(data.contractorRows))
             setContractorRows(
               data.contractorRows.map((contractor) => ({
                 ...contractor,
-                projects: batches.length
-                  ? batches
-                      .filter((project) =>
-                        project.id.startsWith(`${contractor.id}::`),
-                      )
-                      .map((project) => ({
-                        ...project,
-                        id: project.id.replace(`${contractor.id}::`, ""),
-                      }))
-                  : contractor.projects,
+                projects: dedupeProjects(
+                  batches.length
+                    ? batches
+                        .filter((project) =>
+                          project.id.startsWith(`${contractor.id}::`),
+                        )
+                        .map((project) => ({
+                          ...project,
+                          id: project.id.replace(`${contractor.id}::`, ""),
+                        }))
+                    : contractor.projects,
+                ),
               })),
             );
           if (Array.isArray(data.archivedContractors))
@@ -779,7 +820,7 @@ function ContractorHubApp() {
       projects: [],
     }));
     const batches = contractorRows.flatMap((contractor) =>
-      contractor.projects
+      dedupeProjects(contractor.projects)
         .map((project) => ({
           ...project,
           id: `${contractor.id}::${project.id}`,
@@ -794,6 +835,7 @@ function ContractorHubApp() {
           projects,
         })),
     );
+    const projectBatchManifest = batches.map((batch) => batch.id);
     void Promise.all([
       setDoc(
         doc(db, "appState", "berinda-group"),
@@ -803,6 +845,7 @@ function ContractorHubApp() {
           archivedContractors,
           groupCompanies,
           groupValidationYears,
+          projectBatchManifest,
           updatedAt: new Date().toISOString(),
         }),
         { merge: true },
@@ -2283,9 +2326,10 @@ function ContractorHubApp() {
         throw new Error(
           "No project names were found. Use the provided template columns.",
         );
-      setProjectImportRows(projects);
+      const uniqueProjects = dedupeProjects(projects);
+      setProjectImportRows(uniqueProjects);
       notify(
-        `${projects.length} project row${projects.length === 1 ? "" : "s"} read from ${file.name}.`,
+        `${uniqueProjects.length} unique project row${uniqueProjects.length === 1 ? "" : "s"} read from ${file.name}.`,
       );
     } catch (error) {
       setProjectImportError(
@@ -2299,9 +2343,16 @@ function ContractorHubApp() {
   async function importProjectRowsToContractor() {
     if (!selectedImportContractor || !projectImportRows.length) return;
     const importedCount = projectImportRows.length;
+    const existingProjects = dedupeProjects(selectedImportContractor.projects);
+    const combinedProjects = dedupeProjects([
+      ...existingProjects,
+      ...projectImportRows,
+    ]);
+    const addedCount = combinedProjects.length - existingProjects.length;
+    const skippedCount = importedCount - addedCount;
     const updated = cleanForFirestore({
       ...selectedImportContractor,
-      projects: [...projectImportRows, ...selectedImportContractor.projects],
+      projects: combinedProjects,
       updated: "Just now",
     });
     const updatedRows = contractorRows.map((contractor) =>
@@ -2311,17 +2362,23 @@ function ContractorHubApp() {
       ...contractor,
       projects: [],
     }));
-    const projectGroups = updated.projects.reduce<Project[][]>(
-      (groups, project, index) => {
-        const groupIndex = Math.floor(index / 25);
-        (groups[groupIndex] ??= []).push({
+    const projectGroups = updatedRows.flatMap((contractor) =>
+      dedupeProjects(contractor.projects)
+        .map((project) => ({
           ...project,
-          id: `${updated.id}::${project.id}`,
-        });
-        return groups;
-      },
-      [],
+          id: `${contractor.id}::${project.id}`,
+        }))
+        .reduce<Project[][]>((groups, project, index) => {
+          const groupIndex = Math.floor(index / 25);
+          (groups[groupIndex] ??= []).push(project);
+          return groups;
+        }, [])
+        .map((projects, index) => ({
+          id: `${contractor.id}-${index}`,
+          projects,
+        })),
     );
+    const projectBatchManifest = projectGroups.map((group) => group.id);
 
     setProjectImportSaving(true);
     setProjectImportError("");
@@ -2332,22 +2389,24 @@ function ContractorHubApp() {
         cleanForFirestore({
           groupId: "berinda-group",
           contractorRows: baseRows,
+          archivedContractors,
           groupCompanies,
           groupValidationYears,
+          projectBatchManifest,
           updatedAt: new Date().toISOString(),
         }),
         { merge: true },
       );
-      projectGroups.forEach((projects, index) => {
+      projectGroups.forEach((group) => {
         batch.set(
           doc(
             db,
             "appState",
             "berinda-group",
             "projectBatches",
-            `${updated.id}-${index}`,
+            group.id,
           ),
-          cleanForFirestore({ projects }),
+          cleanForFirestore({ projects: group.projects }),
         );
       });
       await batch.commit();
@@ -2357,7 +2416,9 @@ function ContractorHubApp() {
       setActiveContractor(updated);
       setProjectImportRows([]);
       setProjectImportFile("");
-      notify(`${importedCount} projects imported to ${updated.name}.`);
+      notify(
+        `${addedCount} projects added to ${updated.name}; ${skippedCount} duplicate${skippedCount === 1 ? "" : "s"} skipped.`,
+      );
     } catch (error) {
       console.error("Project import failed", error);
       setProjectImportError(
@@ -2767,7 +2828,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.12
+              Version 0.13
             </button>
           </div>
         </div>
@@ -7562,14 +7623,14 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.12</h2>
+            <h2 id="changelog-title">Version 0.13</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Project-import Step 2 now links directly to the dedicated
-                  Contractor Project Extractor, with the controlled prompt kept
-                  as a fallback.
+                  Duplicate project records are removed automatically, repeated
+                  imports are skipped, and later status updates replace the
+                  existing record.
                 </p>
               </article>
               <article>
