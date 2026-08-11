@@ -61,6 +61,9 @@ type Contractor = {
   validationYears?: number;
   recommendedMaxProjectValue?: number;
   financeAssessedBy?: string;
+  recordOwnerName?: string;
+  recordOwnerEmail?: string;
+  recordOwnerPhone?: string;
   projects: Project[];
 };
 
@@ -1242,7 +1245,8 @@ function ContractorHubApp() {
           .includes(columnFilters.approval.toLowerCase());
       const projectsMatch =
         !columnFilters.projects ||
-        contractor.projects.length >= Number(columnFilters.projects);
+        contractor.projects.length + groupProjectsFor(contractor).length >=
+          Number(columnFilters.projects);
       const groupProjectsMatch =
         !columnFilters.groupProjects ||
         groupProjectsFor(contractor).length >=
@@ -1280,7 +1284,8 @@ function ContractorHubApp() {
   ]);
   const sortedContractors = [...filtered].sort((a, b) => {
     const value = (contractor: Contractor) => {
-      if (contractorSort.key === "projects") return contractor.projects.length;
+      if (contractorSort.key === "projects")
+        return contractor.projects.length + groupProjectsFor(contractor).length;
       if (contractorSort.key === "groupProjects")
         return groupProjectsFor(contractor).length;
       if (contractorSort.key === "recommendedMaxProjectValue")
@@ -1303,6 +1308,35 @@ function ContractorHubApp() {
           });
     return contractorSort.direction === "asc" ? comparison : -comparison;
   });
+  const selectedRequestContractors = contractorRows.filter((contractor) =>
+    selectedContractors.includes(contractor.id),
+  );
+  const documentRequestGroups = Object.values(
+    selectedRequestContractors.reduce<
+      Record<
+        string,
+        {
+          email: string;
+          name: string;
+          phone: string;
+          contractors: Contractor[];
+        }
+      >
+    >((groups, contractor) => {
+      const email = contractor.recordOwnerEmail?.trim().toLowerCase() || "";
+      const key = email || `missing-${contractor.id}`;
+      if (!groups[key]) {
+        groups[key] = {
+          email,
+          name: contractor.recordOwnerName || "Record owner not recorded",
+          phone: contractor.recordOwnerPhone || "Not recorded",
+          contractors: [],
+        };
+      }
+      groups[key].contractors.push(contractor);
+      return groups;
+    }, {}),
+  );
   const allGroupProjectRecords = contractorRows.flatMap((contractor) =>
     groupProjectsFor(contractor).map((project) => ({
       ...project,
@@ -2653,6 +2687,10 @@ function ContractorHubApp() {
       preqDate: row.preqDate || "Not provided",
       approvalDate: row.approvalDate || "Pending",
       validationYears: groupValidationYears,
+      recordOwnerName:
+        authProfile?.displayName || authProfile?.companyName || "Not recorded",
+      recordOwnerEmail: authProfile?.email || "",
+      recordOwnerPhone: authProfile?.phone || "",
       projects: [],
     };
   }
@@ -2715,6 +2753,10 @@ function ContractorHubApp() {
       preqDate: String(form.get("preqDate") || "Not provided"),
       approvalDate: String(form.get("approvalDate")) || "Pending",
       validationYears: groupValidationYears,
+      recordOwnerName:
+        authProfile?.displayName || authProfile?.companyName || "Not recorded",
+      recordOwnerEmail: authProfile?.email || "",
+      recordOwnerPhone: authProfile?.phone || "",
       projects: [],
     };
     setContractorRows((current) => [contractor, ...current]);
@@ -2875,6 +2917,9 @@ function ContractorHubApp() {
       financeAssessedBy: String(
         form.get("financeAssessedBy") || "Not assessed",
       ),
+      recordOwnerName: String(form.get("recordOwnerName") || "Not recorded"),
+      recordOwnerEmail: String(form.get("recordOwnerEmail") || ""),
+      recordOwnerPhone: String(form.get("recordOwnerPhone") || ""),
       updated: "Just now",
     };
     setActiveContractor(updatedContractor);
@@ -3070,7 +3115,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.19
+              Version 0.20
             </button>
           </div>
         </div>
@@ -3335,26 +3380,9 @@ function ContractorHubApp() {
                         <th>
                           <button
                             className="directory-sortable"
-                            onClick={() => sortContractors("approvalDate")}
-                          >
-                            Approval{contractorSortIndicator("approvalDate")}
-                          </button>
-                        </th>
-                        <th>
-                          <button
-                            className="directory-sortable"
                             onClick={() => sortContractors("projects")}
                           >
                             Projects{contractorSortIndicator("projects")}
-                          </button>
-                        </th>
-                        <th>
-                          <button
-                            className="directory-sortable"
-                            onClick={() => sortContractors("groupProjects")}
-                          >
-                            Group company projects
-                            {contractorSortIndicator("groupProjects")}
                           </button>
                         </th>
                         <th>
@@ -3370,10 +3398,30 @@ function ContractorHubApp() {
                             )}
                           </button>
                         </th>
-                        <th>Request document</th>
                       </tr>
                       <tr className="column-filter-row">
-                        <th></th>
+                        <th>
+                          <button
+                            className="clear-column-filters"
+                            onClick={() =>
+                              setColumnFilters({
+                                name: "",
+                                trade: "",
+                                contact: "",
+                                grade: "All grades",
+                                scoreMin: "",
+                                scoreMax: "",
+                                status: "All status",
+                                approval: "",
+                                projects: "",
+                                groupProjects: "",
+                                recommendedMax: "",
+                              })
+                            }
+                          >
+                            Clear
+                          </button>
+                        </th>
                         <th>
                           <input
                             value={columnFilters.name}
@@ -3469,19 +3517,6 @@ function ContractorHubApp() {
                         </th>
                         <th>
                           <input
-                            value={columnFilters.approval}
-                            onChange={(event) =>
-                              setColumnFilters((current) => ({
-                                ...current,
-                                approval: event.target.value,
-                              }))
-                            }
-                            placeholder="Year/date"
-                            aria-label="Filter approval date"
-                          />
-                        </th>
-                        <th>
-                          <input
                             type="number"
                             min="0"
                             value={columnFilters.projects}
@@ -3499,21 +3534,6 @@ function ContractorHubApp() {
                           <input
                             type="number"
                             min="0"
-                            value={columnFilters.groupProjects}
-                            onChange={(event) =>
-                              setColumnFilters((current) => ({
-                                ...current,
-                                groupProjects: event.target.value,
-                              }))
-                            }
-                            placeholder="Min"
-                            aria-label="Minimum group projects"
-                          />
-                        </th>
-                        <th>
-                          <input
-                            type="number"
-                            min="0"
                             value={columnFilters.recommendedMax}
                             onChange={(event) =>
                               setColumnFilters((current) => ({
@@ -3524,28 +3544,6 @@ function ContractorHubApp() {
                             placeholder="Min RM"
                             aria-label="Minimum recommended project value"
                           />
-                        </th>
-                        <th>
-                          <button
-                            className="clear-column-filters"
-                            onClick={() =>
-                              setColumnFilters({
-                                name: "",
-                                trade: "",
-                                contact: "",
-                                grade: "All grades",
-                                scoreMin: "",
-                                scoreMax: "",
-                                status: "All status",
-                                approval: "",
-                                projects: "",
-                                groupProjects: "",
-                                recommendedMax: "",
-                              })
-                            }
-                          >
-                            Clear
-                          </button>
                         </th>
                       </tr>
                     </thead>
@@ -3911,17 +3909,22 @@ function ContractorHubApp() {
                               <small className="expiry">
                                 Until {formatValidationDate(contractor)}
                               </small>
-                            </td>
-                            <td>
-                              <span className="directory-date">
-                                {contractor.approvalDate}
-                              </span>
-                              <small className="expiry">
-                                Updated {contractor.updated}
+                              <small className="approval-under-status">
+                                Approved on {contractor.approvalDate}
                               </small>
                             </td>
                             <td>
                               <div className="project-summary-buttons">
+                                <button
+                                  className="project-link project-count group"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setActiveContractor(contractor);
+                                    setGroupProjectsContractor(contractor);
+                                  }}
+                                >
+                                  Group projects: {groupProjectsFor(contractor).length} →
+                                </button>
                                 <button
                                   className="project-link project-count"
                                   onClick={(event) => {
@@ -3929,13 +3932,12 @@ function ContractorHubApp() {
                                     openProjectList(contractor, "Completed");
                                   }}
                                 >
+                                  Completed projects: {" "}
                                   {
                                     contractor.projects.filter(
-                                      (project) =>
-                                        project.status === "Completed",
+                                      (project) => project.status === "Completed",
                                     ).length
-                                  }{" "}
-                                  completed →
+                                  } →
                                 </button>
                                 <button
                                   className="project-link project-count ongoing"
@@ -3944,29 +3946,14 @@ function ContractorHubApp() {
                                     openProjectList(contractor, "Ongoing");
                                   }}
                                 >
+                                  Ongoing projects: {" "}
                                   {
                                     contractor.projects.filter(
                                       (project) => project.status === "Ongoing",
                                     ).length
-                                  }{" "}
-                                  ongoing →
+                                  } →
                                 </button>
                               </div>
-                            </td>
-                            <td>
-                              <button
-                                className="group-project-button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setActiveContractor(contractor);
-                                  setGroupProjectsContractor(contractor);
-                                }}
-                              >
-                                <strong>
-                                  {groupProjectsFor(contractor).length}
-                                </strong>
-                                <span>View group projects →</span>
-                              </button>
                             </td>
                             <td>
                               <div className="finance-limit-cell">
@@ -3982,18 +3969,6 @@ function ContractorHubApp() {
                                     "Finance assessment pending"}
                                 </small>
                               </div>
-                            </td>
-                            <td>
-                              <button
-                                className="request-documents-button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setActiveContractor(contractor);
-                                  setShowReportRequest(true);
-                                }}
-                              >
-                                Request documents
-                              </button>
                             </td>
                           </tr>
                         );
@@ -4139,14 +4114,6 @@ function ContractorHubApp() {
                           )}
                         </div>
                       </section>
-                    </div>
-                    <div className="panel-actions">
-                      <button
-                        className="request-report-button"
-                        onClick={() => setShowReportRequest(true)}
-                      >
-                        Request full detail report
-                      </button>
                     </div>
                   </aside>
                 )}
@@ -5812,6 +5779,13 @@ function ContractorHubApp() {
             }}
           >
             Clear selection
+          </button>
+          <button
+            className="secondary-button bulk-document-request"
+            disabled={!selectedContractors.length}
+            onClick={() => setShowReportRequest(true)}
+          >
+            Request documents
           </button>
           <button
             className="primary-button"
@@ -7705,6 +7679,31 @@ function ContractorHubApp() {
                   defaultValue={activeContractor.location}
                 />
               </label>
+              <label>
+                Record uploader / owner name
+                <input
+                  name="recordOwnerName"
+                  defaultValue={activeContractor.recordOwnerName ?? ""}
+                  placeholder="Person responsible for this record"
+                />
+              </label>
+              <label>
+                Record uploader email
+                <input
+                  name="recordOwnerEmail"
+                  type="email"
+                  defaultValue={activeContractor.recordOwnerEmail ?? ""}
+                  placeholder="name@company.com"
+                />
+              </label>
+              <label>
+                Record uploader contact number
+                <input
+                  name="recordOwnerPhone"
+                  defaultValue={activeContractor.recordOwnerPhone ?? ""}
+                  placeholder="Mobile or office number"
+                />
+              </label>
             </div>
             <div className="modal-actions">
               <button
@@ -7974,15 +7973,8 @@ function ContractorHubApp() {
           role="presentation"
           onMouseDown={() => setShowReportRequest(false)}
         >
-          <form
+          <section
             className="modal form-modal report-request-modal"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setShowReportRequest(false);
-              notify(
-                `Full detail report request submitted for ${activeContractor.name}.`,
-              );
-            }}
             onMouseDown={(event) => event.stopPropagation()}
           >
             <button
@@ -7994,62 +7986,81 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">CONTROLLED ACCESS</p>
-            <h2>Request full detail report</h2>
+            <h2>Document request email drafts</h2>
             <p>
-              The basic contractor information and project list remain visible
-              to group users. Restricted documents and the full report require
-              approval.
+              One draft is prepared for each record uploader. Contractors
+              uploaded by the same person are combined in one email.
             </p>
-            <div className="request-contractor-card">
-              <span>{activeContractor.initials}</span>
-              <div>
-                <strong>{activeContractor.name}</strong>
-                <small>
-                  {activeContractor.trade} · Pre-Q score{" "}
-                  {activeContractor.score}
-                </small>
-              </div>
-            </div>
-            <div className="form-grid">
-              <label className="wide">
-                Reason for request
-                <select name="reason" required>
-                  <option>Contractor reporting</option>
-                  <option>Project tender evaluation</option>
-                  <option>Audit / compliance check</option>
-                  <option>Other business purpose</option>
-                </select>
-              </label>
-              <label className="wide">
-                Additional note
-                <textarea
-                  name="note"
-                  rows={3}
-                  placeholder="Project name or purpose of access"
-                />
-              </label>
-            </div>
-            <div className="privacy-strip">
-              <span>◇</span>
-              <p>
-                <strong>Approval-controlled</strong>The request will be sent to
-                the contractor record owner. Opening or downloading restricted
-                files will be logged.
-              </p>
+            <div className="document-request-drafts">
+              {documentRequestGroups.map((group) => {
+                const contractorNames = group.contractors
+                  .map((contractor) => contractor.name)
+                  .join(", ");
+                const subject = `Document request – ${contractorNames}`;
+                const body = `Dear ${group.name},\n\nPlease provide access to the full contractor documents for the following selected contractor record${group.contractors.length === 1 ? "" : "s"}:\n\n${group.contractors.map((contractor) => `• ${contractor.name} (${contractor.trade})`).join("\n")}\n\nPurpose: Contractor reporting / evaluation.\n\nThank you.`;
+                return (
+                  <article key={group.email || group.contractors[0].id}>
+                    <header>
+                      <div>
+                        <strong>{group.name}</strong>
+                        <span>{group.email || "Uploader email not recorded"}</span>
+                        <small>Contact: {group.phone}</small>
+                      </div>
+                      <b>{group.contractors.length} contractor{group.contractors.length === 1 ? "" : "s"}</b>
+                    </header>
+                    <label>
+                      Subject
+                      <input value={subject} readOnly />
+                    </label>
+                    <label>
+                      Email draft
+                      <textarea value={body} rows={8} readOnly />
+                    </label>
+                    <div className="document-request-actions">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(
+                            `To: ${group.email || "[uploader email required]"}\nSubject: ${subject}\n\n${body}`,
+                          );
+                          notify("Email draft copied.");
+                        }}
+                      >
+                        Copy draft
+                      </button>
+                      {group.email ? (
+                        <a
+                          className="primary-button"
+                          href={`mailto:${group.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
+                        >
+                          Open email draft
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          className="primary-button"
+                          disabled
+                          title="Edit the contractor profile and add its record uploader email first"
+                        >
+                          Uploader email required
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
             <div className="modal-actions">
               <button
                 type="button"
-                className="secondary-button"
+                className="primary-button"
                 onClick={() => setShowReportRequest(false)}
               >
-                Cancel
-              </button>
-              <button className="primary-button" type="submit">
-                Submit request
+                Done
               </button>
             </div>
-          </form>
+          </section>
         </div>
       )}
 
@@ -8232,14 +8243,15 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.19</h2>
+            <h2 id="changelog-title">Version 0.20</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Project value and commencement year now support range
-                  filters. Contractor and project tables fit the available
-                  screen width, and the desktop sidebar can be collapsed.
+                  Group, completed and ongoing project totals now share one
+                  Projects column. Approval is shown beneath status, and
+                  selected contractors can be combined into uploader-specific
+                  document request email drafts.
                 </p>
               </article>
               <article>
