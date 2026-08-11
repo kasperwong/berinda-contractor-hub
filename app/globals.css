@@ -5975,10 +5975,13 @@ td {
   max-height: 520px;
 }
 .evaluation-keyword-table th:first-child {
-  width: 24%;
+  width: 18%;
 }
-.evaluation-keyword-table th:not(:first-child) {
-  width: 19%;
+.evaluation-keyword-table th:nth-child(2) {
+  width: 18%;
+}
+.evaluation-keyword-table th:nth-child(n + 3) {
+  width: 16%;
 }
 .evaluation-detail-wrap th:nth-child(1) { width: 28%; }
 .evaluation-detail-wrap th:nth-child(2) { width: 25%; }
@@ -6000,6 +6003,31 @@ td {
 }
 .evaluation-sort-button span {
   color: #16867a;
+}
+.evaluation-filter-row th {
+  padding: 6px 5px;
+  background: #fbfcfd;
+}
+.evaluation-filter-row input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  border: 1px solid #d5dfe7;
+  border-radius: 6px;
+  background: #fff;
+  padding: 0 7px;
+  color: var(--ink);
+  font-size: 9px;
+  outline: 0;
+}
+.evaluation-filter-row input:focus {
+  border-color: #149184;
+  box-shadow: 0 0 0 2px rgba(20, 145, 132, 0.1);
+}
+.evaluation-value-filter {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
 }
 .scope-highlight-card {
   border-color: #a8d7d1 !important;

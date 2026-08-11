@@ -991,6 +991,15 @@ function ContractorHubApp() {
     key: "scope" | "name" | "projectType" | "evaluationYear" | "location" | "value";
     direction: "asc" | "desc";
   }>({ key: "evaluationYear", direction: "desc" });
+  const [evaluationColumnFilters, setEvaluationColumnFilters] = useState({
+    scope: "",
+    name: "",
+    projectType: "",
+    year: "",
+    location: "",
+    valueMin: "",
+    valueMax: "",
+  });
   const [groupProjectQuery, setGroupProjectQuery] = useState("");
   const [groupProjectCompanyFilter, setGroupProjectCompanyFilter] =
     useState("All companies");
@@ -1346,6 +1355,38 @@ function ContractorHubApp() {
       ongoingValue: ongoing.reduce((sum, project) => sum + project.value, 0),
     };
   });
+  const evaluationAllTimeScopeRows = (evaluationKeywords.length
+    ? evaluationKeywords
+    : ["All projects"]
+  ).map((scope) => {
+    const projects =
+      scope === "All projects"
+        ? evaluationAllRecords
+        : evaluationAllRecords.filter((project) =>
+            projectMatchesEvaluationScope(project, scope),
+          );
+    const completed = projects.filter(
+      (project) => project.status === "Completed",
+    );
+    const ongoing = projects.filter((project) => project.status === "Ongoing");
+    return {
+      keyword: scope,
+      period: "All time",
+      completedCount: completed.length,
+      completedValue: completed.reduce((sum, project) => sum + project.value, 0),
+      ongoingCount: ongoing.length,
+      ongoingValue: ongoing.reduce((sum, project) => sum + project.value, 0),
+    };
+  });
+  const evaluationPeriodRows = evaluationYearFrom || evaluationYearTo
+    ? [
+        ...evaluationAllTimeScopeRows,
+        ...evaluationKeywordRows.map((row) => ({
+          ...row,
+          period: evaluationRangeLabel,
+        })),
+      ]
+    : evaluationAllTimeScopeRows;
   const evaluationCompletedProjects = evaluationMatches.filter(
     (project) => project.status === "Completed" && !project.withinGroup,
   );
@@ -1376,6 +1417,34 @@ function ContractorHubApp() {
             });
       return evaluationSort.direction === "asc" ? comparison : -comparison;
     });
+  }
+
+  function filteredEvaluationProjects(projects: typeof evaluationMatches) {
+    const minimum = Number(evaluationColumnFilters.valueMin) || 0;
+    const maximum =
+      Number(evaluationColumnFilters.valueMax) || Number.POSITIVE_INFINITY;
+    return projects.filter((project) =>
+      (!evaluationColumnFilters.scope ||
+        project.scope
+          .toLowerCase()
+          .includes(evaluationColumnFilters.scope.toLowerCase())) &&
+      (!evaluationColumnFilters.name ||
+        project.name
+          .toLowerCase()
+          .includes(evaluationColumnFilters.name.toLowerCase())) &&
+      (!evaluationColumnFilters.projectType ||
+        (project.projectType ?? "")
+          .toLowerCase()
+          .includes(evaluationColumnFilters.projectType.toLowerCase())) &&
+      (!evaluationColumnFilters.year ||
+        String(project.evaluationYear).includes(evaluationColumnFilters.year)) &&
+      (!evaluationColumnFilters.location ||
+        project.location
+          .toLowerCase()
+          .includes(evaluationColumnFilters.location.toLowerCase())) &&
+      project.value >= minimum &&
+      project.value <= maximum,
+    );
   }
 
   const filtered = useMemo(() => {
@@ -2223,13 +2292,15 @@ function ContractorHubApp() {
     const scopeSummary = reportTable(
       [
         "Scope",
+        "Period",
         "Completed projects",
         "Completed total cost (RM)",
         "Ongoing projects",
         "Ongoing total cost (RM)",
       ],
-      evaluationKeywordRows.map((row) => [
+      evaluationPeriodRows.map((row) => [
         row.keyword,
+        row.period,
         row.completedCount,
         row.completedValue.toLocaleString("en-MY", {
           minimumFractionDigits: 2,
@@ -2278,7 +2349,7 @@ function ContractorHubApp() {
           ]],
         )
       : "";
-    return `<div class="section"><h2>Overall project experience — ${escapeHtml(evaluationOverallYearLabel)}</h2>${overallSummary}${selectedScopeSummary}</div><div class="section"><h2>${escapeHtml(evaluationRangeLabel)} — scope summary</h2>${scopeSummary}</div><div class="section"><h2>Completed projects</h2>${projectDetails(evaluationCompletedProjects)}</div><div class="section"><h2>Ongoing projects</h2>${projectDetails(evaluationOngoingProjects)}</div><div class="section"><h2>Projects within the group</h2>${projectDetails(evaluationGroupProjects)}</div>`;
+    return `<div class="section"><h2>Overall project experience — ${escapeHtml(evaluationOverallYearLabel)}</h2>${overallSummary}${selectedScopeSummary}</div><div class="section"><h2>All-time and selected-period scope summary</h2>${scopeSummary}</div><div class="section"><h2>All projects</h2>${projectDetails(evaluationAllRecords)}</div><div class="section"><h2>Completed projects</h2>${projectDetails(evaluationCompletedProjects)}</div><div class="section"><h2>Ongoing projects</h2>${projectDetails(evaluationOngoingProjects)}</div><div class="section"><h2>Projects within the group</h2>${projectDetails(evaluationGroupProjects)}</div>`;
   }
 
   function exportEvaluationReport() {
@@ -3477,6 +3548,7 @@ function ContractorHubApp() {
     projects: typeof evaluationMatches,
     emptyMessage: string,
   ) {
+    const visibleProjects = filteredEvaluationProjects(projects);
     const columns: Array<{
       key: typeof evaluationSort.key;
       label: string;
@@ -3495,7 +3567,7 @@ function ContractorHubApp() {
             <p className="eyebrow">PROJECT DETAILS</p>
             <h3>{title}</h3>
           </div>
-          <b>{projects.length} projects</b>
+          <b>{visibleProjects.length} projects</b>
         </header>
         <div className="evaluation-table-wrap evaluation-detail-wrap">
           <table className="evaluation-table evaluation-project-table">
@@ -3520,9 +3592,98 @@ function ContractorHubApp() {
                   </th>
                 ))}
               </tr>
+              <tr className="evaluation-filter-row">
+                <th>
+                  <input
+                    value={evaluationColumnFilters.scope}
+                    placeholder="Filter scope"
+                    onChange={(event) =>
+                      setEvaluationColumnFilters((current) => ({
+                        ...current,
+                        scope: event.target.value,
+                      }))
+                    }
+                  />
+                </th>
+                <th>
+                  <input
+                    value={evaluationColumnFilters.name}
+                    placeholder="Filter project"
+                    onChange={(event) =>
+                      setEvaluationColumnFilters((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
+                    }
+                  />
+                </th>
+                <th>
+                  <input
+                    value={evaluationColumnFilters.projectType}
+                    placeholder="Filter type"
+                    onChange={(event) =>
+                      setEvaluationColumnFilters((current) => ({
+                        ...current,
+                        projectType: event.target.value,
+                      }))
+                    }
+                  />
+                </th>
+                <th>
+                  <input
+                    value={evaluationColumnFilters.year}
+                    placeholder="Year"
+                    inputMode="numeric"
+                    onChange={(event) =>
+                      setEvaluationColumnFilters((current) => ({
+                        ...current,
+                        year: event.target.value,
+                      }))
+                    }
+                  />
+                </th>
+                <th>
+                  <input
+                    value={evaluationColumnFilters.location}
+                    placeholder="Location"
+                    onChange={(event) =>
+                      setEvaluationColumnFilters((current) => ({
+                        ...current,
+                        location: event.target.value,
+                      }))
+                    }
+                  />
+                </th>
+                <th>
+                  <div className="evaluation-value-filter">
+                    <input
+                      value={evaluationColumnFilters.valueMin}
+                      placeholder="Min"
+                      inputMode="decimal"
+                      onChange={(event) =>
+                        setEvaluationColumnFilters((current) => ({
+                          ...current,
+                          valueMin: event.target.value,
+                        }))
+                      }
+                    />
+                    <input
+                      value={evaluationColumnFilters.valueMax}
+                      placeholder="Max"
+                      inputMode="decimal"
+                      onChange={(event) =>
+                        setEvaluationColumnFilters((current) => ({
+                          ...current,
+                          valueMax: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                </th>
+              </tr>
             </thead>
             <tbody>
-              {sortedEvaluationProjects(projects).map((project) => (
+              {sortedEvaluationProjects(visibleProjects).map((project) => (
                 <tr key={`${project.contractorId}-${project.id}`}>
                   <td>
                     <strong>{project.scope || "Not provided"}</strong>
@@ -3539,7 +3700,7 @@ function ContractorHubApp() {
               ))}
             </tbody>
           </table>
-          {!projects.length && (
+          {!visibleProjects.length && (
             <div className="empty-state">
               <strong>No projects</strong>
               <span>{emptyMessage}</span>
@@ -3562,7 +3723,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.30
+              Version 0.31
             </button>
           </div>
         </div>
@@ -5277,6 +5438,15 @@ function ContractorHubApp() {
                         setEvaluationYearTo("");
                         setEvaluationKeywordInput("");
                         setEvaluationKeywords([]);
+                        setEvaluationColumnFilters({
+                          scope: "",
+                          name: "",
+                          projectType: "",
+                          year: "",
+                          location: "",
+                          valueMin: "",
+                          valueMax: "",
+                        });
                       }}
                     >
                       Clear filters
@@ -5406,10 +5576,10 @@ function ContractorHubApp() {
                     <header>
                       <div>
                         <p className="eyebrow">PERIOD SUMMARY</p>
-                        <h3>{evaluationRangeLabel}</h3>
+                        <h3>All-time and selected-period comparison</h3>
                         <small>
-                          Each scope is calculated separately for the
-                          selected period.
+                          Each scope shows an all-time result and, when a year
+                          range is selected, a separate result for that period.
                         </small>
                       </div>
                       <b>{evaluationMatches.length} matching projects</b>
@@ -5419,6 +5589,7 @@ function ContractorHubApp() {
                         <thead>
                           <tr>
                             <th>Scope</th>
+                            <th>Period</th>
                             <th>Completed projects</th>
                             <th>Completed total cost (RM)</th>
                             <th>Ongoing projects</th>
@@ -5426,9 +5597,10 @@ function ContractorHubApp() {
                           </tr>
                         </thead>
                         <tbody>
-                          {evaluationKeywordRows.map((row) => (
-                            <tr key={row.keyword}>
+                          {evaluationPeriodRows.map((row) => (
+                            <tr key={`${row.keyword}-${row.period}`}>
                               <td><strong>{row.keyword}</strong></td>
+                              <td>{row.period}</td>
                               <td>{row.completedCount}</td>
                               <td>{money(row.completedValue)}</td>
                               <td>{row.ongoingCount}</td>
@@ -5440,6 +5612,11 @@ function ContractorHubApp() {
                     </div>
                   </section>
 
+                  {renderEvaluationProjectTable(
+                    "All projects",
+                    evaluationAllRecords,
+                    "No projects match the column filters.",
+                  )}
                   {renderEvaluationProjectTable(
                     "Completed projects",
                     evaluationCompletedProjects,
@@ -8862,14 +9039,14 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.30</h2>
+            <h2 id="changelog-title">Version 0.31</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Project Evaluation now analyses project scopes and shows the
-                  overall year coverage, ongoing and group-project totals,
-                  selected-scope totals, and separate sortable project tables.
+                  Project Evaluation now keeps a permanent All Projects table,
+                  adds filters for every project column, and compares each
+                  scope across all time and the selected year range.
                 </p>
               </article>
               <article>
