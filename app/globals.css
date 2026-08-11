@@ -5759,6 +5759,206 @@ td {
   }
 }
 
+/* Project evaluation */
+.evaluation-workspace {
+  display: grid;
+  gap: 20px;
+}
+.evaluation-controls {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.8fr) repeat(2, minmax(130px, 0.7fr)) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+.evaluation-controls label,
+.evaluation-keyword-entry {
+  display: grid;
+  gap: 7px;
+}
+.evaluation-controls label {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 750;
+}
+.evaluation-controls input,
+.evaluation-controls select,
+.evaluation-keyword-entry input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid #d4dde6;
+  border-radius: 9px;
+  background: #fff;
+  padding: 0 13px;
+  color: var(--ink);
+  font: inherit;
+}
+.evaluation-clear {
+  min-height: 46px;
+}
+.evaluation-keywords,
+.evaluation-section {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+.evaluation-keywords {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(360px, 1.2fr);
+  gap: 16px 28px;
+  padding: 22px;
+}
+.evaluation-keywords h3,
+.evaluation-section h3 {
+  margin: 0;
+  color: var(--ink);
+}
+.evaluation-keywords p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.evaluation-keyword-entry {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.evaluation-keyword-chips {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 27px;
+}
+.evaluation-keyword-chips button {
+  border: 1px solid #9dcfc8;
+  border-radius: 99px;
+  background: var(--teal-soft);
+  padding: 6px 10px;
+  color: #087d71;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.evaluation-keyword-chips > span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.evaluation-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.evaluation-metrics article {
+  display: grid;
+  gap: 7px;
+  min-height: 134px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+.evaluation-metrics small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+.evaluation-metrics strong {
+  color: var(--ink);
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 31px;
+}
+.evaluation-metrics strong.evaluation-total-value {
+  font-size: clamp(20px, 2vw, 29px);
+}
+.evaluation-metrics span {
+  color: #0d8578;
+  font-size: 12px;
+  font-weight: 700;
+}
+.evaluation-section > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--line);
+}
+.evaluation-section > header .eyebrow {
+  margin: 0 0 5px;
+}
+.evaluation-section > header > b {
+  border-radius: 99px;
+  background: var(--teal-soft);
+  padding: 8px 12px;
+  color: #087d71;
+  font-size: 11px;
+}
+.evaluation-table-wrap {
+  width: 100%;
+  overflow: auto;
+}
+.evaluation-table {
+  width: 100%;
+  min-width: 790px;
+  border-collapse: collapse;
+}
+.evaluation-table th,
+.evaluation-table td {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  font-size: 11px;
+}
+.evaluation-table th {
+  background: #f6f8fa;
+  color: #718096;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.evaluation-table td > small {
+  display: block;
+  max-width: 520px;
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.evaluation-detail-wrap {
+  max-height: 520px;
+}
+.project-summary-buttons .evaluation {
+  color: #365d8c;
+}
+
+@media (max-width: 1000px) {
+  .evaluation-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+  .evaluation-keywords {
+    grid-template-columns: 1fr;
+  }
+  .evaluation-keyword-chips {
+    grid-column: auto;
+  }
+  .evaluation-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .evaluation-controls,
+  .evaluation-metrics {
+    grid-template-columns: 1fr;
+  }
+  .evaluation-keyword-entry {
+    grid-template-columns: 1fr;
+  }
+}
+
 .overview-actions {
   overflow: hidden;
   border: 1px solid var(--line);

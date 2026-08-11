@@ -981,6 +981,12 @@ function ContractorHubApp() {
   const [projectReferenceFields, setProjectReferenceFields] = useState<
     ProjectExportField[]
   >(["name", "scope", "client", "location", "value", "status"]);
+  const [evaluationContractorId, setEvaluationContractorId] =
+    useState("all");
+  const [evaluationYearFrom, setEvaluationYearFrom] = useState("");
+  const [evaluationYearTo, setEvaluationYearTo] = useState("");
+  const [evaluationKeywordInput, setEvaluationKeywordInput] = useState("");
+  const [evaluationKeywords, setEvaluationKeywords] = useState<string[]>([]);
   const [groupProjectQuery, setGroupProjectQuery] = useState("");
   const [groupProjectCompanyFilter, setGroupProjectCompanyFilter] =
     useState("All companies");
@@ -1032,6 +1038,7 @@ function ContractorHubApp() {
     | "overview"
     | "add"
     | "contractors"
+    | "projectEvaluation"
     | "groupProjects"
     | "imports"
     | "reports"
@@ -1206,6 +1213,110 @@ function ContractorHubApp() {
       }));
     return [...regular, ...synthetic];
   }
+
+  function projectEvaluationYear(project: Project) {
+    const source =
+      project.status === "Completed"
+        ? project.completionDate ?? project.period
+        : project.commencementDate ?? project.period;
+    return Number(String(source ?? "").match(/(?:19|20)\d{2}/)?.[0]) || 0;
+  }
+
+  function projectMatchesEvaluationKeyword(
+    project: Project & { groupCompany?: string },
+    keyword: string,
+  ) {
+    const searchable = [
+      project.name,
+      project.scope,
+      project.projectType,
+      project.developer,
+      project.client,
+      project.location,
+      project.groupCompany,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return searchable.includes(keyword.toLowerCase());
+  }
+
+  function addEvaluationKeywords() {
+    const additions = evaluationKeywordInput
+      .split(",")
+      .map((keyword) => keyword.trim())
+      .filter(Boolean);
+    if (!additions.length) return;
+    setEvaluationKeywords((current) =>
+      [...current, ...additions].filter(
+        (keyword, index, values) =>
+          values.findIndex(
+            (candidate) => candidate.toLowerCase() === keyword.toLowerCase(),
+          ) === index,
+      ),
+    );
+    setEvaluationKeywordInput("");
+  }
+
+  const evaluationRecords = contractorRows
+    .filter(
+      (contractor) =>
+        evaluationContractorId === "all" ||
+        contractor.id === evaluationContractorId,
+    )
+    .flatMap((contractor) =>
+      reportProjectsFor(contractor).map((project) => ({
+        ...project,
+        contractorId: contractor.id,
+        contractorName: contractor.name,
+        evaluationYear: projectEvaluationYear(project),
+      })),
+    )
+    .filter((project) => {
+      const from = Number(evaluationYearFrom) || 0;
+      const to = Number(evaluationYearTo) || Number.POSITIVE_INFINITY;
+      return (
+        (!evaluationYearFrom && !evaluationYearTo) ||
+        (project.evaluationYear >= from && project.evaluationYear <= to)
+      );
+    });
+  const evaluationMatches = evaluationKeywords.length
+    ? evaluationRecords.filter((project) =>
+        evaluationKeywords.some((keyword) =>
+          projectMatchesEvaluationKeyword(project, keyword),
+        ),
+      )
+    : evaluationRecords;
+  const evaluationCompleted = evaluationMatches.filter(
+    (project) => project.status === "Completed",
+  );
+  const evaluationOngoing = evaluationMatches.filter(
+    (project) => project.status === "Ongoing",
+  );
+  const evaluationKeywordRows = (evaluationKeywords.length
+    ? evaluationKeywords
+    : ["All projects"]
+  ).map((keyword) => {
+    const projects =
+      keyword === "All projects"
+        ? evaluationRecords
+        : evaluationRecords.filter((project) =>
+            projectMatchesEvaluationKeyword(project, keyword),
+          );
+    const completed = projects.filter(
+      (project) => project.status === "Completed",
+    );
+    const ongoing = projects.filter((project) => project.status === "Ongoing");
+    return {
+      keyword,
+      completedCount: completed.length,
+      completedValue: completed.reduce((sum, project) => sum + project.value, 0),
+      ongoingCount: ongoing.length,
+      ongoingValue: ongoing.reduce((sum, project) => sum + project.value, 0),
+      totalCount: projects.length,
+      totalValue: projects.reduce((sum, project) => sum + project.value, 0),
+    };
+  });
 
   const filtered = useMemo(() => {
     const term = query.toLowerCase().trim();
@@ -1734,6 +1845,7 @@ function ContractorHubApp() {
     overview: "Overview",
     add: "Add contractor",
     contractors: "Find contractors",
+    projectEvaluation: "Project evaluation",
     groupProjects: "Group projects & contracts",
     imports: "Document imports",
     reports: "Export",
@@ -3210,7 +3322,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.27
+              Version 0.28
             </button>
           </div>
         </div>
@@ -3242,6 +3354,12 @@ function ContractorHubApp() {
             onClick={() => setActiveSection("contractors")}
           >
             <span>▦</span>Find contractors <b>{contractorRows.length}</b>
+          </button>
+          <button
+            className={`nav-item ${activeSection === "projectEvaluation" ? "active" : ""}`}
+            onClick={() => setActiveSection("projectEvaluation")}
+          >
+            <span>▤</span>Project evaluation
           </button>
           <button
             className={`nav-item ${activeSection === "groupProjects" ? "active" : ""}`}
@@ -4042,6 +4160,16 @@ function ContractorHubApp() {
                                     ).length
                                   } →
                                 </button>
+                                <button
+                                  className="project-link project-count evaluation"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setEvaluationContractorId(contractor.id);
+                                    setActiveSection("projectEvaluation");
+                                  }}
+                                >
+                                  Evaluate projects →
+                                </button>
                               </div>
                             </td>
                             <td>
@@ -4834,6 +4962,257 @@ function ContractorHubApp() {
                     </div>
                   </section>
                 )}
+              </>
+            )}
+
+            {activeSection === "projectEvaluation" && (
+              <>
+                <div className="module-hero evaluation-hero">
+                  <div>
+                    <p className="eyebrow">PROJECT EXPERIENCE ANALYSIS</p>
+                    <h2>Project evaluation</h2>
+                    <p>
+                      Analyse completed and ongoing experience by contractor,
+                      year range and multiple project keywords.
+                    </p>
+                  </div>
+                </div>
+                <section className="evaluation-workspace">
+                  <div className="evaluation-controls">
+                    <label>
+                      Contractor
+                      <select
+                        value={evaluationContractorId}
+                        onChange={(event) =>
+                          setEvaluationContractorId(event.target.value)
+                        }
+                      >
+                        <option value="all">All contractors</option>
+                        {contractorRows.map((contractor) => (
+                          <option key={contractor.id} value={contractor.id}>
+                            {contractor.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      From year
+                      <input
+                        type="number"
+                        min="1900"
+                        max="2100"
+                        placeholder="e.g. 2022"
+                        value={evaluationYearFrom}
+                        onChange={(event) =>
+                          setEvaluationYearFrom(event.target.value)
+                        }
+                      />
+                    </label>
+                    <label>
+                      To year
+                      <input
+                        type="number"
+                        min="1900"
+                        max="2100"
+                        placeholder="e.g. 2026"
+                        value={evaluationYearTo}
+                        onChange={(event) =>
+                          setEvaluationYearTo(event.target.value)
+                        }
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="secondary-button evaluation-clear"
+                      onClick={() => {
+                        setEvaluationContractorId("all");
+                        setEvaluationYearFrom("");
+                        setEvaluationYearTo("");
+                        setEvaluationKeywordInput("");
+                        setEvaluationKeywords([]);
+                      }}
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+
+                  <div className="evaluation-keywords">
+                    <div>
+                      <h3>Project keywords</h3>
+                      <p>
+                        Add one or more keywords, separated by commas. For
+                        example: reservoir, water reticulation.
+                      </p>
+                    </div>
+                    <div className="evaluation-keyword-entry">
+                      <input
+                        value={evaluationKeywordInput}
+                        placeholder="reservoir, water reticulation"
+                        onChange={(event) =>
+                          setEvaluationKeywordInput(event.target.value)
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            addEvaluationKeywords();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={addEvaluationKeywords}
+                      >
+                        Add keyword
+                      </button>
+                    </div>
+                    <div className="evaluation-keyword-chips">
+                      {evaluationKeywords.map((keyword) => (
+                        <button
+                          type="button"
+                          key={keyword}
+                          onClick={() =>
+                            setEvaluationKeywords((current) =>
+                              current.filter((item) => item !== keyword),
+                            )
+                          }
+                          title="Remove keyword"
+                        >
+                          {keyword} <span>×</span>
+                        </button>
+                      ))}
+                      {!evaluationKeywords.length && (
+                        <span>All project descriptions are included.</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="evaluation-metrics">
+                    <article>
+                      <small>MATCHING PROJECTS</small>
+                      <strong>{evaluationMatches.length}</strong>
+                      <span>Completed and ongoing</span>
+                    </article>
+                    <article>
+                      <small>COMPLETED</small>
+                      <strong>{evaluationCompleted.length}</strong>
+                      <span>
+                        {money(
+                          evaluationCompleted.reduce(
+                            (sum, project) => sum + project.value,
+                            0,
+                          ),
+                        )}
+                      </span>
+                    </article>
+                    <article>
+                      <small>ONGOING</small>
+                      <strong>{evaluationOngoing.length}</strong>
+                      <span>
+                        {money(
+                          evaluationOngoing.reduce(
+                            (sum, project) => sum + project.value,
+                            0,
+                          ),
+                        )}
+                      </span>
+                    </article>
+                    <article>
+                      <small>TOTAL CONTRACT VALUE</small>
+                      <strong className="evaluation-total-value">
+                        {money(
+                          evaluationMatches.reduce(
+                            (sum, project) => sum + project.value,
+                            0,
+                          ),
+                        )}
+                      </strong>
+                      <span>Matching project value</span>
+                    </article>
+                  </div>
+
+                  <section className="evaluation-section">
+                    <header>
+                      <div>
+                        <p className="eyebrow">KEYWORD SUMMARY</p>
+                        <h3>Experience by keyword</h3>
+                      </div>
+                    </header>
+                    <div className="evaluation-table-wrap">
+                      <table className="evaluation-table">
+                        <thead>
+                          <tr>
+                            <th>Keyword</th>
+                            <th>Completed</th>
+                            <th>Completed value (RM)</th>
+                            <th>Ongoing</th>
+                            <th>Ongoing value (RM)</th>
+                            <th>Total projects</th>
+                            <th>Total value (RM)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {evaluationKeywordRows.map((row) => (
+                            <tr key={row.keyword}>
+                              <td><strong>{row.keyword}</strong></td>
+                              <td>{row.completedCount}</td>
+                              <td>{money(row.completedValue)}</td>
+                              <td>{row.ongoingCount}</td>
+                              <td>{money(row.ongoingValue)}</td>
+                              <td>{row.totalCount}</td>
+                              <td>{money(row.totalValue)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <section className="evaluation-section">
+                    <header>
+                      <div>
+                        <p className="eyebrow">MATCHING PROJECTS</p>
+                        <h3>Projects included in this evaluation</h3>
+                      </div>
+                      <b>{evaluationMatches.length} projects</b>
+                    </header>
+                    <div className="evaluation-table-wrap evaluation-detail-wrap">
+                      <table className="evaluation-table">
+                        <thead>
+                          <tr>
+                            <th>Contractor</th>
+                            <th>Project</th>
+                            <th>Status</th>
+                            <th>Year</th>
+                            <th>Location</th>
+                            <th>Contract value (RM)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {evaluationMatches.map((project) => (
+                            <tr key={`${project.contractorId}-${project.id}`}>
+                              <td>{project.contractorName}</td>
+                              <td>
+                                <strong>{project.name}</strong>
+                                <small>{project.scope}</small>
+                              </td>
+                              <td>{project.status}</td>
+                              <td>{project.evaluationYear || "Not provided"}</td>
+                              <td>{project.location || "Not provided"}</td>
+                              <td>{money(project.value)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {!evaluationMatches.length && (
+                        <div className="empty-state">
+                          <strong>No matching projects</strong>
+                          <span>Change the year range or remove a keyword.</span>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                </section>
               </>
             )}
 
@@ -8240,15 +8619,22 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.27</h2>
+            <h2 id="changelog-title">Version 0.28</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Contractor selection on the project-import page now shows
+                  Added Project Evaluation with contractor and year filters,
+                  multiple keyword analysis, completed and ongoing project
+                  counts, and total contract-value summaries.
+                </p>
+              </article>
+              <article>
+                <strong>Import history</strong>
+                <p>
+                  Contractor selection on the project-import page shows
                   imported project totals and the latest import date. Project
-                  preparation now uses only the dedicated Project Extractor;
-                  the manual template and prompt previews were removed.
+                  preparation uses the dedicated Project Extractor.
                 </p>
               </article>
               <article>
