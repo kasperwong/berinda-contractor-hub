@@ -3830,6 +3830,9 @@ td {
   line-height: 1.45;
   white-space: normal;
 }
+.building-type-value {
+  white-space: pre-line;
+}
 .full-project-table td strong,
 .full-project-table td small {
   display: block;

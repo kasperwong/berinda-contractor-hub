@@ -3124,7 +3124,7 @@ function ContractorHubApp() {
           </div>
           <p>{project.scope}</p>
           <p className="project-extra-fields">
-            <strong>
+            <strong className="building-type-value">
               {project.projectType ?? "Building type not provided"}
             </strong>{" "}
             · Developer: {project.developer ?? "Not provided"}
@@ -3171,7 +3171,10 @@ function ContractorHubApp() {
           <strong>{project.name}</strong>
           <small>{project.scope}</small>
           <small>
-            {project.projectType ?? "Building type not provided"} · Developer:{" "}
+            <span className="building-type-value">
+              {project.projectType ?? "Building type not provided"}
+            </span>{" "}
+            · Developer:{" "}
             {project.developer ?? "Not provided"}
           </small>
         </span>
@@ -7208,7 +7211,9 @@ function ContractorHubApp() {
                           </td>
                         )}
                         {visibleProjectColumns.includes("projectType") && (
-                          <td>{project.projectType ?? "-"}</td>
+                          <td className="building-type-value">
+                            {project.projectType ?? "-"}
+                          </td>
                         )}
                         {visibleProjectColumns.includes("developer") && (
                           <td>{project.developer ?? "-"}</td>
