@@ -3159,7 +3159,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.24
+              Version 0.25
             </button>
           </div>
         </div>
@@ -5283,7 +5283,7 @@ function ContractorHubApp() {
                       </div>
                       <div>
                         <h4>3. Project information</h4>
-                        <div className="report-field-grid">
+                        <div className="report-field-grid nomination-project-field-list">
                           {orderedFieldOptions(
                             PROJECT_EXPORT_FIELDS,
                             nominationProjectFields,
@@ -8353,15 +8353,14 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.24</h2>
+            <h2 id="changelog-title">Version 0.25</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Nomination reports now use one combined table. Each
-                  contractor row includes its selected reference projects in a
-                  dedicated column instead of placing projects in a separate
-                  table.
+                  The Nomination Report project-information selector now uses
+                  one vertical column, making the field order easier to read
+                  and rearrange.
                 </p>
               </article>
               <article>

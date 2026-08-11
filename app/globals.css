@@ -3050,6 +3050,9 @@ td {
   grid-template-columns: 1fr 1fr;
   gap: 7px;
 }
+.nomination-project-field-list {
+  grid-template-columns: 1fr;
+}
 .report-field-grid label {
   min-height: 34px;
   display: flex;
