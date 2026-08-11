@@ -983,6 +983,9 @@ function ContractorHubApp() {
   const [projectListStatus, setProjectListStatus] = useState<
     "All" | "Completed" | "Ongoing" | null
   >(null);
+  const [projectListDraftSelection, setProjectListDraftSelection] = useState<
+    string[]
+  >([]);
   const [showUpload, setShowUpload] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -1471,6 +1474,11 @@ function ContractorHubApp() {
           });
     return projectSort.direction === "asc" ? comparison : -comparison;
   });
+  const allShownProjectsSelected =
+    sortedPopupProjects.length > 0 &&
+    sortedPopupProjects.every((project) =>
+      projectListDraftSelection.includes(project.id),
+    );
   const matcherStopWords = new Set([
     "and",
     "the",
@@ -2038,7 +2046,52 @@ function ContractorHubApp() {
   ) {
     setActiveContractor(contractor);
     setProjectQuery("");
+    const contractorProjectIds = new Set(
+      contractor.projects.map((project) => project.id),
+    );
+    setProjectListDraftSelection(
+      selectedProjects.filter((id) => contractorProjectIds.has(id)),
+    );
     setProjectListStatus(status);
+  }
+
+  function toggleProjectListDraft(id: string) {
+    setProjectListDraftSelection((current) =>
+      current.includes(id)
+        ? current.filter((projectId) => projectId !== id)
+        : [...current, id],
+    );
+  }
+
+  function toggleAllShownProjects() {
+    const visibleIds = sortedPopupProjects.map((project) => project.id);
+    setProjectListDraftSelection((current) =>
+      allShownProjectsSelected
+        ? current.filter((id) => !visibleIds.includes(id))
+        : Array.from(new Set([...current, ...visibleIds])),
+    );
+  }
+
+  function addProjectListSelectionToReport() {
+    const contractorProjectIds = new Set(
+      activeContractor.projects.map((project) => project.id),
+    );
+    setSelectedProjects((current) => [
+      ...current.filter((id) => !contractorProjectIds.has(id)),
+      ...projectListDraftSelection,
+    ]);
+    if (projectListDraftSelection.length) {
+      setSelectedContractors((current) =>
+        current.includes(activeContractor.id)
+          ? current
+          : [...current, activeContractor.id],
+      );
+    }
+    setProjectListStatus(null);
+    setActiveSection("nominations");
+    notify(
+      `${projectListDraftSelection.length} project reference${projectListDraftSelection.length === 1 ? "" : "s"} from ${activeContractor.name} added to the combined report.`,
+    );
   }
 
   function sortProjects(key: ProjectSortKey) {
@@ -2828,7 +2881,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.13
+              Version 0.14
             </button>
           </div>
         </div>
@@ -6650,6 +6703,20 @@ function ContractorHubApp() {
                 >
                   Ongoing ({ongoingProjects.length})
                 </button>
+                <button
+                  type="button"
+                  onClick={toggleAllShownProjects}
+                  disabled={!sortedPopupProjects.length}
+                >
+                  {allShownProjectsSelected ? "Unselect shown" : "Select shown"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProjectListDraftSelection([])}
+                  disabled={!projectListDraftSelection.length}
+                >
+                  Clear selection
+                </button>
               </div>
               <label className="project-search table-search">
                 <span>⌕</span>
@@ -6670,7 +6737,16 @@ function ContractorHubApp() {
               <table className="full-project-table">
                 <thead>
                   <tr>
-                    <th>Select</th>
+                    <th>
+                      <button
+                        type="button"
+                        className="sortable-heading"
+                        onClick={toggleAllShownProjects}
+                        disabled={!sortedPopupProjects.length}
+                      >
+                        {allShownProjectsSelected ? "Unselect" : "Select"}
+                      </button>
+                    </th>
                     <th>
                       <button
                         className="sortable-heading"
@@ -6700,14 +6776,16 @@ function ContractorHubApp() {
                 </thead>
                 <tbody>
                   {sortedPopupProjects.map((project) => {
-                    const selected = selectedProjects.includes(project.id);
+                    const selected = projectListDraftSelection.includes(
+                      project.id,
+                    );
                     const dates = project.period.split(" – ");
                     return (
                       <tr key={project.id}>
                         <td>
                           <button
                             className={`row-check ${selected ? "checked" : ""}`}
-                            onClick={() => toggleProject(project.id)}
+                            onClick={() => toggleProjectListDraft(project.id)}
                             aria-label={`${selected ? "Remove" : "Select"} ${project.name}`}
                           >
                             {selected ? "✓" : ""}
@@ -6759,21 +6837,15 @@ function ContractorHubApp() {
             </div>
             <div className="project-table-footer">
               <span>
-                {selectedProjects.length} project
-                {selectedProjects.length === 1 ? "" : "s"} selected for
-                reporting
+                {projectListDraftSelection.length} project
+                {projectListDraftSelection.length === 1 ? "" : "s"} selected
+                from {activeContractor.name}
               </span>
               <div>
                 <button
                   className="secondary-button"
-                  disabled={!selectedProjects.length}
-                  onClick={() => {
-                    setProjectListStatus(null);
-                    setActiveSection("nominations");
-                    notify(
-                      `${selectedProjects.length} selected project reference${selectedProjects.length === 1 ? "" : "s"} added to the combined report.`,
-                    );
-                  }}
+                  disabled={!projectListDraftSelection.length}
+                  onClick={addProjectListSelectionToReport}
                 >
                   Add selected to report
                 </button>
@@ -7623,10 +7695,18 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.13</h2>
+            <h2 id="changelog-title">Version 0.14</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
+                <p>
+                  Select multiple completed or ongoing projects directly from
+                  the contractor project register, then add the confirmed
+                  selection to the combined report.
+                </p>
+              </article>
+              <article>
+                <strong>Project data quality</strong>
                 <p>
                   Duplicate project records are removed automatically, repeated
                   imports are skipped, and later status updates replace the
