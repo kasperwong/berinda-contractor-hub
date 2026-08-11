@@ -2513,10 +2513,18 @@ td {
   color: var(--muted);
   font-size: 8px;
 }
+.import-contractor-list span.import-history {
+  margin-top: 3px;
+  color: var(--teal);
+  font-weight: 650;
+}
 .import-method-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+.import-method-grid.single-method {
+  grid-template-columns: 1fr;
 }
 .import-method-grid article {
   display: grid;

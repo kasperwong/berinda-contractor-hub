@@ -64,6 +64,8 @@ type Contractor = {
   recordOwnerName?: string;
   recordOwnerEmail?: string;
   recordOwnerPhone?: string;
+  lastProjectImportDate?: string;
+  lastProjectImportCount?: number;
   projects: Project[];
 };
 
@@ -220,7 +222,6 @@ const EMPTY_PROJECT_COLUMN_FILTERS: Record<ProjectTableColumnKey, string> = {
   progress: "",
 };
 
-const PROJECT_AI_PROMPT = `Read the attached contractor project-list document and create a CSV file named contractor-projects.csv using exactly these columns in exactly this order: Project Name, Scope, Building Type, Developer, Client / Main Contractor, Location, Contract Value RM, Commencement Date, Completion Date, Status, Progress. Use one project per row. Status must be Completed or Ongoing. Contract Value RM must contain numbers only. Keep the original project scope wording. Keep dates in the source format or use DD/MM/YYYY when a date is available. Leave a field blank when the source does not provide it. Do not add extra columns. Do not invent information. Return the finished CSV file for download and no additional explanation.`;
 const CONTRACTOR_AI_PROMPT = `Read the attached contractor-list document and create a CSV file named contractor-list.csv using exactly these columns in this order: Contractor Name, Trade, Contact Name, Mobile, Office Phone, Email Address, Pre-Q Date, Pre-Q Score, Approval Date, CIDB Grade, Location. Use one contractor per row. Dates must use DD/MM/YYYY. Pre-Q Score must contain numbers only. Leave a field blank when the source does not provide it. Do not invent information. Return the finished CSV file for download and no additional explanation.`;
 
 function parseCsvRows(text: string) {
@@ -462,6 +463,17 @@ function formatProjectDate(value?: string) {
     recoveredExcelValue <= 2200
   )
     return String(recoveredExcelValue);
+  return parsed.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatImportDate(value?: string) {
+  if (!value) return "Date not recorded";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Date not recorded";
   return parsed.toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
@@ -1864,14 +1876,6 @@ function ContractorHubApp() {
     );
   }
 
-  function downloadProjectTemplate() {
-    downloadFile(
-      "contractor-projects-template.csv",
-      "Project Name,Scope,Building Type,Developer,Client / Main Contractor,Location,Contract Value RM,Commencement Date,Completion Date,Status,Progress\n",
-      "text/csv;charset=utf-8",
-    );
-  }
-
   function downloadContractorTemplate() {
     downloadFile(
       "contractor-list-template.csv",
@@ -2668,6 +2672,8 @@ function ContractorHubApp() {
       ...selectedImportContractor,
       projects: combinedProjects,
       updated: "Just now",
+      lastProjectImportDate: new Date().toISOString(),
+      lastProjectImportCount: addedCount,
     });
     const updatedRows = contractorRows.map((contractor) =>
       contractor.id === updated.id ? updated : contractor,
@@ -3201,7 +3207,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.26
+              Version 0.27
             </button>
           </div>
         </div>
@@ -4607,6 +4613,12 @@ function ContractorHubApp() {
                                 {contractor.trade} · CIDB {contractor.grade} ·{" "}
                                 {contractor.location}
                               </span>
+                              <span className="import-history">
+                                Imported projects: {contractor.projects.length} · Last import: {formatImportDate(contractor.lastProjectImportDate)}
+                                {contractor.lastProjectImportCount
+                                  ? ` · ${contractor.lastProjectImportCount} added`
+                                  : ""}
+                              </span>
                             </button>
                           ))}
                         </div>
@@ -4619,28 +4631,14 @@ function ContractorHubApp() {
                           <div>
                             <h3>Prepare the system-readable file</h3>
                             <p>
-                              Choose either method below. The result must use
-                              the provided columns.
+                              Use the Contractor Project Extractor to prepare a
+                              system-readable file.
                             </p>
                           </div>
                         </div>
-                        <div className="import-method-grid">
+                        <div className="import-method-grid single-method">
                           <article>
-                            <b>OPTION A</b>
-                            <h4>Fill in our template</h4>
-                            <p>
-                              Download the CSV template and enter one completed
-                              or ongoing project per row.
-                            </p>
-                            <button
-                              className="secondary-button"
-                              onClick={downloadProjectTemplate}
-                            >
-                              Download project template
-                            </button>
-                          </article>
-                          <article>
-                            <b>OPTION B · CHATGPT</b>
+                            <b>CHATGPT</b>
                             <h4>Use the Contractor Project Extractor</h4>
                             <p>
                               Open the dedicated extractor, upload the
@@ -4657,21 +4655,6 @@ function ContractorHubApp() {
                             </a>
                           </article>
                         </div>
-                        <details className="prompt-preview">
-                          <summary>Fallback: view and copy the extraction prompt</summary>
-                          <pre>{PROJECT_AI_PROMPT}</pre>
-                          <button
-                            className="secondary-button"
-                            onClick={() =>
-                              copyImportPrompt(
-                                PROJECT_AI_PROMPT,
-                                "Project extraction prompt",
-                              )
-                            }
-                          >
-                            Copy fallback prompt
-                          </button>
-                        </details>
                       </div>
                     </div>
                     <div className="import-step">
@@ -4790,12 +4773,6 @@ function ContractorHubApp() {
                             </button>
                           </article>
                         </div>
-                        <details className="prompt-preview">
-                          <summary>
-                            View the contractor extraction prompt
-                          </summary>
-                          <pre>{CONTRACTOR_AI_PROMPT}</pre>
-                        </details>
                       </div>
                     </div>
                     <div className="import-step">
@@ -8258,15 +8235,15 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.26</h2>
+            <h2 id="changelog-title">Version 0.27</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Report field selectors now use one vertical column. Project
-                  registers add sorting on every column, commencement and
-                  completion year ranges, and a Group Projects tab. The old
-                  Combined Report page has been removed.
+                  Contractor selection on the project-import page now shows
+                  imported project totals and the latest import date. Project
+                  preparation now uses only the dedicated Project Extractor;
+                  the manual template and prompt previews were removed.
                 </p>
               </article>
               <article>
