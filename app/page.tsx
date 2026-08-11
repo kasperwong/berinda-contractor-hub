@@ -86,6 +86,18 @@ type ProjectSortKey =
   | "period"
   | "progress"
   | "sourcePage";
+type ProjectTableColumnKey =
+  | "name"
+  | "scope"
+  | "projectType"
+  | "developer"
+  | "client"
+  | "location"
+  | "value"
+  | "commencementDate"
+  | "completionDate"
+  | "status"
+  | "progress";
 type ContractorSortKey =
   | "name"
   | "trade"
@@ -167,6 +179,37 @@ const PROJECT_EXPORT_FIELDS: Array<{ key: ProjectExportField; label: string }> =
     { key: "status", label: "Status" },
     { key: "progress", label: "Progress" },
   ];
+
+const PROJECT_TABLE_COLUMNS: Array<{
+  key: ProjectTableColumnKey;
+  label: string;
+}> = [
+  { key: "name", label: "Project name" },
+  { key: "scope", label: "Scope" },
+  { key: "projectType", label: "Building type" },
+  { key: "developer", label: "Developer" },
+  { key: "client", label: "Client / Main contractor" },
+  { key: "location", label: "Location" },
+  { key: "value", label: "Contract value RM" },
+  { key: "commencementDate", label: "Commencement date" },
+  { key: "completionDate", label: "Completion date" },
+  { key: "status", label: "Status" },
+  { key: "progress", label: "Progress" },
+];
+
+const EMPTY_PROJECT_COLUMN_FILTERS: Record<ProjectTableColumnKey, string> = {
+  name: "",
+  scope: "",
+  projectType: "",
+  developer: "",
+  client: "",
+  location: "",
+  value: "",
+  commencementDate: "",
+  completionDate: "",
+  status: "",
+  progress: "",
+};
 
 const PROJECT_AI_PROMPT = `Read the attached contractor project-list document and create a CSV file named contractor-projects.csv using exactly these columns in exactly this order: Project Name, Scope, Building Type, Developer, Client / Main Contractor, Location, Contract Value RM, Commencement Date, Completion Date, Status, Progress. Use one project per row. Status must be Completed or Ongoing. Contract Value RM must contain numbers only. Keep the original project scope wording. Keep dates in the source format or use DD/MM/YYYY when a date is available. Leave a field blank when the source does not provide it. Do not add extra columns. Do not invent information. Return the finished CSV file for download and no additional explanation.`;
 const CONTRACTOR_AI_PROMPT = `Read the attached contractor-list document and create a CSV file named contractor-list.csv using exactly these columns in this order: Contractor Name, Trade, Contact Name, Mobile, Office Phone, Email Address, Pre-Q Date, Pre-Q Score, Approval Date, CIDB Grade, Location. Use one contractor per row. Dates must use DD/MM/YYYY. Pre-Q Score must contain numbers only. Leave a field blank when the source does not provide it. Do not invent information. Return the finished CSV file for download and no additional explanation.`;
@@ -986,6 +1029,12 @@ function ContractorHubApp() {
   const [projectListDraftSelection, setProjectListDraftSelection] = useState<
     string[]
   >([]);
+  const [projectColumnFilters, setProjectColumnFilters] = useState<
+    Record<ProjectTableColumnKey, string>
+  >({ ...EMPTY_PROJECT_COLUMN_FILTERS });
+  const [visibleProjectColumns, setVisibleProjectColumns] = useState<
+    ProjectTableColumnKey[]
+  >(PROJECT_TABLE_COLUMNS.map((column) => column.key));
   const [showUpload, setShowUpload] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -1458,10 +1507,33 @@ function ContractorHubApp() {
   const filteredCompletedProjects =
     completedProjects.filter(projectMatchesSearch);
   const filteredOngoingProjects = ongoingProjects.filter(projectMatchesSearch);
+  const projectMatchesColumnFilters = (project: Project) => {
+    const dates = project.period.split(" â€“ ");
+    const values: Record<ProjectTableColumnKey, string> = {
+      name: project.name,
+      scope: project.scope,
+      projectType: project.projectType ?? "",
+      developer: project.developer ?? "",
+      client: project.client,
+      location: project.location,
+      value: `${project.value} ${money(project.value)}`,
+      commencementDate: formatProjectDate(
+        project.commencementDate ?? dates[0],
+      ),
+      completionDate: formatProjectDate(project.completionDate ?? dates[1]),
+      status: project.status,
+      progress: project.progress ?? "",
+    };
+    return PROJECT_TABLE_COLUMNS.every(({ key }) => {
+      const filter = projectColumnFilters[key].trim().toLowerCase();
+      return !filter || values[key].toLowerCase().includes(filter);
+    });
+  };
   const popupProjects = activeContractor.projects.filter(
     (project) =>
       (projectListStatus === "All" || project.status === projectListStatus) &&
-      projectMatchesSearch(project),
+      projectMatchesSearch(project) &&
+      projectMatchesColumnFilters(project),
   );
   const sortedPopupProjects = [...popupProjects].sort((a, b) => {
     const aValue = a[projectSort.key] ?? "";
@@ -2046,6 +2118,7 @@ function ContractorHubApp() {
   ) {
     setActiveContractor(contractor);
     setProjectQuery("");
+    setProjectColumnFilters({ ...EMPTY_PROJECT_COLUMN_FILTERS });
     const contractorProjectIds = new Set(
       contractor.projects.map((project) => project.id),
     );
@@ -2072,7 +2145,7 @@ function ContractorHubApp() {
     );
   }
 
-  function addProjectListSelectionToReport() {
+  function commitProjectListSelection() {
     const contractorProjectIds = new Set(
       activeContractor.projects.map((project) => project.id),
     );
@@ -2087,11 +2160,45 @@ function ContractorHubApp() {
           : [...current, activeContractor.id],
       );
     }
+  }
+
+  function addProjectListSelectionToNomination() {
+    commitProjectListSelection();
     setProjectListStatus(null);
-    setActiveSection("nominations");
+    setActiveSection("reports");
+    setExportMode("nomination");
     notify(
-      `${projectListDraftSelection.length} project reference${projectListDraftSelection.length === 1 ? "" : "s"} from ${activeContractor.name} added to the combined report.`,
+      `${projectListDraftSelection.length} project reference${projectListDraftSelection.length === 1 ? "" : "s"} from ${activeContractor.name} added to the nomination report.`,
     );
+  }
+
+  function addProjectListSelectionToReference() {
+    setProjectReferenceContractorId(activeContractor.id);
+    setProjectReferenceSelectedIds(projectListDraftSelection);
+    setProjectListStatus(null);
+    setActiveSection("reports");
+    setExportMode("projects");
+    notify(
+      `${projectListDraftSelection.length} project reference${projectListDraftSelection.length === 1 ? "" : "s"} from ${activeContractor.name} added to the project reference report.`,
+    );
+  }
+
+  function toggleProjectColumn(key: ProjectTableColumnKey) {
+    if (visibleProjectColumns.includes(key)) {
+      setProjectColumnFilters((current) => ({ ...current, [key]: "" }));
+    }
+    setVisibleProjectColumns((current) =>
+      current.includes(key)
+        ? current.filter((column) => column !== key)
+        : [...current, key],
+    );
+  }
+
+  function updateProjectColumnFilter(
+    key: ProjectTableColumnKey,
+    value: string,
+  ) {
+    setProjectColumnFilters((current) => ({ ...current, [key]: value }));
   }
 
   function sortProjects(key: ProjectSortKey) {
@@ -2887,7 +2994,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.16
+              Version 0.17
             </button>
           </div>
         </div>
@@ -6738,6 +6845,37 @@ function ContractorHubApp() {
                   </button>
                 )}
               </label>
+              <details className="project-column-visibility">
+                <summary>
+                  Columns ({visibleProjectColumns.length}/
+                  {PROJECT_TABLE_COLUMNS.length})
+                </summary>
+                <div>
+                  <header>
+                    <strong>Show or hide columns</strong>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVisibleProjectColumns(
+                          PROJECT_TABLE_COLUMNS.map((column) => column.key),
+                        )
+                      }
+                    >
+                      Show all
+                    </button>
+                  </header>
+                  {PROJECT_TABLE_COLUMNS.map((column) => (
+                    <label key={column.key}>
+                      <input
+                        type="checkbox"
+                        checked={visibleProjectColumns.includes(column.key)}
+                        onChange={() => toggleProjectColumn(column.key)}
+                      />
+                      {column.label}
+                    </label>
+                  ))}
+                </div>
+              </details>
             </div>
             <div className="full-project-table-wrap">
               <table className="full-project-table">
@@ -6753,31 +6891,101 @@ function ContractorHubApp() {
                         {allShownProjectsSelected ? "Unselect" : "Select"}
                       </button>
                     </th>
+                    {visibleProjectColumns.includes("name") && (
+                      <th>
+                        <button
+                          className="sortable-heading"
+                          onClick={() => sortProjects("name")}
+                        >
+                          Project Name{sortIndicator("name")}
+                        </button>
+                      </th>
+                    )}
+                    {visibleProjectColumns.includes("scope") && <th>Scope</th>}
+                    {visibleProjectColumns.includes("projectType") && (
+                      <th>Building Type</th>
+                    )}
+                    {visibleProjectColumns.includes("developer") && (
+                      <th>Developer</th>
+                    )}
+                    {visibleProjectColumns.includes("client") && (
+                      <th>Client / Main Contractor</th>
+                    )}
+                    {visibleProjectColumns.includes("location") && (
+                      <th>Location</th>
+                    )}
+                    {visibleProjectColumns.includes("value") && (
+                      <th>
+                        <button
+                          className="sortable-heading"
+                          onClick={() => sortProjects("value")}
+                        >
+                          Contract Value RM{sortIndicator("value")}
+                        </button>
+                      </th>
+                    )}
+                    {visibleProjectColumns.includes("commencementDate") && (
+                      <th>Commencement Date</th>
+                    )}
+                    {visibleProjectColumns.includes("completionDate") && (
+                      <th>Completion Date</th>
+                    )}
+                    {visibleProjectColumns.includes("status") && <th>Status</th>}
+                    {visibleProjectColumns.includes("progress") && (
+                      <th>Progress</th>
+                    )}
+                  </tr>
+                  <tr className="project-column-filter-row">
                     <th>
                       <button
-                        className="sortable-heading"
-                        onClick={() => sortProjects("name")}
+                        type="button"
+                        onClick={() =>
+                          setProjectColumnFilters({
+                            ...EMPTY_PROJECT_COLUMN_FILTERS,
+                          })
+                        }
+                        disabled={!Object.values(projectColumnFilters).some(Boolean)}
                       >
-                        Project Name{sortIndicator("name")}
+                        Clear
                       </button>
                     </th>
-                    <th>Scope</th>
-                    <th>Building Type</th>
-                    <th>Developer</th>
-                    <th>Client / Main Contractor</th>
-                    <th>Location</th>
-                    <th>
-                      <button
-                        className="sortable-heading"
-                        onClick={() => sortProjects("value")}
-                      >
-                        Contract Value RM{sortIndicator("value")}
-                      </button>
-                    </th>
-                    <th>Commencement Date</th>
-                    <th>Completion Date</th>
-                    <th>Status</th>
-                    <th>Progress</th>
+                    {PROJECT_TABLE_COLUMNS.map((column) =>
+                      visibleProjectColumns.includes(column.key) ? (
+                        <th key={column.key}>
+                          {column.key === "status" ? (
+                            <select
+                              aria-label={`Filter ${column.label}`}
+                              value={projectColumnFilters[column.key]}
+                              onChange={(event) =>
+                                updateProjectColumnFilter(
+                                  column.key,
+                                  event.target.value,
+                                )
+                              }
+                            >
+                              <option value="">All</option>
+                              <option>Completed</option>
+                              <option>Ongoing</option>
+                            </select>
+                          ) : (
+                            <input
+                              aria-label={`Filter ${column.label}`}
+                              value={projectColumnFilters[column.key]}
+                              onChange={(event) =>
+                                updateProjectColumnFilter(
+                                  column.key,
+                                  event.target.value,
+                                )
+                              }
+                              placeholder="Filter"
+                              inputMode={
+                                column.key === "value" ? "decimal" : undefined
+                              }
+                            />
+                          )}
+                        </th>
+                      ) : null,
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -6797,39 +7005,61 @@ function ContractorHubApp() {
                             {selected ? "✓" : ""}
                           </button>
                         </td>
-                        <td>
-                          <strong>{project.name}</strong>
-                        </td>
-                        <td>
-                          <span className="group-project-scope">
-                            {project.scope}
-                          </span>
-                        </td>
-                        <td>{project.projectType ?? "-"}</td>
-                        <td>{project.developer ?? "-"}</td>
-                        <td>{project.client || "-"}</td>
-                        <td>{project.location || "-"}</td>
-                        <td>
-                          <strong>{money(project.value)}</strong>
-                        </td>
-                        <td>
-                          {formatProjectDate(
-                            project.commencementDate ?? dates[0],
-                          )}
-                        </td>
-                        <td>
-                          {formatProjectDate(
-                            project.completionDate ?? dates[1],
-                          )}
-                        </td>
-                        <td>
-                          <span
-                            className={`table-project-status ${project.status.toLowerCase()}`}
-                          >
-                            {project.status}
-                          </span>
-                        </td>
-                        <td>{project.progress ?? "-"}</td>
+                        {visibleProjectColumns.includes("name") && (
+                          <td>
+                            <strong>{project.name}</strong>
+                          </td>
+                        )}
+                        {visibleProjectColumns.includes("scope") && (
+                          <td>
+                            <span className="group-project-scope">
+                              {project.scope}
+                            </span>
+                          </td>
+                        )}
+                        {visibleProjectColumns.includes("projectType") && (
+                          <td>{project.projectType ?? "-"}</td>
+                        )}
+                        {visibleProjectColumns.includes("developer") && (
+                          <td>{project.developer ?? "-"}</td>
+                        )}
+                        {visibleProjectColumns.includes("client") && (
+                          <td>{project.client || "-"}</td>
+                        )}
+                        {visibleProjectColumns.includes("location") && (
+                          <td>{project.location || "-"}</td>
+                        )}
+                        {visibleProjectColumns.includes("value") && (
+                          <td>
+                            <strong>{money(project.value)}</strong>
+                          </td>
+                        )}
+                        {visibleProjectColumns.includes("commencementDate") && (
+                          <td>
+                            {formatProjectDate(
+                              project.commencementDate ?? dates[0],
+                            )}
+                          </td>
+                        )}
+                        {visibleProjectColumns.includes("completionDate") && (
+                          <td>
+                            {formatProjectDate(
+                              project.completionDate ?? dates[1],
+                            )}
+                          </td>
+                        )}
+                        {visibleProjectColumns.includes("status") && (
+                          <td>
+                            <span
+                              className={`table-project-status ${project.status.toLowerCase()}`}
+                            >
+                              {project.status}
+                            </span>
+                          </td>
+                        )}
+                        {visibleProjectColumns.includes("progress") && (
+                          <td>{project.progress ?? "-"}</td>
+                        )}
                       </tr>
                     );
                   })}
@@ -6851,9 +7081,16 @@ function ContractorHubApp() {
                 <button
                   className="secondary-button"
                   disabled={!projectListDraftSelection.length}
-                  onClick={addProjectListSelectionToReport}
+                  onClick={addProjectListSelectionToNomination}
                 >
-                  Add selected to report
+                  Add to nomination report
+                </button>
+                <button
+                  className="secondary-button"
+                  disabled={!projectListDraftSelection.length}
+                  onClick={addProjectListSelectionToReference}
+                >
+                  Add to project reference report
                 </button>
                 <button
                   className="primary-button"
@@ -7715,13 +7952,22 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.16</h2>
+            <h2 id="changelog-title">Version 0.17</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Incomplete contractor profiles can now be edited without
-                  entering an unavailable email address.
+                  The contractor project register now provides filters for
+                  every project column, configurable column visibility and
+                  separate actions for nomination and project reference
+                  reports.
+                </p>
+              </article>
+              <article>
+                <strong>Incomplete profiles</strong>
+                <p>
+                  Incomplete contractor profiles can be edited without entering
+                  an unavailable email address.
                 </p>
               </article>
               <article>
