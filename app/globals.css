@@ -2909,12 +2909,17 @@ td {
   background: white;
 }
 .project-reference-toolbar {
-  grid-template-columns: minmax(260px, 1.5fr) minmax(160px, 0.8fr) auto auto;
+  grid-template-columns: minmax(240px, 1.5fr) minmax(145px, 0.8fr) repeat(3, auto);
   align-items: end;
   margin: 0;
   padding: 16px 22px;
   border-bottom: 1px solid var(--line);
   background: #f7f9fa;
+}
+.active-filter-button {
+  border-color: var(--teal) !important;
+  background: var(--teal-soft) !important;
+  color: var(--teal) !important;
 }
 .report-candidate-list,
 .report-project-list {
@@ -3001,6 +3006,41 @@ td {
 .report-field-grid label:has(input:checked) {
   border-color: #8abbb4;
   background: #f0f8f6;
+  color: var(--teal);
+}
+.report-field-order-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+}
+.report-field-order-item > label {
+  min-width: 0;
+}
+.report-field-order-item > label span {
+  overflow-wrap: anywhere;
+}
+.field-order-actions {
+  display: grid;
+  grid-template-columns: 24px 24px;
+  gap: 3px;
+}
+.field-order-actions button {
+  width: 24px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #cad7df;
+  border-radius: 5px;
+  padding: 0;
+  background: white;
+  color: #34536d;
+  font-size: 12px;
+  font-weight: 750;
+}
+.field-order-actions button:hover:not(:disabled) {
+  border-color: var(--teal);
   color: var(--teal);
 }
 .field-note {

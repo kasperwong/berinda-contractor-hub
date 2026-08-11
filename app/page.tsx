@@ -176,7 +176,7 @@ const PROJECT_EXPORT_FIELDS: Array<{ key: ProjectExportField; label: string }> =
     { key: "developer", label: "Developer" },
     { key: "client", label: "Client / Main contractor" },
     { key: "location", label: "Location" },
-    { key: "value", label: "Contract value" },
+    { key: "value", label: "Contract value (RM)" },
     { key: "commencementDate", label: "Commencement" },
     { key: "completionDate", label: "Completion" },
     { key: "status", label: "Status" },
@@ -959,6 +959,8 @@ function ContractorHubApp() {
   const [projectReferenceFilter, setProjectReferenceFilter] = useState<
     "All" | "Completed" | "Ongoing" | "Group"
   >("All");
+  const [projectReferenceSelectedOnly, setProjectReferenceSelectedOnly] =
+    useState(false);
   const [projectReferenceSelectedIds, setProjectReferenceSelectedIds] =
     useState<string[]>([]);
   const [projectReferenceFields, setProjectReferenceFields] = useState<
@@ -1043,6 +1045,7 @@ function ContractorHubApp() {
     ProjectTableColumnKey[]
   >(PROJECT_TABLE_COLUMNS.map((column) => column.key));
   const [projectEditMode, setProjectEditMode] = useState(false);
+  const [projectSelectedOnly, setProjectSelectedOnly] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
@@ -1471,10 +1474,12 @@ function ContractorHubApp() {
   const projectReferenceProjects = projectReferenceContractor
     ? reportProjectsFor(projectReferenceContractor).filter(
         (project) =>
-          projectReferenceFilter === "All" ||
-          (projectReferenceFilter === "Group"
-            ? project.withinGroup
-            : project.status === projectReferenceFilter),
+          (projectReferenceFilter === "All" ||
+            (projectReferenceFilter === "Group"
+              ? project.withinGroup
+              : project.status === projectReferenceFilter)) &&
+          (!projectReferenceSelectedOnly ||
+            projectReferenceSelectedIds.includes(project.id)),
       )
     : [];
 
@@ -1587,7 +1592,8 @@ function ContractorHubApp() {
     (project) =>
       (projectListStatus === "All" || project.status === projectListStatus) &&
       projectMatchesSearch(project) &&
-      projectMatchesColumnFilters(project),
+      projectMatchesColumnFilters(project) &&
+      (!projectSelectedOnly || projectListDraftSelection.includes(project.id)),
   );
   const sortedPopupProjects = [...popupProjects].sort((a, b) => {
     const aValue = a[projectSort.key] ?? "";
@@ -1866,12 +1872,54 @@ function ContractorHubApp() {
   function toggleField<T extends string>(
     value: T,
     setter: React.Dispatch<React.SetStateAction<T[]>>,
+    systemOrder: T[],
   ) {
-    setter((current) =>
-      current.includes(value)
-        ? current.filter((item) => item !== value)
-        : [...current, value],
-    );
+    setter((current) => {
+      if (current.includes(value))
+        return current.filter((item) => item !== value);
+      const newFieldPosition = systemOrder.indexOf(value);
+      const insertionIndex = current.findIndex(
+        (item) => systemOrder.indexOf(item) > newFieldPosition,
+      );
+      if (insertionIndex < 0) return [...current, value];
+      return [
+        ...current.slice(0, insertionIndex),
+        value,
+        ...current.slice(insertionIndex),
+      ];
+    });
+  }
+
+  function orderedFieldOptions<T extends string>(
+    options: Array<{ key: T; label: string }>,
+    selected: T[],
+  ) {
+    const selectedOptions = selected
+      .map((key) => options.find((option) => option.key === key))
+      .filter((option): option is { key: T; label: string } => Boolean(option));
+    return [
+      ...selectedOptions,
+      ...options.filter((option) => !selected.includes(option.key)),
+    ];
+  }
+
+  function moveSelectedField<T extends string>(
+    value: T,
+    direction: -1 | 1,
+    setter: React.Dispatch<React.SetStateAction<T[]>>,
+  ) {
+    setter((current) => {
+      const index = current.indexOf(value);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length)
+        return current;
+      const reordered = [...current];
+      [reordered[index], reordered[nextIndex]] = [
+        reordered[nextIndex],
+        reordered[index],
+      ];
+      return reordered;
+    });
   }
 
   function contractorExportValue(
@@ -1911,7 +1959,10 @@ function ContractorHubApp() {
       client: project.client || "Not provided",
       location: project.location || "Not provided",
       value: project.value
-        ? `RM ${project.value.toLocaleString("en-MY")}`
+        ? project.value.toLocaleString("en-MY", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
         : "Not provided",
       commencementDate: formatProjectDate(project.commencementDate ?? dates[0]),
       completionDate: formatProjectDate(project.completionDate ?? dates[1]),
@@ -2178,6 +2229,7 @@ function ContractorHubApp() {
     setProjectYearFrom("");
     setProjectYearTo("");
     setProjectEditMode(false);
+    setProjectSelectedOnly(false);
     setEditingProject(null);
     const contractorProjectIds = new Set(
       contractor.projects.map((project) => project.id),
@@ -3115,7 +3167,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.21
+              Version 0.22
             </button>
           </div>
         </div>
@@ -5033,23 +5085,66 @@ function ContractorHubApp() {
                           email.
                         </p>
                         <div className="report-field-grid">
-                          {CONTRACTOR_EXPORT_FIELDS.map((field) => (
-                            <label key={field.key}>
-                              <input
-                                type="checkbox"
-                                checked={contractorExportFields.includes(
-                                  field.key,
+                          {orderedFieldOptions(
+                            CONTRACTOR_EXPORT_FIELDS,
+                            contractorExportFields,
+                          ).map((field) => {
+                            const index = contractorExportFields.indexOf(
+                              field.key,
+                            );
+                            const selected = index >= 0;
+                            return (
+                              <div
+                                className={`report-field-order-item ${selected ? "selected" : ""}`}
+                                key={field.key}
+                              >
+                                <label>
+                                  <input
+                                    type="checkbox"
+                                    checked={selected}
+                                    onChange={() =>
+                                      toggleField(
+                                        field.key,
+                                        setContractorExportFields,
+                                        CONTRACTOR_EXPORT_FIELDS.map(
+                                          (option) => option.key,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                  <span>{field.label}</span>
+                                </label>
+                                {selected && (
+                                  <div className="field-order-actions">
+                                    <button
+                                      type="button"
+                                      disabled={index === 0}
+                                      onClick={() =>
+                                        moveSelectedField(
+                                          field.key,
+                                          -1,
+                                          setContractorExportFields,
+                                        )
+                                      }
+                                    >↑</button>
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        index === contractorExportFields.length - 1
+                                      }
+                                      onClick={() =>
+                                        moveSelectedField(
+                                          field.key,
+                                          1,
+                                          setContractorExportFields,
+                                        )
+                                      }
+                                    >↓</button>
+                                  </div>
                                 )}
-                                onChange={() =>
-                                  toggleField(
-                                    field.key,
-                                    setContractorExportFields,
-                                  )
-                                }
-                              />
-                              {field.label}
-                            </label>
-                          ))}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
@@ -5230,45 +5325,53 @@ function ContractorHubApp() {
                       <div>
                         <h4>3. Contractor information</h4>
                         <div className="report-field-grid">
-                          {CONTRACTOR_EXPORT_FIELDS.map((field) => (
-                            <label key={field.key}>
-                              <input
-                                type="checkbox"
-                                checked={nominationContractorFields.includes(
-                                  field.key,
-                                )}
-                                onChange={() =>
-                                  toggleField(
-                                    field.key,
-                                    setNominationContractorFields,
-                                  )
-                                }
-                              />
-                              {field.label}
-                            </label>
-                          ))}
+                          {orderedFieldOptions(
+                            CONTRACTOR_EXPORT_FIELDS,
+                            nominationContractorFields,
+                          ).map((field) => {
+                            const index = nominationContractorFields.indexOf(
+                              field.key,
+                            );
+                            const selected = index >= 0;
+                            return (
+                              <div className={`report-field-order-item ${selected ? "selected" : ""}`} key={field.key}>
+                                <label>
+                                  <input type="checkbox" checked={selected} onChange={() => toggleField(field.key, setNominationContractorFields, CONTRACTOR_EXPORT_FIELDS.map((option) => option.key))} />
+                                  <span>{field.label}</span>
+                                </label>
+                                {selected && <div className="field-order-actions">
+                                  <button type="button" disabled={index === 0} onClick={() => moveSelectedField(field.key, -1, setNominationContractorFields)}>↑</button>
+                                  <button type="button" disabled={index === nominationContractorFields.length - 1} onClick={() => moveSelectedField(field.key, 1, setNominationContractorFields)}>↓</button>
+                                </div>}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                       <div>
                         <h4>4. Project information</h4>
                         <div className="report-field-grid">
-                          {PROJECT_EXPORT_FIELDS.map((field) => (
-                            <label key={field.key}>
-                              <input
-                                type="checkbox"
-                                checked={nominationProjectFields.includes(
-                                  field.key,
-                                )}
-                                onChange={() =>
-                                  toggleField(
-                                    field.key,
-                                    setNominationProjectFields,
-                                  )
-                                }
-                              />
-                              {field.label}
-                            </label>
-                          ))}
+                          {orderedFieldOptions(
+                            PROJECT_EXPORT_FIELDS,
+                            nominationProjectFields,
+                          ).map((field) => {
+                            const index = nominationProjectFields.indexOf(
+                              field.key,
+                            );
+                            const selected = index >= 0;
+                            return (
+                              <div className={`report-field-order-item ${selected ? "selected" : ""}`} key={field.key}>
+                                <label>
+                                  <input type="checkbox" checked={selected} onChange={() => toggleField(field.key, setNominationProjectFields, PROJECT_EXPORT_FIELDS.map((option) => option.key))} />
+                                  <span>{field.label}</span>
+                                </label>
+                                {selected && <div className="field-order-actions">
+                                  <button type="button" disabled={index === 0} onClick={() => moveSelectedField(field.key, -1, setNominationProjectFields)}>↑</button>
+                                  <button type="button" disabled={index === nominationProjectFields.length - 1} onClick={() => moveSelectedField(field.key, 1, setNominationProjectFields)}>↓</button>
+                                </div>}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
@@ -5324,6 +5427,7 @@ function ContractorHubApp() {
                           onChange={(event) => {
                             setProjectReferenceContractorId(event.target.value);
                             setProjectReferenceSelectedIds([]);
+                            setProjectReferenceSelectedOnly(false);
                           }}
                         >
                           {contractorRows.map((contractor) => (
@@ -5363,8 +5467,26 @@ function ContractorHubApp() {
                         Select all shown
                       </button>
                       <button
+                        className={
+                          projectReferenceSelectedOnly
+                            ? "secondary-button active-filter-button"
+                            : "secondary-button"
+                        }
+                        disabled={!projectReferenceSelectedIds.length}
+                        onClick={() =>
+                          setProjectReferenceSelectedOnly((current) => !current)
+                        }
+                      >
+                        {projectReferenceSelectedOnly
+                          ? "Show all projects"
+                          : "Show selected only"}
+                      </button>
+                      <button
                         className="secondary-button"
-                        onClick={() => setProjectReferenceSelectedIds([])}
+                        onClick={() => {
+                          setProjectReferenceSelectedIds([]);
+                          setProjectReferenceSelectedOnly(false);
+                        }}
                       >
                         Clear
                       </button>
@@ -5407,23 +5529,72 @@ function ContractorHubApp() {
                       <div className="report-controls">
                         <h4>2. Select information to print</h4>
                         <div className="report-field-grid">
-                          {PROJECT_EXPORT_FIELDS.map((field) => (
-                            <label key={field.key}>
-                              <input
-                                type="checkbox"
-                                checked={projectReferenceFields.includes(
-                                  field.key,
+                          {orderedFieldOptions(
+                            PROJECT_EXPORT_FIELDS,
+                            projectReferenceFields,
+                          ).map((field) => {
+                            const selectedIndex =
+                              projectReferenceFields.indexOf(field.key);
+                            const selected = selectedIndex >= 0;
+                            return (
+                              <div
+                                className={`report-field-order-item ${selected ? "selected" : ""}`}
+                                key={field.key}
+                              >
+                                <label>
+                                  <input
+                                    type="checkbox"
+                                    checked={selected}
+                                    onChange={() =>
+                                      toggleField(
+                                        field.key,
+                                        setProjectReferenceFields,
+                                        PROJECT_EXPORT_FIELDS.map(
+                                          (option) => option.key,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                  <span>{field.label}</span>
+                                </label>
+                                {selected && (
+                                  <div className="field-order-actions">
+                                    <button
+                                      type="button"
+                                      disabled={selectedIndex === 0}
+                                      onClick={() =>
+                                        moveSelectedField(
+                                          field.key,
+                                          -1,
+                                          setProjectReferenceFields,
+                                        )
+                                      }
+                                      aria-label={`Move ${field.label} earlier`}
+                                    >
+                                      ↑
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        selectedIndex ===
+                                        projectReferenceFields.length - 1
+                                      }
+                                      onClick={() =>
+                                        moveSelectedField(
+                                          field.key,
+                                          1,
+                                          setProjectReferenceFields,
+                                        )
+                                      }
+                                      aria-label={`Move ${field.label} later`}
+                                    >
+                                      ↓
+                                    </button>
+                                  </div>
                                 )}
-                                onChange={() =>
-                                  toggleField(
-                                    field.key,
-                                    setProjectReferenceFields,
-                                  )
-                                }
-                              />
-                              {field.label}
-                            </label>
-                          ))}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
@@ -6863,7 +7034,18 @@ function ContractorHubApp() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setProjectListDraftSelection([])}
+                  className={projectSelectedOnly ? "active" : ""}
+                  disabled={!projectListDraftSelection.length}
+                  onClick={() => setProjectSelectedOnly((current) => !current)}
+                >
+                  {projectSelectedOnly ? "Show all" : "Show selected only"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProjectListDraftSelection([]);
+                    setProjectSelectedOnly(false);
+                  }}
                   disabled={!projectListDraftSelection.length}
                 >
                   Clear selection
@@ -8243,14 +8425,14 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.21</h2>
+            <h2 id="changelog-title">Version 0.22</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Project names in the contractor project register now use the
-                  same compact text size and line height as the other project
-                  details for easier table scanning.
+                  Export columns can now be moved earlier or later before a
+                  report is generated. Contract values place RM in the heading,
+                  and project lists can be limited to selected items only.
                 </p>
               </article>
               <article>
