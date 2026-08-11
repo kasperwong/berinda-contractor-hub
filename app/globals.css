@@ -2912,12 +2912,71 @@ td {
   background: white;
 }
 .project-reference-toolbar {
-  grid-template-columns: minmax(240px, 1.5fr) minmax(145px, 0.8fr) auto auto;
+  grid-template-columns: minmax(220px, 1.4fr) auto minmax(145px, 0.8fr) auto auto;
   align-items: end;
   margin: 0;
   padding: 16px 22px;
   border-bottom: 1px solid var(--line);
   background: #f7f9fa;
+}
+.project-reference-current-contractor {
+  display: grid;
+  gap: 5px;
+}
+.project-reference-current-contractor small {
+  color: #5c6b7c;
+  font-size: 9px;
+  font-weight: 700;
+}
+.project-reference-current-contractor strong {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  border: 1px solid #d6dfe5;
+  border-radius: 7px;
+  padding: 0 10px;
+  background: white;
+  color: #2c4053;
+  font-size: 9px;
+}
+.contractor-picker-modal {
+  width: min(620px, calc(100vw - 32px));
+  max-height: min(720px, calc(100vh - 32px));
+  padding: 28px;
+}
+.contractor-picker-modal > h2 {
+  margin: 5px 0 6px;
+}
+.contractor-picker-modal > p:not(.eyebrow) {
+  margin: 0 0 16px;
+  color: #6f7f90;
+}
+.contractor-picker-list {
+  max-height: 480px;
+  display: grid;
+  overflow: auto;
+  border: 1px solid #dfe5e9;
+  border-radius: 9px;
+}
+.contractor-picker-list button {
+  display: grid;
+  gap: 4px;
+  border: 0;
+  border-bottom: 1px solid #edf1f3;
+  padding: 13px 14px;
+  background: white;
+  color: #24394d;
+  text-align: left;
+}
+.contractor-picker-list button:last-child {
+  border-bottom: 0;
+}
+.contractor-picker-list button:hover,
+.contractor-picker-list button.active {
+  background: #eef8f6;
+}
+.contractor-picker-list small {
+  color: #778595;
 }
 .report-direct-search {
   display: grid;
@@ -3050,7 +3109,8 @@ td {
   grid-template-columns: 1fr 1fr;
   gap: 7px;
 }
-.nomination-project-field-list {
+.nomination-project-field-list,
+.single-column-field-list {
   grid-template-columns: 1fr;
 }
 .report-field-grid label {
