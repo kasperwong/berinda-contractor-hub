@@ -2887,7 +2887,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.15
+              Version 0.16
             </button>
           </div>
         </div>
@@ -7154,8 +7154,11 @@ function ContractorHubApp() {
                 <input
                   name="email"
                   type="email"
-                  required
-                  defaultValue={activeContractor.email}
+                  defaultValue={
+                    activeContractor.email === "Not provided"
+                      ? ""
+                      : activeContractor.email
+                  }
                 />
               </label>
               <label>
@@ -7712,14 +7715,21 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.15</h2>
+            <h2 id="changelog-title">Version 0.16</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Contractor administrators can now correct the Pre-Q score
-                  from the profile edit screen while retaining all existing
-                  project history.
+                  Incomplete contractor profiles can now be edited without
+                  entering an unavailable email address.
+                </p>
+              </article>
+              <article>
+                <strong>Pre-Q profile editing</strong>
+                <p>
+                  Contractor administrators can correct the Pre-Q score from
+                  the profile edit screen while retaining all existing project
+                  history.
                 </p>
               </article>
               <article>
