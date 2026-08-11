@@ -1035,6 +1035,8 @@ function ContractorHubApp() {
   const [visibleProjectColumns, setVisibleProjectColumns] = useState<
     ProjectTableColumnKey[]
   >(PROJECT_TABLE_COLUMNS.map((column) => column.key));
+  const [projectEditMode, setProjectEditMode] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -2119,6 +2121,8 @@ function ContractorHubApp() {
     setActiveContractor(contractor);
     setProjectQuery("");
     setProjectColumnFilters({ ...EMPTY_PROJECT_COLUMN_FILTERS });
+    setProjectEditMode(false);
+    setEditingProject(null);
     const contractorProjectIds = new Set(
       contractor.projects.map((project) => project.id),
     );
@@ -2719,6 +2723,48 @@ function ContractorHubApp() {
     notify("Project added to this demonstration session.");
   }
 
+  function handleEditProject(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingProject || !canEdit) return;
+    const form = new FormData(event.currentTarget);
+    const commencementDate = String(form.get("commencementDate") ?? "").trim();
+    const completionDate = String(form.get("completionDate") ?? "").trim();
+    const updatedProject: Project = {
+      ...editingProject,
+      name: String(form.get("name") ?? "").trim(),
+      scope: String(form.get("scope") ?? "").trim(),
+      projectType: String(form.get("projectType") ?? "").trim() || undefined,
+      developer: String(form.get("developer") ?? "").trim() || undefined,
+      client: String(form.get("client") ?? "").trim(),
+      location: String(form.get("location") ?? "").trim(),
+      value: Number(form.get("value")) || 0,
+      commencementDate: commencementDate || undefined,
+      completionDate: completionDate || undefined,
+      period:
+        [commencementDate, completionDate].filter(Boolean).join(" â€“ ") ||
+        editingProject.period,
+      status: String(form.get("status")) as Project["status"],
+      progress: String(form.get("progress") ?? "").trim() || undefined,
+    };
+    const updatedContractor = {
+      ...activeContractor,
+      projects: activeContractor.projects.map((project) =>
+        project.id === updatedProject.id ? updatedProject : project,
+      ),
+      updated: "Just now",
+    };
+    setActiveContractor(updatedContractor);
+    setContractorRows((current) =>
+      current.map((contractor) =>
+        contractor.id === updatedContractor.id
+          ? updatedContractor
+          : contractor,
+      ),
+    );
+    setEditingProject(null);
+    notify(`${updatedProject.name} updated and saved.`);
+  }
+
   function handleAssessment(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -2994,7 +3040,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.17
+              Version 0.18
             </button>
           </div>
         </div>
@@ -6830,6 +6876,15 @@ function ContractorHubApp() {
                 >
                   Clear selection
                 </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    className={projectEditMode ? "active edit-mode-button" : ""}
+                    onClick={() => setProjectEditMode((current) => !current)}
+                  >
+                    {projectEditMode ? "Editing on" : "Edit projects"}
+                  </button>
+                )}
               </div>
               <label className="project-search table-search">
                 <span>⌕</span>
@@ -6891,6 +6946,7 @@ function ContractorHubApp() {
                         {allShownProjectsSelected ? "Unselect" : "Select"}
                       </button>
                     </th>
+                    {projectEditMode && <th>Edit</th>}
                     {visibleProjectColumns.includes("name") && (
                       <th>
                         <button
@@ -6949,6 +7005,7 @@ function ContractorHubApp() {
                         Clear
                       </button>
                     </th>
+                    {projectEditMode && <th>Manual</th>}
                     {PROJECT_TABLE_COLUMNS.map((column) =>
                       visibleProjectColumns.includes(column.key) ? (
                         <th key={column.key}>
@@ -7005,6 +7062,17 @@ function ContractorHubApp() {
                             {selected ? "✓" : ""}
                           </button>
                         </td>
+                        {projectEditMode && (
+                          <td>
+                            <button
+                              type="button"
+                              className="project-row-edit-button"
+                              onClick={() => setEditingProject(project)}
+                            >
+                              Edit
+                            </button>
+                          </td>
+                        )}
                         {visibleProjectColumns.includes("name") && (
                           <td>
                             <strong>{project.name}</strong>
@@ -7101,6 +7169,141 @@ function ContractorHubApp() {
               </div>
             </div>
           </section>
+        </div>
+      )}
+
+      {editingProject && canEdit && (
+        <div
+          className="modal-backdrop nested-modal project-edit-backdrop"
+          role="presentation"
+          onMouseDown={() => setEditingProject(null)}
+        >
+          <form
+            className="modal form-modal project-form-modal project-edit-modal"
+            onSubmit={handleEditProject}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => setEditingProject(null)}
+              aria-label="Close project editor"
+            >
+              Ã—
+            </button>
+            <p className="eyebrow">MANUAL PROJECT EDITOR</p>
+            <h2>Edit project details</h2>
+            <p>
+              Update the stored information for {activeContractor.name}. The
+              original project record and report selections will be retained.
+            </p>
+            <div className="form-grid">
+              <label className="wide">
+                Project name
+                <textarea
+                  name="name"
+                  required
+                  rows={2}
+                  defaultValue={editingProject.name}
+                />
+              </label>
+              <label className="wide">
+                Scope
+                <textarea
+                  name="scope"
+                  required
+                  rows={4}
+                  defaultValue={editingProject.scope}
+                />
+              </label>
+              <label>
+                Building type
+                <input
+                  name="projectType"
+                  defaultValue={editingProject.projectType ?? ""}
+                />
+              </label>
+              <label>
+                Developer
+                <input
+                  name="developer"
+                  defaultValue={editingProject.developer ?? ""}
+                />
+              </label>
+              <label>
+                Client / Main contractor
+                <input name="client" defaultValue={editingProject.client} />
+              </label>
+              <label>
+                Location
+                <input
+                  name="location"
+                  defaultValue={editingProject.location}
+                />
+              </label>
+              <label>
+                Contract value (RM)
+                <input
+                  name="value"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  defaultValue={editingProject.value}
+                />
+              </label>
+              <label>
+                Commencement date
+                <input
+                  name="commencementDate"
+                  placeholder="DD/MM/YYYY or year"
+                  defaultValue={
+                    editingProject.commencementDate ??
+                    editingProject.period.split(/\s+[â€“-]\s+/)[0] ??
+                    ""
+                  }
+                />
+              </label>
+              <label>
+                Completion date
+                <input
+                  name="completionDate"
+                  placeholder="DD/MM/YYYY, year or Ongoing"
+                  defaultValue={
+                    editingProject.completionDate ??
+                    editingProject.period.split(/\s+[â€“-]\s+/)[1] ??
+                    ""
+                  }
+                />
+              </label>
+              <label>
+                Status
+                <select name="status" defaultValue={editingProject.status}>
+                  <option>Completed</option>
+                  <option>Ongoing</option>
+                </select>
+              </label>
+              <label>
+                Progress
+                <input
+                  name="progress"
+                  placeholder="e.g. 80%"
+                  defaultValue={editingProject.progress ?? ""}
+                />
+              </label>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setEditingProject(null)}
+              >
+                Cancel
+              </button>
+              <button className="primary-button" type="submit">
+                Save project changes
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -7952,15 +8155,22 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.17</h2>
+            <h2 id="changelog-title">Version 0.18</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  The contractor project register now provides filters for
-                  every project column, configurable column visibility and
-                  separate actions for nomination and project reference
-                  reports.
+                  Admin and Editor users can enable manual project editing from
+                  the contractor project register and update every stored
+                  project field without changing its project ID.
+                </p>
+              </article>
+              <article>
+                <strong>Project register controls</strong>
+                <p>
+                  The project register provides filters for every project
+                  column, configurable column visibility and separate actions
+                  for nomination and project reference reports.
                 </p>
               </article>
               <article>
