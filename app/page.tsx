@@ -988,13 +988,29 @@ function ContractorHubApp() {
   const [evaluationKeywordInput, setEvaluationKeywordInput] = useState("");
   const [evaluationKeywords, setEvaluationKeywords] = useState<string[]>([]);
   const [evaluationSort, setEvaluationSort] = useState<{
-    key: "scope" | "name" | "projectType" | "evaluationYear" | "location" | "value";
+    key:
+      | "selected"
+      | "scope"
+      | "name"
+      | "projectType"
+      | "developer"
+      | "client"
+      | "evaluationYear"
+      | "location"
+      | "value";
     direction: "asc" | "desc";
   }>({ key: "evaluationYear", direction: "desc" });
+  const [selectedEvaluationProjects, setSelectedEvaluationProjects] =
+    useState<string[]>([]);
+  const [evaluationCollapsedTables, setEvaluationCollapsedTables] = useState<
+    string[]
+  >([]);
   const [evaluationColumnFilters, setEvaluationColumnFilters] = useState({
     scope: "",
     name: "",
     projectType: "",
+    developer: "",
+    client: "",
     year: "",
     location: "",
     valueMin: "",
@@ -1397,6 +1413,35 @@ function ContractorHubApp() {
     (project) => project.withinGroup,
   );
 
+  function evaluationProjectSelectionKey(
+    project: (typeof evaluationAllRecords)[number],
+  ) {
+    return `${project.contractorId}:${project.id}`;
+  }
+
+  function evaluationProjectIsSelected(
+    project: (typeof evaluationAllRecords)[number],
+  ) {
+    return selectedEvaluationProjects.includes(
+      evaluationProjectSelectionKey(project),
+    );
+  }
+
+  function toggleEvaluationProject(
+    project: (typeof evaluationAllRecords)[number],
+  ) {
+    const key = evaluationProjectSelectionKey(project);
+    setSelectedEvaluationProjects((current) =>
+      current.includes(key)
+        ? current.filter((item) => item !== key)
+        : [...current, key],
+    );
+  }
+
+  const evaluationSelectedRecords = evaluationAllRecords.filter(
+    evaluationProjectIsSelected,
+  );
+
   function toggleEvaluationSort(key: typeof evaluationSort.key) {
     setEvaluationSort((current) => ({
       key,
@@ -1407,14 +1452,21 @@ function ContractorHubApp() {
 
   function sortedEvaluationProjects(projects: typeof evaluationMatches) {
     return [...projects].sort((a, b) => {
-      const first = a[evaluationSort.key] ?? "";
-      const second = b[evaluationSort.key] ?? "";
-      const comparison =
-        typeof first === "number" && typeof second === "number"
-          ? first - second
-          : String(first).localeCompare(String(second), undefined, {
-              numeric: true,
-            });
+      let comparison = 0;
+      if (evaluationSort.key === "selected") {
+        comparison =
+          Number(evaluationProjectIsSelected(a)) -
+          Number(evaluationProjectIsSelected(b));
+      } else {
+        const first = a[evaluationSort.key] ?? "";
+        const second = b[evaluationSort.key] ?? "";
+        comparison =
+          typeof first === "number" && typeof second === "number"
+            ? first - second
+            : String(first).localeCompare(String(second), undefined, {
+                numeric: true,
+              });
+      }
       return evaluationSort.direction === "asc" ? comparison : -comparison;
     });
   }
@@ -1436,6 +1488,14 @@ function ContractorHubApp() {
         (project.projectType ?? "")
           .toLowerCase()
           .includes(evaluationColumnFilters.projectType.toLowerCase())) &&
+      (!evaluationColumnFilters.developer ||
+        (project.developer ?? "")
+          .toLowerCase()
+          .includes(evaluationColumnFilters.developer.toLowerCase())) &&
+      (!evaluationColumnFilters.client ||
+        (project.client ?? "")
+          .toLowerCase()
+          .includes(evaluationColumnFilters.client.toLowerCase())) &&
       (!evaluationColumnFilters.year ||
         String(project.evaluationYear).includes(evaluationColumnFilters.year)) &&
       (!evaluationColumnFilters.location ||
@@ -2318,6 +2378,8 @@ function ContractorHubApp() {
         "Scope",
         "Project",
         "Building type",
+        "Developer",
+        "Client / Main contractor",
         "Year",
         "Location",
         "Contract value (RM)",
@@ -2326,6 +2388,8 @@ function ContractorHubApp() {
         project.scope || "Not provided",
         project.name,
         project.projectType || "Not provided",
+        project.developer || "Not provided",
+        project.client || "Not provided",
         project.evaluationYear || "Not provided",
         project.location || "Not provided",
         project.value.toLocaleString("en-MY", {
@@ -2349,7 +2413,22 @@ function ContractorHubApp() {
           ]],
         )
       : "";
-    return `<div class="section"><h2>Overall project experience — ${escapeHtml(evaluationOverallYearLabel)}</h2>${overallSummary}${selectedScopeSummary}</div><div class="section"><h2>All-time and selected-period scope summary</h2>${scopeSummary}</div><div class="section"><h2>All projects</h2>${projectDetails(evaluationAllRecords)}</div><div class="section"><h2>Completed projects</h2>${projectDetails(evaluationCompletedProjects)}</div><div class="section"><h2>Ongoing projects</h2>${projectDetails(evaluationOngoingProjects)}</div><div class="section"><h2>Projects within the group</h2>${projectDetails(evaluationGroupProjects)}</div>`;
+    const reportProjects = evaluationSelectedRecords.length
+      ? evaluationSelectedRecords
+      : evaluationAllRecords;
+    const reportCompletedProjects = reportProjects.filter(
+      (project) => project.status === "Completed" && !project.withinGroup,
+    );
+    const reportOngoingProjects = reportProjects.filter(
+      (project) => project.status === "Ongoing" && !project.withinGroup,
+    );
+    const reportGroupProjects = reportProjects.filter(
+      (project) => project.withinGroup,
+    );
+    const selectionNote = evaluationSelectedRecords.length
+      ? `<p>${evaluationSelectedRecords.length} manually selected project${evaluationSelectedRecords.length === 1 ? "" : "s"} included in the detail tables.</p>`
+      : "<p>No manual project selection was made; all projects are included in the detail tables.</p>";
+    return `<div class="section"><h2>Overall project experience — ${escapeHtml(evaluationOverallYearLabel)}</h2>${overallSummary}${selectedScopeSummary}</div><div class="section"><h2>All-time and selected-period scope summary</h2>${scopeSummary}</div><div class="section"><h2>Projects selected for this report</h2>${selectionNote}</div><div class="section"><h2>All projects</h2>${projectDetails(reportProjects)}</div><div class="section"><h2>Completed projects</h2>${projectDetails(reportCompletedProjects)}</div><div class="section"><h2>Ongoing projects</h2>${projectDetails(reportOngoingProjects)}</div><div class="section"><h2>Projects within the group</h2>${projectDetails(reportGroupProjects)}</div>`;
   }
 
   function exportEvaluationReport() {
@@ -3549,13 +3628,20 @@ function ContractorHubApp() {
     emptyMessage: string,
   ) {
     const visibleProjects = filteredEvaluationProjects(projects);
+    const collapsed = evaluationCollapsedTables.includes(title);
+    const allVisibleSelected =
+      visibleProjects.length > 0 &&
+      visibleProjects.every(evaluationProjectIsSelected);
     const columns: Array<{
       key: typeof evaluationSort.key;
       label: string;
     }> = [
+      { key: "selected", label: "Print" },
       { key: "scope", label: "Scope" },
       { key: "name", label: "Project" },
       { key: "projectType", label: "Building type" },
+      { key: "developer", label: "Developer" },
+      { key: "client", label: "Client / Main contractor" },
       { key: "evaluationYear", label: "Year" },
       { key: "location", label: "Location" },
       { key: "value", label: "Contract value (RM)" },
@@ -3567,8 +3653,24 @@ function ContractorHubApp() {
             <p className="eyebrow">PROJECT DETAILS</p>
             <h3>{title}</h3>
           </div>
-          <b>{visibleProjects.length} projects</b>
+          <div className="evaluation-table-actions">
+            <b>{visibleProjects.length} projects</b>
+            <button
+              type="button"
+              className="secondary-button evaluation-collapse-button"
+              onClick={() =>
+                setEvaluationCollapsedTables((current) =>
+                  current.includes(title)
+                    ? current.filter((item) => item !== title)
+                    : [...current, title],
+                )
+              }
+            >
+              {collapsed ? "Expand table" : "Collapse table"}
+            </button>
+          </div>
         </header>
+        {!collapsed && (
         <div className="evaluation-table-wrap evaluation-detail-wrap">
           <table className="evaluation-table evaluation-project-table">
             <thead>
@@ -3593,6 +3695,23 @@ function ContractorHubApp() {
                 ))}
               </tr>
               <tr className="evaluation-filter-row">
+                <th className="evaluation-print-filter">
+                  <input
+                    type="checkbox"
+                    aria-label={`Select all visible ${title.toLowerCase()} for report`}
+                    checked={allVisibleSelected}
+                    onChange={() => {
+                      const visibleKeys = visibleProjects.map(
+                        evaluationProjectSelectionKey,
+                      );
+                      setSelectedEvaluationProjects((current) =>
+                        allVisibleSelected
+                          ? current.filter((key) => !visibleKeys.includes(key))
+                          : Array.from(new Set([...current, ...visibleKeys])),
+                      );
+                    }}
+                  />
+                </th>
                 <th>
                   <input
                     value={evaluationColumnFilters.scope}
@@ -3625,6 +3744,30 @@ function ContractorHubApp() {
                       setEvaluationColumnFilters((current) => ({
                         ...current,
                         projectType: event.target.value,
+                      }))
+                    }
+                  />
+                </th>
+                <th>
+                  <input
+                    value={evaluationColumnFilters.developer}
+                    placeholder="Filter developer"
+                    onChange={(event) =>
+                      setEvaluationColumnFilters((current) => ({
+                        ...current,
+                        developer: event.target.value,
+                      }))
+                    }
+                  />
+                </th>
+                <th>
+                  <input
+                    value={evaluationColumnFilters.client}
+                    placeholder="Filter client"
+                    onChange={(event) =>
+                      setEvaluationColumnFilters((current) => ({
+                        ...current,
+                        client: event.target.value,
                       }))
                     }
                   />
@@ -3685,6 +3828,14 @@ function ContractorHubApp() {
             <tbody>
               {sortedEvaluationProjects(visibleProjects).map((project) => (
                 <tr key={`${project.contractorId}-${project.id}`}>
+                  <td className="evaluation-print-cell">
+                    <input
+                      type="checkbox"
+                      aria-label={`Include ${project.name} in report`}
+                      checked={evaluationProjectIsSelected(project)}
+                      onChange={() => toggleEvaluationProject(project)}
+                    />
+                  </td>
                   <td>
                     <strong>{project.scope || "Not provided"}</strong>
                     {project.withinGroup && project.groupCompany && (
@@ -3693,6 +3844,8 @@ function ContractorHubApp() {
                   </td>
                   <td>{project.name}</td>
                   <td>{project.projectType || "Not provided"}</td>
+                  <td>{project.developer || "Not provided"}</td>
+                  <td>{project.client || "Not provided"}</td>
                   <td>{project.evaluationYear || "Not provided"}</td>
                   <td>{project.location || "Not provided"}</td>
                   <td>{money(project.value)}</td>
@@ -3707,6 +3860,7 @@ function ContractorHubApp() {
             </div>
           )}
         </div>
+        )}
       </section>
     );
   }
@@ -3723,7 +3877,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.31
+              Version 0.32
             </button>
           </div>
         </div>
@@ -5382,7 +5536,9 @@ function ContractorHubApp() {
                     className="primary-button"
                     onClick={exportEvaluationReport}
                   >
-                    ↓ Export evaluation report
+                    {evaluationSelectedRecords.length
+                      ? `Export selected (${evaluationSelectedRecords.length})`
+                      : "Export all projects"}
                   </button>
                 </div>
                 <section className="evaluation-workspace">
@@ -5442,6 +5598,8 @@ function ContractorHubApp() {
                           scope: "",
                           name: "",
                           projectType: "",
+                          developer: "",
+                          client: "",
                           year: "",
                           location: "",
                           valueMin: "",
@@ -5611,6 +5769,28 @@ function ContractorHubApp() {
                       </table>
                     </div>
                   </section>
+
+                  <div className="evaluation-print-selection">
+                    <div>
+                      <strong>
+                        {evaluationSelectedRecords.length} projects selected for
+                        report
+                      </strong>
+                      <span>
+                        Tick the Print column, then sort that column to group
+                        selected projects together.
+                      </span>
+                    </div>
+                    {evaluationSelectedRecords.length > 0 && (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => setSelectedEvaluationProjects([])}
+                      >
+                        Clear print selection
+                      </button>
+                    )}
+                  </div>
 
                   {renderEvaluationProjectTable(
                     "All projects",
@@ -9039,14 +9219,14 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.31</h2>
+            <h2 id="changelog-title">Version 0.32</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Project Evaluation now keeps a permanent All Projects table,
-                  adds filters for every project column, and compares each
-                  scope across all time and the selected year range.
+                  Project Evaluation adds Developer and Client columns,
+                  collapsible detail tables, and a Print selection column that
+                  controls which project rows are included in the export.
                 </p>
               </article>
               <article>

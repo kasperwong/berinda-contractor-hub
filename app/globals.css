@@ -5926,7 +5926,8 @@ td {
 .evaluation-section > header .eyebrow {
   margin: 0 0 5px;
 }
-.evaluation-section > header > b {
+.evaluation-section > header > b,
+.evaluation-table-actions > b {
   border-radius: 99px;
   background: var(--teal-soft);
   padding: 8px 12px;
@@ -5983,12 +5984,64 @@ td {
 .evaluation-keyword-table th:nth-child(n + 3) {
   width: 16%;
 }
-.evaluation-detail-wrap th:nth-child(1) { width: 28%; }
-.evaluation-detail-wrap th:nth-child(2) { width: 25%; }
-.evaluation-detail-wrap th:nth-child(3) { width: 14%; }
-.evaluation-detail-wrap th:nth-child(4) { width: 9%; }
-.evaluation-detail-wrap th:nth-child(5) { width: 10%; }
-.evaluation-detail-wrap th:nth-child(6) { width: 14%; }
+.evaluation-project-table th:nth-child(1) { width: 5%; }
+.evaluation-project-table th:nth-child(2) { width: 13%; }
+.evaluation-project-table th:nth-child(3) { width: 17%; }
+.evaluation-project-table th:nth-child(4) { width: 10%; }
+.evaluation-project-table th:nth-child(5) { width: 11%; }
+.evaluation-project-table th:nth-child(6) { width: 12%; }
+.evaluation-project-table th:nth-child(7) { width: 7%; }
+.evaluation-project-table th:nth-child(8) { width: 9%; }
+.evaluation-project-table th:nth-child(9) { width: 16%; }
+.evaluation-project-table th,
+.evaluation-project-table td {
+  padding-right: 5px;
+  padding-left: 5px;
+  font-size: 9px;
+}
+.evaluation-table-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.evaluation-collapse-button {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 10px;
+}
+.evaluation-print-cell,
+.evaluation-print-filter {
+  text-align: center !important;
+}
+.evaluation-print-cell input,
+.evaluation-print-filter input {
+  width: 16px;
+  height: 16px;
+  accent-color: #11887c;
+}
+.evaluation-print-selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #b7d8d3;
+  border-radius: 10px;
+  background: #f2fbf9;
+  padding: 14px 18px;
+}
+.evaluation-print-selection div {
+  display: grid;
+  gap: 3px;
+}
+.evaluation-print-selection strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+.evaluation-print-selection span {
+  color: var(--muted);
+  font-size: 10px;
+}
 .evaluation-sort-button {
   width: 100%;
   border: 0;
