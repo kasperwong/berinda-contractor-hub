@@ -1973,7 +1973,7 @@ function ContractorHubApp() {
     return `<table><thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
   }
   function reportDocument(title: string, subtitle: string, content: string) {
-    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@page{size:A4 landscape;margin:12mm}body{font-family:Arial,sans-serif;color:#183047;font-size:10px}h1{font-family:Georgia,serif;font-size:24px;margin:0 0 5px}p{color:#667789;margin:0 0 18px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cfd9df;padding:6px;vertical-align:top;text-align:left}th{background:#edf3f5;font-size:9px;text-transform:uppercase}td{line-height:1.4}.section{margin-top:20px}.section h2{font-size:15px}</style></head><body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)} · Generated ${new Date().toLocaleDateString("en-GB")}</p>${content}</body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@page{size:A4 landscape;margin:12mm}body{font-family:Arial,sans-serif;color:#183047;font-size:10px}h1{font-family:Georgia,serif;font-size:24px;margin:0 0 5px}p{color:#667789;margin:0 0 18px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cfd9df;padding:6px;vertical-align:top;text-align:left}th{background:#edf3f5;font-size:9px;text-transform:uppercase}td{line-height:1.4;white-space:pre-line}.section{margin-top:20px}.section h2{font-size:15px}</style></head><body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)} · Generated ${new Date().toLocaleDateString("en-GB")}</p>${content}</body></html>`;
   }
   function printReport(title: string, subtitle: string, content: string) {
     const printWindow = window.open("", "_blank");
@@ -2027,38 +2027,46 @@ function ContractorHubApp() {
     const projectFields = nominationProjectFields.length
       ? nominationProjectFields
       : (["name"] as ProjectExportField[]);
-    const projects = nominationSelectedContractors.flatMap((contractor) =>
-      reportProjectsFor(contractor)
-        .filter((project) => selectedProjects.includes(project.id))
-        .map((project) => ({ ...project, contractorName: contractor.name })),
-    );
     const contractorTable = reportTable(
-      contractorFields.map(
+      [
+        ...contractorFields.map(
         (field) =>
           CONTRACTOR_EXPORT_FIELDS.find((option) => option.key === field)
             ?.label ?? field,
-      ),
-      nominationSelectedContractors.map((contractor) =>
-        contractorFields.map((field) =>
-          contractorExportValue(contractor, field),
         ),
-      ),
-    );
-    const projectTable = reportTable(
-      [
-        "Contractor",
-        ...projectFields.map(
-          (field) =>
-            PROJECT_EXPORT_FIELDS.find((option) => option.key === field)
-              ?.label ?? field,
-        ),
+        "Reference projects",
       ],
-      projects.map((project) => [
-        project.contractorName,
-        ...projectFields.map((field) => projectExportValue(project, field)),
-      ]),
+      nominationSelectedContractors.map((contractor) => {
+        const references = reportProjectsFor(contractor).filter((project) =>
+          selectedProjects.includes(project.id),
+        );
+        const referenceText = references.length
+          ? references
+              .map((project, index) => {
+                const details = projectFields
+                  .filter((field) => field !== "name")
+                  .map((field) => {
+                    const label =
+                      PROJECT_EXPORT_FIELDS.find(
+                        (option) => option.key === field,
+                      )?.label ?? field;
+                    return `${label}: ${projectExportValue(project, field)}`;
+                  })
+                  .join(" · ");
+                const name = String(projectExportValue(project, "name"));
+                return `${index + 1}. ${name}${details ? `\n${details}` : ""}`;
+              })
+              .join("\n\n")
+          : "No reference project selected";
+        return [
+          ...contractorFields.map((field) =>
+            contractorExportValue(contractor, field),
+          ),
+          referenceText,
+        ];
+      }),
     );
-    return `<div class="section"><h2>Selected contractors</h2>${contractorTable}</div><div class="section"><h2>Selected project references</h2>${projectTable}</div>`;
+    return `<div class="section"><h2>Selected contractors and reference projects</h2>${contractorTable}</div>`;
   }
   function exportConfiguredNominationReport() {
     downloadFile(
@@ -3151,7 +3159,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.23
+              Version 0.24
             </button>
           </div>
         </div>
@@ -8345,16 +8353,15 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.23</h2>
+            <h2 id="changelog-title">Version 0.24</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Selected contractors now have direct actions for document
-                  requests, contractor lists and nomination reports. Report
-                  builders include faster search and direct project-register
-                  selection, while project reference reports show only chosen
-                  projects.
+                  Nomination reports now use one combined table. Each
+                  contractor row includes its selected reference projects in a
+                  dedicated column instead of placing projects in a separate
+                  table.
                 </p>
               </article>
               <article>
