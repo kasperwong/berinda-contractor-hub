@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { chuanLuckProjects } from "./chuan-luck-projects";
 import { AuthGate, useAuthProfile } from "./auth-gate";
+import { createProjectReferenceWorkbook } from "./project-reference-xlsx";
 import {
   collection,
   doc,
@@ -2075,6 +2076,18 @@ function ContractorHubApp() {
     notify(`${fileName} downloaded.`);
   }
 
+  function downloadBinaryFile(fileName: string, content: Uint8Array, type: string) {
+    const bytes = new Uint8Array(content.byteLength);
+    bytes.set(content);
+    const url = URL.createObjectURL(new Blob([bytes.buffer], { type }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    notify(`${fileName} downloaded.`);
+  }
+
   function exportContractorCsv() {
     const rows = contractorRows.map((contractor) => [
       contractor.name,
@@ -2590,6 +2603,25 @@ function ContractorHubApp() {
         projectReferenceReportContent(),
       ),
       "application/msword",
+    );
+  }
+
+  function exportProjectReferenceExcel() {
+    const projects = reportProjectsFor(projectReferenceContractor).filter(
+      (project) => projectReferenceSelectedIds.includes(project.id),
+    );
+    const fields = projectReferenceFields.length
+      ? projectReferenceFields
+      : PROJECT_EXPORT_FIELDS.map((field) => field.key);
+    const workbook = createProjectReferenceWorkbook(projects, fields);
+    const safeName = projectReferenceContractor.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    downloadBinaryFile(
+      `${safeName || "contractor"}-project-reference.xlsx`,
+      workbook,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
   }
 
@@ -3979,7 +4011,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.33
+              Version 0.34
             </button>
           </div>
         </div>
@@ -6530,6 +6562,13 @@ function ContractorHubApp() {
                           onClick={exportConfiguredProjectReference}
                         >
                           Download Word
+                        </button>
+                        <button
+                          className="secondary-button"
+                          disabled={!projectReferenceSelectedIds.length}
+                          onClick={exportProjectReferenceExcel}
+                        >
+                          Download Excel
                         </button>
                         <button
                           className="primary-button"
@@ -9340,15 +9379,14 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.33</h2>
+            <h2 id="changelog-title">Version 0.34</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Editors and administrators can delete one contractor&apos;s
-                  imported project dataset from the Imports page. The
-                  contractor profile remains active and the removed project
-                  data is retained in the administrator archive.
+                  Project Reference Report can now export selected projects to
+                  a formatted Excel workbook. It follows the supplied
+                  Contractor Projects layout and uses the selected field order.
                 </p>
               </article>
               <article>
