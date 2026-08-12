@@ -2491,17 +2491,24 @@ td {
   margin-top: 10px;
   overflow-y: auto;
 }
-.import-contractor-list button {
+.import-contractor-option {
   display: grid;
-  gap: 4px;
   border: 1px solid #dce3e7;
   border-radius: 8px;
-  padding: 12px;
   background: #fbfcfc;
+  overflow: hidden;
+}
+.import-contractor-list .import-contractor-select {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  border: 0;
+  padding: 12px;
+  background: transparent;
   color: var(--ink);
   text-align: left;
 }
-.import-contractor-list button.selected {
+.import-contractor-option.selected {
   border-color: #70a9a1;
   background: #eef7f5;
   box-shadow: inset 3px 0 var(--teal);
@@ -2517,6 +2524,24 @@ td {
   margin-top: 3px;
   color: var(--teal);
   font-weight: 650;
+}
+.import-contractor-list .import-project-delete {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid #ead8d6;
+  padding: 8px 12px;
+  background: #fff7f6;
+  color: #a13e35;
+  font-size: 8px;
+  font-weight: 750;
+  text-align: left;
+}
+.import-contractor-list .import-project-delete:hover:not(:disabled) {
+  background: #fbe9e7;
+}
+.import-contractor-list .import-project-delete:disabled {
+  cursor: wait;
+  opacity: 0.6;
 }
 .import-method-grid {
   display: grid;

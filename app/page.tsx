@@ -69,6 +69,16 @@ type Contractor = {
   projects: Project[];
 };
 
+type ArchivedProjectImport = {
+  id: string;
+  contractorId: string;
+  contractorName: string;
+  projectCount: number;
+  archivedAt: string;
+  archivedBy: string;
+  batchIds: string[];
+};
+
 type ContractorImportRow = {
   name: string;
   trade: string;
@@ -776,6 +786,9 @@ function ContractorHubApp() {
   const [archivedContractors, setArchivedContractors] = useState<
     Array<Contractor & { archivedAt: string }>
   >([]);
+  const [archivedProjectImports, setArchivedProjectImports] = useState<
+    ArchivedProjectImport[]
+  >([]);
   const [groupCompanies, setGroupCompanies] = useState([
     { id: "berinda-group", name: "Berinda Group" },
     { id: "johor-land", name: "Johor Land Berhad" },
@@ -827,6 +840,7 @@ function ContractorHubApp() {
           const data = snapshot.data() as {
             contractorRows?: typeof initialContractors;
             archivedContractors?: Array<Contractor & { archivedAt: string }>;
+            archivedProjectImports?: ArchivedProjectImport[];
             groupCompanies?: Array<{ id: string; name: string }>;
             groupValidationYears?: number;
             projectBatchManifest?: string[];
@@ -859,6 +873,8 @@ function ContractorHubApp() {
             );
           if (Array.isArray(data.archivedContractors))
             setArchivedContractors(data.archivedContractors);
+          if (Array.isArray(data.archivedProjectImports))
+            setArchivedProjectImports(data.archivedProjectImports);
           if (Array.isArray(data.groupCompanies))
             setGroupCompanies(data.groupCompanies);
           if (typeof data.groupValidationYears === "number")
@@ -907,6 +923,7 @@ function ContractorHubApp() {
           groupId: "berinda-group",
           contractorRows: baseRows,
           archivedContractors,
+          archivedProjectImports,
           groupCompanies,
           groupValidationYears,
           projectBatchManifest,
@@ -925,6 +942,7 @@ function ContractorHubApp() {
     db,
     contractorRows,
     archivedContractors,
+    archivedProjectImports,
     groupCompanies,
     groupValidationYears,
   ]);
@@ -942,6 +960,7 @@ function ContractorHubApp() {
   const [projectImportRows, setProjectImportRows] = useState<Project[]>([]);
   const [projectImportError, setProjectImportError] = useState("");
   const [projectImportSaving, setProjectImportSaving] = useState(false);
+  const [projectDeleteSavingId, setProjectDeleteSavingId] = useState("");
   const [selectedExportTrades, setSelectedExportTrades] = useState<string[]>(
     [],
   );
@@ -3175,6 +3194,89 @@ function ContractorHubApp() {
     }
   }
 
+  async function archiveImportedProjects(contractor: Contractor) {
+    if (!canEdit || !contractor.projects.length) return;
+    const projectCount = contractor.projects.length;
+    if (
+      !window.confirm(
+        `Delete all ${projectCount} imported projects for ${contractor.name}?\n\nThe contractor profile will remain. The deleted import will be retained in the administrator archive and removed from all project lists and reports.`,
+      )
+    )
+      return;
+
+    const archivedAt = new Date().toISOString();
+    const archiveId = `${contractor.id}-${Date.now()}`;
+    const archiveBatches = dedupeProjects(contractor.projects)
+      .reduce<Project[][]>((groups, project, index) => {
+        const groupIndex = Math.floor(index / 25);
+        (groups[groupIndex] ??= []).push(project);
+        return groups;
+      }, [])
+      .map((projects, index) => ({
+        id: `${archiveId}-${index}`,
+        projects,
+      }));
+    const archiveRecord: ArchivedProjectImport = {
+      id: archiveId,
+      contractorId: contractor.id,
+      contractorName: contractor.name,
+      projectCount,
+      archivedAt,
+      archivedBy: authProfile?.email ?? "Unknown user",
+      batchIds: archiveBatches.map((batch) => batch.id),
+    };
+    const updatedContractor: Contractor = {
+      ...contractor,
+      projects: [],
+      lastProjectImportDate: undefined,
+      lastProjectImportCount: 0,
+      updated: "Just now",
+    };
+    setProjectDeleteSavingId(contractor.id);
+    try {
+      await Promise.all(
+        archiveBatches.map((batch) =>
+          setDoc(
+            doc(
+              db,
+              "appState",
+              "berinda-group",
+              "projectArchives",
+              batch.id,
+            ),
+            cleanForFirestore({
+              ...batch,
+              contractorId: contractor.id,
+              contractorName: contractor.name,
+              archivedAt,
+              archivedBy: archiveRecord.archivedBy,
+            }),
+          ),
+        ),
+      );
+    } catch (error) {
+      console.error("Project archive failed", error);
+      notify("Could not archive these projects. Nothing was deleted.");
+      setProjectDeleteSavingId("");
+      return;
+    }
+    setArchivedProjectImports((current) => [archiveRecord, ...current]);
+    setContractorRows((current) =>
+      current.map((item) =>
+        item.id === contractor.id ? updatedContractor : item,
+      ),
+    );
+    if (activeContractor.id === contractor.id)
+      setActiveContractor(updatedContractor);
+    setSelectedProjects([]);
+    setProjectImportRows([]);
+    setProjectImportFile("");
+    notify(
+      `${projectCount} imported projects for ${contractor.name} moved to the administrator archive.`,
+    );
+    setProjectDeleteSavingId("");
+  }
+
   function contractorFromImport(
     row: ContractorImportRow,
     index: number,
@@ -3877,7 +3979,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.32
+              Version 0.33
             </button>
           </div>
         </div>
@@ -5283,29 +5385,48 @@ function ContractorHubApp() {
                         </label>
                         <div className="import-contractor-list">
                           {importContractorMatches.map((contractor) => (
-                            <button
+                            <div
                               className={
                                 selectedImportContractorId === contractor.id
-                                  ? "selected"
-                                  : ""
+                                  ? "import-contractor-option selected"
+                                  : "import-contractor-option"
                               }
                               key={contractor.id}
-                              onClick={() =>
-                                setSelectedImportContractorId(contractor.id)
-                              }
                             >
-                              <strong>{contractor.name}</strong>
-                              <span>
-                                {contractor.trade} · CIDB {contractor.grade} ·{" "}
-                                {contractor.location}
-                              </span>
-                              <span className="import-history">
-                                Imported projects: {contractor.projects.length} · Last import: {formatImportDate(contractor.lastProjectImportDate)}
-                                {contractor.lastProjectImportCount
-                                  ? ` · ${contractor.lastProjectImportCount} added`
-                                  : ""}
-                              </span>
-                            </button>
+                              <button
+                                type="button"
+                                className="import-contractor-select"
+                                onClick={() =>
+                                  setSelectedImportContractorId(contractor.id)
+                                }
+                              >
+                                <strong>{contractor.name}</strong>
+                                <span>
+                                  {contractor.trade} · CIDB {contractor.grade} ·{" "}
+                                  {contractor.location}
+                                </span>
+                                <span className="import-history">
+                                  Imported projects: {contractor.projects.length} · Last import: {formatImportDate(contractor.lastProjectImportDate)}
+                                  {contractor.lastProjectImportCount
+                                    ? ` · ${contractor.lastProjectImportCount} added`
+                                    : ""}
+                                </span>
+                              </button>
+                              {canEdit && contractor.projects.length > 0 && (
+                                <button
+                                  type="button"
+                                  className="import-project-delete"
+                                  disabled={projectDeleteSavingId === contractor.id}
+                                  onClick={() =>
+                                    void archiveImportedProjects(contractor)
+                                  }
+                                >
+                                  {projectDeleteSavingId === contractor.id
+                                    ? "Archiving…"
+                                    : `Delete imported projects (${contractor.projects.length})`}
+                                </button>
+                              )}
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -9219,14 +9340,15 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.32</h2>
+            <h2 id="changelog-title">Version 0.33</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Project Evaluation adds Developer and Client columns,
-                  collapsible detail tables, and a Print selection column that
-                  controls which project rows are included in the export.
+                  Editors and administrators can delete one contractor&apos;s
+                  imported project dataset from the Imports page. The
+                  contractor profile remains active and the removed project
+                  data is retained in the administrator archive.
                 </p>
               </article>
               <article>
