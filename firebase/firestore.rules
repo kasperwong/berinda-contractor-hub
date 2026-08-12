@@ -329,6 +329,12 @@ service cloud.firestore {
         allow create, update: if roleIs(['admin', 'editor', 'group_admin', 'company_admin']);
         allow delete: if false;
       }
+
+      match /projectArchives/{archiveBatchId} {
+        allow read: if roleIs(['admin', 'group_admin']);
+        allow create, update: if roleIs(['admin', 'editor', 'group_admin', 'company_admin']);
+        allow delete: if roleIs(['admin', 'group_admin']);
+      }
     }
 
     match /auditLogs/{logId} {
