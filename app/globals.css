@@ -4248,6 +4248,167 @@ td {
 .matcher-result-head > span {
   margin: 0;
 }
+.matcher-selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.matcher-selection-actions span {
+  margin: 0;
+  white-space: nowrap;
+}
+.matcher-selection-actions button,
+.matcher-group-select button {
+  min-height: 32px;
+  border: 1px solid #9ecac4;
+  border-radius: 7px;
+  padding: 0 12px;
+  background: #fff;
+  color: var(--teal);
+  font-size: 9px;
+  font-weight: 750;
+}
+.matcher-groups-wrap {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  background: #f5f8f9;
+}
+.matcher-contractor-groups {
+  display: grid;
+  gap: 10px;
+}
+.matcher-contractor-group {
+  overflow: hidden;
+  border: 1px solid #d8e1e6;
+  border-radius: 10px;
+  background: #fff;
+}
+.matcher-contractor-group.expanded {
+  border-color: #86beb6;
+  box-shadow: 0 4px 14px rgba(24, 71, 85, 0.07);
+}
+.matcher-contractor-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  min-height: 74px;
+}
+.matcher-expand-button {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 34px minmax(220px, 2fr) minmax(100px, 0.7fr) minmax(130px, 0.8fr) minmax(95px, 0.6fr);
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  padding: 11px 16px;
+  background: transparent;
+  color: #263c50;
+  text-align: left;
+}
+.matcher-expand-button:hover {
+  background: #f4faf9;
+}
+.matcher-expand-button strong,
+.matcher-expand-button small {
+  display: block;
+}
+.matcher-expand-button strong {
+  font-size: 11px;
+}
+.matcher-expand-button small {
+  margin-top: 4px;
+  color: #718090;
+  font-size: 8px;
+  line-height: 1.35;
+}
+.matcher-chevron {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--teal-soft);
+  color: var(--teal);
+  font-size: 17px;
+  font-weight: 750;
+}
+.matcher-project-count strong,
+.matcher-best-score strong {
+  color: var(--teal);
+  font-family: Georgia, serif;
+  font-size: 20px;
+}
+.matcher-group-select {
+  min-width: 125px;
+  display: grid;
+  place-content: center;
+  gap: 5px;
+  padding: 10px 14px;
+  border-left: 1px solid var(--line);
+  text-align: center;
+}
+.matcher-group-select span {
+  color: #72808e;
+  font-size: 8px;
+}
+.matcher-project-register-wrap {
+  overflow-x: auto;
+  border-top: 1px solid #dce5e9;
+}
+.matcher-project-register {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.matcher-project-register th {
+  padding: 8px 5px;
+  background: #f2f6f8;
+  color: #657589;
+  font-size: 7px;
+  line-height: 1.2;
+  text-align: left;
+  white-space: normal;
+}
+.matcher-project-register th:nth-child(1) { width: 4%; }
+.matcher-project-register th:nth-child(2) { width: 15%; }
+.matcher-project-register th:nth-child(3) { width: 19%; }
+.matcher-project-register th:nth-child(4) { width: 8%; }
+.matcher-project-register th:nth-child(5) { width: 8%; }
+.matcher-project-register th:nth-child(6) { width: 9%; }
+.matcher-project-register th:nth-child(7) { width: 6%; }
+.matcher-project-register th:nth-child(8) { width: 8%; }
+.matcher-project-register th:nth-child(9),
+.matcher-project-register th:nth-child(10) { width: 7%; }
+.matcher-project-register th:nth-child(11) { width: 6%; }
+.matcher-project-register th:nth-child(12) { width: 5%; }
+.matcher-project-register td {
+  padding: 9px 5px;
+  border-top: 1px solid #e4eaee;
+  color: #526276;
+  font-size: 8px;
+  line-height: 1.35;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.matcher-project-register tr.selected td {
+  background: #f1f9f7;
+}
+.matcher-project-register td strong,
+.matcher-project-register td small {
+  display: block;
+}
+.matcher-project-register td strong {
+  color: #263b50;
+  font-size: 8px;
+}
+.matcher-project-register td small {
+  margin-top: 4px;
+  color: #718191;
+  font-size: 7px;
+}
 .matcher-table-wrap {
   min-height: 0;
   flex: 1;
@@ -5771,6 +5932,40 @@ td {
   .matcher-controls.compact {
     grid-template-columns: 1fr;
     align-items: stretch;
+  }
+  .matcher-result-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .matcher-selection-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .matcher-groups-wrap {
+    padding: 8px;
+  }
+  .matcher-contractor-summary {
+    grid-template-columns: 1fr;
+  }
+  .matcher-expand-button {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 10px;
+  }
+  .matcher-group-value,
+  .matcher-best-score {
+    display: none;
+  }
+  .matcher-group-select {
+    min-width: 0;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+    text-align: left;
+  }
+  .matcher-project-register {
+    min-width: 1180px;
   }
   .matcher-range-grid {
     grid-template-columns: 1fr 1fr;

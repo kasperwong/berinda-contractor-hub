@@ -1165,6 +1165,9 @@ function ContractorHubApp() {
   const [matcherMaxCost, setMatcherMaxCost] = useState("");
   const [matcherFromYear, setMatcherFromYear] = useState("");
   const [matcherToYear, setMatcherToYear] = useState("");
+  const [expandedMatcherContractors, setExpandedMatcherContractors] = useState<
+    string[]
+  >([]);
   const addContractorFormRef = useRef<HTMLFormElement>(null);
 
   function groupProjectsFor(contractor: Contractor): GroupCompanyProject[] {
@@ -2047,8 +2050,44 @@ function ContractorHubApp() {
     })
     .sort(
       (a, b) => b.relevance - a.relevance || b.project.value - a.project.value,
-    )
-    .slice(0, 100);
+    );
+  const relevantProjectGroups = relevantProjectMatches.reduce<
+    Array<{
+      contractor: Contractor;
+      matches: typeof relevantProjectMatches;
+      highestRelevance: number;
+      totalValue: number;
+    }>
+  >((groups, match) => {
+    const existing = groups.find(
+      (group) => group.contractor.id === match.contractor.id,
+    );
+    if (existing) {
+      existing.matches.push(match);
+      existing.highestRelevance = Math.max(
+        existing.highestRelevance,
+        match.relevance,
+      );
+      existing.totalValue += match.project.value;
+      return groups;
+    }
+    groups.push({
+      contractor: match.contractor,
+      matches: [match],
+      highestRelevance: match.relevance,
+      totalValue: match.project.value,
+    });
+    return groups;
+  }, []);
+  const relevantProjectIds = Array.from(
+    new Set(relevantProjectMatches.map((match) => match.project.id)),
+  );
+  const selectedRelevantProjectCount = relevantProjectIds.filter((id) =>
+    selectedProjects.includes(id),
+  ).length;
+  const allRelevantProjectsSelected =
+    relevantProjectIds.length > 0 &&
+    relevantProjectIds.every((id) => selectedProjects.includes(id));
 
   const sectionTitles = {
     overview: "Overview",
@@ -3658,6 +3697,36 @@ function ContractorHubApp() {
     );
   }
 
+  function toggleMatcherContractor(contractorId: string) {
+    setExpandedMatcherContractors((current) =>
+      current.includes(contractorId)
+        ? current.filter((id) => id !== contractorId)
+        : [...current, contractorId],
+    );
+  }
+
+  function setMatchedProjectsSelected(
+    matches: typeof relevantProjectMatches,
+    selected: boolean,
+  ) {
+    const projectIds = Array.from(
+      new Set(matches.map((match) => match.project.id)),
+    );
+    const contractorIds = Array.from(
+      new Set(matches.map((match) => match.contractor.id)),
+    );
+    setSelectedProjects((current) =>
+      selected
+        ? Array.from(new Set([...current, ...projectIds]))
+        : current.filter((id) => !projectIds.includes(id)),
+    );
+    if (selected) {
+      setSelectedContractors((current) =>
+        Array.from(new Set([...current, ...contractorIds])),
+      );
+    }
+  }
+
   function renderProjectCard(project: Project) {
     const selected = selectedProjects.includes(project.id);
     return (
@@ -4011,7 +4080,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.34
+              Version 0.35
             </button>
           </div>
         </div>
@@ -7746,89 +7815,170 @@ function ContractorHubApp() {
             </div>
             <div className="matcher-result-head">
               <div>
-                <strong>Ranked relevant projects</strong>
+                <strong>Matching contractors and projects</strong>
                 <span>
                   {matcherTerms.length
-                    ? `${matcherTerms.length} meaningful scope keywords analysed`
+                    ? `${relevantProjectGroups.length} contractor${relevantProjectGroups.length === 1 ? "" : "s"} · ${relevantProjectMatches.length} related project${relevantProjectMatches.length === 1 ? "" : "s"}`
                     : "Paste a scope to begin matching"}
                 </span>
               </div>
-              <span>Highest relevance first</span>
+              {relevantProjectMatches.length > 0 && (
+                <div className="matcher-selection-actions">
+                  <span>
+                    {selectedRelevantProjectCount} of {relevantProjectIds.length}{" "}
+                    matching selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMatchedProjectsSelected(
+                        relevantProjectMatches,
+                        !allRelevantProjectsSelected,
+                      )
+                    }
+                  >
+                    {allRelevantProjectsSelected
+                      ? "Clear all matching"
+                      : "Select all matching"}
+                  </button>
+                </div>
+              )}
             </div>
-            <div className="matcher-table-wrap">
+            <div className="matcher-groups-wrap">
               {matcherTerms.length ? (
-                <table className="matcher-table">
-                  <thead>
-                    <tr>
-                      <th>Select</th>
-                      <th>Relevance</th>
-                      <th>Contractor</th>
-                      <th>Project and matching scope</th>
-                      <th>Client / location</th>
-                      <th>Value</th>
-                      <th>Year</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {relevantProjectMatches.map(
-                      ({
-                        contractor,
-                        project,
-                        projectYear,
-                        relevance,
-                        matchedTerms,
-                      }) => {
-                        const selected = selectedProjects.includes(project.id);
-                        return (
-                          <tr key={`${contractor.id}-${project.id}`}>
-                            <td>
-                              <button
-                                className={`row-check ${selected ? "checked" : ""}`}
-                                onClick={() =>
-                                  toggleMatchedProject(contractor, project.id)
-                                }
-                                aria-label={`${selected ? "Remove" : "Select"} ${project.name}`}
-                              >
-                                {selected ? "✓" : ""}
-                              </button>
-                            </td>
-                            <td>
-                              <strong className="relevance-score">
-                                {relevance}%
-                              </strong>
-                            </td>
-                            <td>
-                              <strong>{contractor.name}</strong>
+                <div className="matcher-contractor-groups">
+                  {relevantProjectGroups.map((group) => {
+                    const expanded = expandedMatcherContractors.includes(
+                      group.contractor.id,
+                    );
+                    const groupIds = Array.from(
+                      new Set(group.matches.map((match) => match.project.id)),
+                    );
+                    const selectedCount = groupIds.filter((id) =>
+                      selectedProjects.includes(id),
+                    ).length;
+                    const allSelected =
+                      groupIds.length > 0 &&
+                      groupIds.every((id) => selectedProjects.includes(id));
+                    return (
+                      <section
+                        className={`matcher-contractor-group ${expanded ? "expanded" : ""}`}
+                        key={group.contractor.id}
+                      >
+                        <header className="matcher-contractor-summary">
+                          <button
+                            type="button"
+                            className="matcher-expand-button"
+                            onClick={() =>
+                              toggleMatcherContractor(group.contractor.id)
+                            }
+                            aria-expanded={expanded}
+                          >
+                            <span className="matcher-chevron">
+                              {expanded ? "−" : "+"}
+                            </span>
+                            <span className="matcher-contractor-identity">
+                              <strong>{group.contractor.name}</strong>
                               <small>
-                                {contractor.trade} · CIDB {contractor.grade}
+                                {contractorTrades(group.contractor).join(", ")} ·
+                                CIDB {group.contractor.grade}
                               </small>
-                            </td>
-                            <td>
-                              <strong>{project.name}</strong>
-                              <small>{project.scope}</small>
-                              <div className="matched-terms">
-                                {matchedTerms.slice(0, 6).map((term) => (
-                                  <span key={term}>{term}</span>
-                                ))}
-                              </div>
-                            </td>
-                            <td>
-                              {project.client}
-                              <small>{project.location}</small>
-                            </td>
-                            <td>
-                              <strong>{money(project.value)}</strong>
-                            </td>
-                            <td>
-                              {projectYear || "-"}
-                              <small>{project.status}</small>
-                            </td>
-                          </tr>
-                        );
-                      },
-                    )}
-                  </tbody>
-                </table>
+                            </span>
+                            <span className="matcher-project-count">
+                              <strong>{group.matches.length}</strong>
+                              <small>matching projects</small>
+                            </span>
+                            <span className="matcher-group-value">
+                              <strong>{money(group.totalValue)}</strong>
+                              <small>combined contract value</small>
+                            </span>
+                            <span className="matcher-best-score">
+                              <strong>{group.highestRelevance}%</strong>
+                              <small>highest relevance</small>
+                            </span>
+                          </button>
+                          <div className="matcher-group-select">
+                            <span>
+                              {selectedCount}/{groupIds.length} selected
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setMatchedProjectsSelected(
+                                  group.matches,
+                                  !allSelected,
+                                )
+                              }
+                            >
+                              {allSelected ? "Clear" : "Select all"}
+                            </button>
+                          </div>
+                        </header>
+                        {expanded && (
+                          <div className="matcher-project-register-wrap">
+                            <table className="matcher-project-register">
+                              <thead>
+                                <tr>
+                                  <th>Select</th>
+                                  {PROJECT_TABLE_COLUMNS.map((column) => (
+                                    <th key={column.key}>{column.label}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {group.matches.map(
+                                  ({ contractor, project, relevance, matchedTerms }) => {
+                                    const selected = selectedProjects.includes(project.id);
+                                    const dates = project.period.split(" – ");
+                                    return (
+                                      <tr
+                                        key={`${contractor.id}-${project.id}`}
+                                        className={selected ? "selected" : ""}
+                                      >
+                                        <td>
+                                          <button
+                                            className={`row-check ${selected ? "checked" : ""}`}
+                                            onClick={() => toggleMatchedProject(contractor, project.id)}
+                                            aria-label={`${selected ? "Remove" : "Select"} ${project.name}`}
+                                          >
+                                            {selected ? "✓" : ""}
+                                          </button>
+                                        </td>
+                                        <td className="matcher-project-name">
+                                          <strong>{project.name}</strong>
+                                          <small>{relevance}% relevant</small>
+                                          <div className="matched-terms">
+                                            {matchedTerms.slice(0, 6).map((term) => (
+                                              <span key={term}>{term}</span>
+                                            ))}
+                                          </div>
+                                        </td>
+                                        <td>{project.scope || "-"}</td>
+                                        <td>{project.projectType ?? "-"}</td>
+                                        <td>{project.developer ?? "-"}</td>
+                                        <td>{project.client || "-"}</td>
+                                        <td>{project.location || "-"}</td>
+                                        <td><strong>{money(project.value)}</strong></td>
+                                        <td>{formatProjectDate(project.commencementDate ?? dates[0])}</td>
+                                        <td>{formatProjectDate(project.completionDate ?? dates[1])}</td>
+                                        <td>
+                                          <span className={`table-project-status ${project.status.toLowerCase()}`}>
+                                            {project.status}
+                                          </span>
+                                        </td>
+                                        <td>{project.progress ?? "-"}</td>
+                                      </tr>
+                                    );
+                                  },
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </section>
+                    );
+                  })}
+                </div>
               ) : (
                 <div className="matcher-empty">
                   <strong>
@@ -9379,14 +9529,15 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.34</h2>
+            <h2 id="changelog-title">Version 0.35</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Project Reference Report can now export selected projects to
-                  a formatted Excel workbook. It follows the supplied
-                  Contractor Projects layout and uses the selected field order.
+                  Relevant Experience Finder now groups keyword matches by
+                  contractor. Expand a contractor to view the full project
+                  register and select one, all within a contractor, or all
+                  matching projects for reporting.
                 </p>
               </article>
               <article>
