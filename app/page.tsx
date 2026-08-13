@@ -2385,7 +2385,7 @@ function ContractorHubApp() {
     return `<table><thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
   }
   function reportDocument(title: string, subtitle: string, content: string) {
-    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@page{size:A4 landscape;margin:12mm}body{font-family:Arial,sans-serif;color:#183047;font-size:10px}h1{font-family:Georgia,serif;font-size:24px;margin:0 0 5px}p{color:#667789;margin:0 0 18px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cfd9df;padding:6px;vertical-align:top;text-align:left}th{background:#edf3f5;font-size:9px;text-transform:uppercase}td{line-height:1.4;white-space:pre-line}.section{margin-top:20px}.section h2{font-size:15px}</style></head><body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)} · Generated ${new Date().toLocaleDateString("en-GB")}</p>${content}</body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@page{size:A4 landscape;margin:12mm}body{font-family:Arial,sans-serif;color:#183047;font-size:10px}h1{font-family:Georgia,serif;font-size:24px;margin:0 0 5px}p{color:#667789;margin:0 0 18px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cfd9df;padding:6px;vertical-align:top;text-align:left}th{background:#edf3f5;font-size:9px;text-transform:uppercase}td{line-height:1.4;white-space:pre-line}.section{margin-top:20px}.section h2{font-size:15px}.reference-project-table{table-layout:fixed;font-size:8.5px}.reference-project-table th{padding:6px 5px;line-height:1.1;overflow-wrap:anywhere}.reference-project-table td{padding:7px 5px;line-height:1.25;overflow-wrap:anywhere}.reference-projects-cell{font-size:9px}.reference-projects-cell ol{margin:0;padding-left:22px}.reference-projects-cell li{margin:0 0 12px;padding-left:4px}.reference-projects-cell li:last-child{margin-bottom:0}.reference-projects-cell li>strong{display:block;font-weight:400}.reference-project-details{margin-top:7px}.reference-project-details span{display:block;margin-top:1px}.reference-project-details b{font-weight:600}.no-reference-project{margin:0;color:#7a8794;font-style:italic}</style></head><body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)} · Generated ${new Date().toLocaleDateString("en-GB")}</p>${content}</body></html>`;
   }
   function printReport(title: string, subtitle: string, content: string) {
     const printWindow = window.open("", "_blank");
@@ -2562,20 +2562,20 @@ function ContractorHubApp() {
     const projectFields = nominationProjectFields.length
       ? nominationProjectFields
       : (["name"] as ProjectExportField[]);
-    const contractorTable = reportTable(
-      [
-        ...contractorFields.map(
+    const headers = [
+      ...contractorFields.map(
         (field) =>
           CONTRACTOR_EXPORT_FIELDS.find((option) => option.key === field)
             ?.label ?? field,
-        ),
-        "Reference projects",
-      ],
-      nominationSelectedContractors.map((contractor) => {
+      ),
+      "Reference projects",
+    ];
+    const contractorRows = nominationSelectedContractors
+      .map((contractor) => {
         const references = reportProjectsFor(contractor).filter((project) =>
           selectedProjects.includes(project.id),
         );
-        const referenceText = references.length
+        const referenceHtml = references.length
           ? references
               .map((project, index) => {
                 const details = projectFields
@@ -2585,23 +2585,29 @@ function ContractorHubApp() {
                       PROJECT_EXPORT_FIELDS.find(
                         (option) => option.key === field,
                       )?.label ?? field;
-                    return `${label}: ${projectExportValue(project, field)}`;
+                    return `<span><b>${escapeHtml(label)}:</b> ${escapeHtml(projectExportValue(project, field))}</span>`;
                   })
-                  .join(" · ");
+                  .join("");
                 const name = String(projectExportValue(project, "name"));
-                return `${index + 1}. ${name}${details ? `\n${details}` : ""}`;
+                return `<li><strong>${escapeHtml(name)}</strong>${details ? `<div class="reference-project-details">${details}</div>` : ""}</li>`;
               })
-              .join("\n\n")
-          : "No reference project selected";
-        return [
-          ...contractorFields.map((field) =>
-            contractorExportValue(contractor, field),
-          ),
-          referenceText,
-        ];
-      }),
-    );
-    return `<div class="section"><h2>Selected contractors and reference projects</h2>${contractorTable}</div>`;
+              .join("")
+          : `<p class="no-reference-project">No reference project selected</p>`;
+        const contractorCells = contractorFields
+          .map(
+            (field) =>
+              `<td>${escapeHtml(contractorExportValue(contractor, field))}</td>`,
+          )
+          .join("");
+        return `<tr>${contractorCells}<td class="reference-projects-cell">${references.length ? `<ol>${referenceHtml}</ol>` : referenceHtml}</td></tr>`;
+      })
+      .join("");
+    const compactWidth = Math.max(4, Math.floor(48 / contractorFields.length));
+    const columnWidths = [
+      ...contractorFields.map(() => `${compactWidth}%`),
+      `${100 - compactWidth * contractorFields.length}%`,
+    ];
+    return `<div class="section reference-project-report"><h2>Selected contractors and reference projects</h2><table class="reference-project-table"><colgroup>${columnWidths.map((width) => `<col style="width:${width}">`).join("")}</colgroup><thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${contractorRows}</tbody></table></div>`;
   }
   function exportConfiguredNominationReport() {
     downloadFile(
@@ -4080,7 +4086,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.35
+              Version 0.36
             </button>
           </div>
         </div>
@@ -9529,15 +9535,23 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.35</h2>
+            <h2 id="changelog-title">Version 0.36</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Relevant Experience Finder now groups keyword matches by
-                  contractor. Expand a contractor to view the full project
-                  register and select one, all within a contractor, or all
-                  matching projects for reporting.
+                  The nomination Word export now places one contractor on each
+                  row and lists all selected reference projects in a single
+                  wide, numbered Reference Projects column.
+                </p>
+              </article>
+              <article>
+                <strong>Relevant experience finder</strong>
+                <p>
+                  Keyword matches are grouped by contractor. Expand a
+                  contractor to view the full project register and select one,
+                  all within a contractor, or all matching projects for
+                  reporting.
                 </p>
               </article>
               <article>
