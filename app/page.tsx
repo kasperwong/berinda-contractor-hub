@@ -423,6 +423,16 @@ function contractorTrades(contractor: Contractor) {
     .filter(Boolean);
 }
 
+function normalizeMatcherText(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function cleanForFirestore<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
@@ -2048,38 +2058,85 @@ function ContractorHubApp() {
     "untuk",
     "dengan",
   ]);
-  const matcherTerms = Array.from(
+  const matcherSegments = Array.from(
     new Set(
       matcherScope
-        .toLowerCase()
-        .match(/[a-z0-9]+/g)
-        ?.filter((term) => term.length > 2 && !matcherStopWords.has(term)) ??
-        [],
+        .split(",")
+        .map((segment) => normalizeMatcherText(segment))
+        .filter(Boolean),
     ),
+  );
+  const hasCommaSeparatedSearch = matcherScope.includes(",");
+  const matcherKeywordGroups = matcherSegments.flatMap((segment) => {
+    const allTerms = segment.match(/[a-z0-9]+/g) ?? [];
+    const meaningfulTerms = allTerms.filter(
+      (term) => term.length > 2 && !matcherStopWords.has(term),
+    );
+    const terms = meaningfulTerms.length ? meaningfulTerms : allTerms;
+    if (hasCommaSeparatedSearch) {
+      return [{ label: segment, phrase: segment, terms }];
+    }
+    return terms.map((term) => ({ label: term, phrase: term, terms: [term] }));
+  });
+  const matcherTerms = Array.from(
+    new Set(matcherKeywordGroups.flatMap((group) => group.terms)),
   );
   const relevantProjectMatches = contractorRows
     .flatMap((contractor) =>
       contractor.projects.map((project) => {
         const projectYear = Number(
-          `${project.name} ${project.period}`.match(/\b(19|20)\d{2}\b/)?.[0] ??
-            0,
+          `${project.name} ${project.period} ${project.commencementDate ?? ""} ${project.completionDate ?? ""}`.match(
+            /\b(19|20)\d{2}\b/,
+          )?.[0] ?? 0,
         );
-        const searchable =
-          `${project.name} ${project.scope} ${project.projectType ?? ""} ${project.developer ?? ""} ${project.client} ${project.location} ${project.status}`.toLowerCase();
-        const matchedTerms = matcherTerms.filter((term) =>
+        const searchable = normalizeMatcherText(
+          [
+            project.name,
+            project.scope,
+            project.projectType,
+            project.developer,
+            project.client,
+            project.location,
+            project.value,
+            money(project.value),
+            project.period,
+            project.commencementDate,
+            formatProjectDate(project.commencementDate),
+            project.completionDate,
+            formatProjectDate(project.completionDate),
+            project.status,
+            project.progress,
+            project.sourcePage ? `source page ${project.sourcePage}` : "",
+            contractor.name,
+            contractor.trade,
+            contractor.grade ? `cidb ${contractor.grade}` : "",
+            contractor.location,
+          ].join(" "),
+        );
+        const matchedKeywordGroups = matcherKeywordGroups.filter(
+          (group) =>
+            searchable.includes(group.phrase) ||
+            group.terms.every((term) => searchable.includes(term)),
+        );
+        const matchedTerms = matchedKeywordGroups.map((group) => group.label);
+        const matchedIndividualTerms = matcherTerms.filter((term) =>
           searchable.includes(term),
         );
-        const coverage = matcherTerms.length
-          ? matchedTerms.length / Math.min(matcherTerms.length, 18)
+        const coverage = matcherKeywordGroups.length
+          ? matchedKeywordGroups.length /
+            Math.min(matcherKeywordGroups.length, 18)
           : 0;
-        const phraseBonus =
-          matcherScope.trim().length > 12 &&
-          searchable.includes(matcherScope.trim().toLowerCase())
-            ? 20
-            : 0;
+        const termCoverage = matcherTerms.length
+          ? matchedIndividualTerms.length / Math.min(matcherTerms.length, 24)
+          : 0;
+        const phraseBonus = matchedKeywordGroups.some(
+          (group) => group.phrase.length > 5 && searchable.includes(group.phrase),
+        )
+          ? 4
+          : 0;
         const relevance = Math.min(
           99,
-          Math.round(coverage * 100 + phraseBonus),
+          Math.round(coverage * 75 + termCoverage * 20 + phraseBonus),
         );
         return { contractor, project, projectYear, relevance, matchedTerms };
       }),
@@ -2093,7 +2150,7 @@ function ContractorHubApp() {
         matcherTrade === "All trades" ||
         contractorTrades(match.contractor).includes(matcherTrade);
       return (
-        matcherTerms.length > 0 &&
+        matcherKeywordGroups.length > 0 &&
         match.relevance > 0 &&
         tradeMatches &&
         match.project.value >= minCost &&
@@ -4137,7 +4194,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.37
+              Version 0.38
             </button>
           </div>
         </div>
@@ -7942,9 +7999,8 @@ function ContractorHubApp() {
                   Find the most relevant contractor projects
                 </h2>
                 <p>
-                  Paste the proposed project scope. Results are ranked
-                  automatically using matching work types, project details,
-                  clients and locations.
+                  Search every project field with one or more keywords. Results
+                  matching more comma-separated keywords rank higher.
                 </p>
               </div>
               <div>
@@ -7954,12 +8010,18 @@ function ContractorHubApp() {
             </div>
             <div className="matcher-controls compact">
               <label className="matcher-scope">
-                Proposed project scope
+                Project search keywords
                 <input
                   value={matcherScope}
                   onChange={(event) => setMatcherScope(event.target.value)}
-                  placeholder="Paste scope or keywords..."
+                  placeholder="e.g. piling, Johor, reservoir, 2025"
+                  aria-describedby="matcher-keyword-help"
                 />
+                <span id="matcher-keyword-help">
+                  Separate keywords with commas. Search includes project name,
+                  scope, type, developer, client, location, value, dates,
+                  status, progress and contractor details.
+                </span>
               </label>
               <label>
                 Trade
@@ -8018,6 +8080,7 @@ function ContractorHubApp() {
               <button
                 type="button"
                 onClick={() => {
+                  setMatcherScope("");
                   setMatcherTrade("All trades");
                   setMatcherMinCost("");
                   setMatcherMaxCost("");
@@ -8032,7 +8095,7 @@ function ContractorHubApp() {
               <div>
                 <strong>Matching contractors and projects</strong>
                 <span>
-                  {matcherTerms.length
+                  {matcherKeywordGroups.length
                     ? `${relevantProjectGroups.length} contractor${relevantProjectGroups.length === 1 ? "" : "s"} · ${relevantProjectMatches.length} related project${relevantProjectMatches.length === 1 ? "" : "s"}`
                     : "Paste a scope to begin matching"}
                 </span>
@@ -8060,7 +8123,7 @@ function ContractorHubApp() {
               )}
             </div>
             <div className="matcher-groups-wrap">
-              {matcherTerms.length ? (
+              {matcherKeywordGroups.length ? (
                 <div className="matcher-contractor-groups">
                   {relevantProjectGroups.map((group) => {
                     const expanded = expandedMatcherContractors.includes(
@@ -9775,15 +9838,16 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.37</h2>
+            <h2 id="changelog-title">Version 0.38</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Contractor pagination now uses the real filtered database
-                  count. Each page shows up to 10 contractors, navigation
-                  buttons load the correct rows, and the displayed range and
-                  page total update automatically.
+                  Relevant-project search now accepts comma-separated keywords
+                  and checks the complete project record, including project
+                  name, scope, type, developer, client, location, value, dates,
+                  status and progress. Contractor details are searchable too,
+                  and records matching more keywords rank higher.
                 </p>
               </article>
               <article>
