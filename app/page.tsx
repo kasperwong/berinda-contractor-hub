@@ -14,6 +14,8 @@ import {
 } from "firebase/firestore";
 import { getFirebaseClient } from "@/lib/firebase/client";
 
+const CONTRACTORS_PER_PAGE = 10;
+
 type Project = {
   id: string;
   name: string;
@@ -991,8 +993,10 @@ function ContractorHubApp() {
   >(["name", "scope", "client", "location", "value", "status"]);
   const [projectReferenceContractorId, setProjectReferenceContractorId] =
     useState(initialContractors[0].id);
-  const [showProjectReferenceContractorPicker, setShowProjectReferenceContractorPicker] =
-    useState(false);
+  const [
+    showProjectReferenceContractorPicker,
+    setShowProjectReferenceContractorPicker,
+  ] = useState(false);
   const [projectReferenceFilter, setProjectReferenceFilter] = useState<
     "All" | "Completed" | "Ongoing" | "Group"
   >("All");
@@ -1001,8 +1005,7 @@ function ContractorHubApp() {
   const [projectReferenceFields, setProjectReferenceFields] = useState<
     ProjectExportField[]
   >(["name", "scope", "client", "location", "value", "status"]);
-  const [evaluationContractorId, setEvaluationContractorId] =
-    useState("all");
+  const [evaluationContractorId, setEvaluationContractorId] = useState("all");
   const [evaluationYearFrom, setEvaluationYearFrom] = useState("");
   const [evaluationYearTo, setEvaluationYearTo] = useState("");
   const [evaluationKeywordInput, setEvaluationKeywordInput] = useState("");
@@ -1020,8 +1023,9 @@ function ContractorHubApp() {
       | "value";
     direction: "asc" | "desc";
   }>({ key: "evaluationYear", direction: "desc" });
-  const [selectedEvaluationProjects, setSelectedEvaluationProjects] =
-    useState<string[]>([]);
+  const [selectedEvaluationProjects, setSelectedEvaluationProjects] = useState<
+    string[]
+  >([]);
   const [evaluationCollapsedTables, setEvaluationCollapsedTables] = useState<
     string[]
   >([]);
@@ -1269,8 +1273,8 @@ function ContractorHubApp() {
   function projectEvaluationYear(project: Project) {
     const source =
       project.status === "Completed"
-        ? project.completionDate ?? project.period
-        : project.commencementDate ?? project.period;
+        ? (project.completionDate ?? project.period)
+        : (project.commencementDate ?? project.period);
     return Number(String(source ?? "").match(/(?:19|20)\d{2}/)?.[0]) || 0;
   }
 
@@ -1278,11 +1282,7 @@ function ContractorHubApp() {
     project: Project & { groupCompany?: string },
     scope: string,
   ) {
-    const searchable = [
-      project.name,
-      project.scope,
-      project.projectType,
-    ]
+    const searchable = [project.name, project.scope, project.projectType]
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
@@ -1321,13 +1321,13 @@ function ContractorHubApp() {
       })),
     );
   const evaluationRecords = evaluationAllRecords.filter((project) => {
-      const from = Number(evaluationYearFrom) || 0;
-      const to = Number(evaluationYearTo) || Number.POSITIVE_INFINITY;
-      return (
-        (!evaluationYearFrom && !evaluationYearTo) ||
-        (project.evaluationYear >= from && project.evaluationYear <= to)
-      );
-    });
+    const from = Number(evaluationYearFrom) || 0;
+    const to = Number(evaluationYearTo) || Number.POSITIVE_INFINITY;
+    return (
+      (!evaluationYearFrom && !evaluationYearTo) ||
+      (project.evaluationYear >= from && project.evaluationYear <= to)
+    );
+  });
   const evaluationOverallCompleted = evaluationAllRecords.filter(
     (project) => project.status === "Completed",
   );
@@ -1372,9 +1372,8 @@ function ContractorHubApp() {
         ),
       )
     : evaluationAllRecords;
-  const evaluationKeywordRows = (evaluationKeywords.length
-    ? evaluationKeywords
-    : ["All projects"]
+  const evaluationKeywordRows = (
+    evaluationKeywords.length ? evaluationKeywords : ["All projects"]
   ).map((keyword) => {
     const projects =
       keyword === "All projects"
@@ -1389,14 +1388,16 @@ function ContractorHubApp() {
     return {
       keyword,
       completedCount: completed.length,
-      completedValue: completed.reduce((sum, project) => sum + project.value, 0),
+      completedValue: completed.reduce(
+        (sum, project) => sum + project.value,
+        0,
+      ),
       ongoingCount: ongoing.length,
       ongoingValue: ongoing.reduce((sum, project) => sum + project.value, 0),
     };
   });
-  const evaluationAllTimeScopeRows = (evaluationKeywords.length
-    ? evaluationKeywords
-    : ["All projects"]
+  const evaluationAllTimeScopeRows = (
+    evaluationKeywords.length ? evaluationKeywords : ["All projects"]
   ).map((scope) => {
     const projects =
       scope === "All projects"
@@ -1412,20 +1413,24 @@ function ContractorHubApp() {
       keyword: scope,
       period: "All time",
       completedCount: completed.length,
-      completedValue: completed.reduce((sum, project) => sum + project.value, 0),
+      completedValue: completed.reduce(
+        (sum, project) => sum + project.value,
+        0,
+      ),
       ongoingCount: ongoing.length,
       ongoingValue: ongoing.reduce((sum, project) => sum + project.value, 0),
     };
   });
-  const evaluationPeriodRows = evaluationYearFrom || evaluationYearTo
-    ? [
-        ...evaluationAllTimeScopeRows,
-        ...evaluationKeywordRows.map((row) => ({
-          ...row,
-          period: evaluationRangeLabel,
-        })),
-      ]
-    : evaluationAllTimeScopeRows;
+  const evaluationPeriodRows =
+    evaluationYearFrom || evaluationYearTo
+      ? [
+          ...evaluationAllTimeScopeRows,
+          ...evaluationKeywordRows.map((row) => ({
+            ...row,
+            period: evaluationRangeLabel,
+          })),
+        ]
+      : evaluationAllTimeScopeRows;
   const evaluationCompletedProjects = evaluationMatches.filter(
     (project) => project.status === "Completed" && !project.withinGroup,
   );
@@ -1498,35 +1503,38 @@ function ContractorHubApp() {
     const minimum = Number(evaluationColumnFilters.valueMin) || 0;
     const maximum =
       Number(evaluationColumnFilters.valueMax) || Number.POSITIVE_INFINITY;
-    return projects.filter((project) =>
-      (!evaluationColumnFilters.scope ||
-        project.scope
-          .toLowerCase()
-          .includes(evaluationColumnFilters.scope.toLowerCase())) &&
-      (!evaluationColumnFilters.name ||
-        project.name
-          .toLowerCase()
-          .includes(evaluationColumnFilters.name.toLowerCase())) &&
-      (!evaluationColumnFilters.projectType ||
-        (project.projectType ?? "")
-          .toLowerCase()
-          .includes(evaluationColumnFilters.projectType.toLowerCase())) &&
-      (!evaluationColumnFilters.developer ||
-        (project.developer ?? "")
-          .toLowerCase()
-          .includes(evaluationColumnFilters.developer.toLowerCase())) &&
-      (!evaluationColumnFilters.client ||
-        (project.client ?? "")
-          .toLowerCase()
-          .includes(evaluationColumnFilters.client.toLowerCase())) &&
-      (!evaluationColumnFilters.year ||
-        String(project.evaluationYear).includes(evaluationColumnFilters.year)) &&
-      (!evaluationColumnFilters.location ||
-        project.location
-          .toLowerCase()
-          .includes(evaluationColumnFilters.location.toLowerCase())) &&
-      project.value >= minimum &&
-      project.value <= maximum,
+    return projects.filter(
+      (project) =>
+        (!evaluationColumnFilters.scope ||
+          project.scope
+            .toLowerCase()
+            .includes(evaluationColumnFilters.scope.toLowerCase())) &&
+        (!evaluationColumnFilters.name ||
+          project.name
+            .toLowerCase()
+            .includes(evaluationColumnFilters.name.toLowerCase())) &&
+        (!evaluationColumnFilters.projectType ||
+          (project.projectType ?? "")
+            .toLowerCase()
+            .includes(evaluationColumnFilters.projectType.toLowerCase())) &&
+        (!evaluationColumnFilters.developer ||
+          (project.developer ?? "")
+            .toLowerCase()
+            .includes(evaluationColumnFilters.developer.toLowerCase())) &&
+        (!evaluationColumnFilters.client ||
+          (project.client ?? "")
+            .toLowerCase()
+            .includes(evaluationColumnFilters.client.toLowerCase())) &&
+        (!evaluationColumnFilters.year ||
+          String(project.evaluationYear).includes(
+            evaluationColumnFilters.year,
+          )) &&
+        (!evaluationColumnFilters.location ||
+          project.location
+            .toLowerCase()
+            .includes(evaluationColumnFilters.location.toLowerCase())) &&
+        project.value >= minimum &&
+        project.value <= maximum,
     );
   }
 
@@ -1650,6 +1658,53 @@ function ContractorHubApp() {
           });
     return contractorSort.direction === "asc" ? comparison : -comparison;
   });
+  const totalContractorPages = Math.max(
+    1,
+    Math.ceil(sortedContractors.length / CONTRACTORS_PER_PAGE),
+  );
+  const contractorPage = Math.min(currentPage, totalContractorPages);
+  const contractorPageStart = (contractorPage - 1) * CONTRACTORS_PER_PAGE;
+  const paginatedContractors = sortedContractors.slice(
+    contractorPageStart,
+    contractorPageStart + CONTRACTORS_PER_PAGE,
+  );
+  const contractorPaginationItems: Array<number | "ellipsis"> = (() => {
+    if (totalContractorPages <= 7) {
+      return Array.from(
+        { length: totalContractorPages },
+        (_, index) => index + 1,
+      );
+    }
+
+    const pages = new Set([
+      1,
+      totalContractorPages,
+      contractorPage - 1,
+      contractorPage,
+      contractorPage + 1,
+    ]);
+    const validPages = [...pages]
+      .filter((page) => page >= 1 && page <= totalContractorPages)
+      .sort((a, b) => a - b);
+    const items: Array<number | "ellipsis"> = [];
+
+    validPages.forEach((page, index) => {
+      if (index > 0 && page - validPages[index - 1] > 1) {
+        items.push("ellipsis");
+      }
+      items.push(page);
+    });
+
+    return items;
+  })();
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [query, statusFilter, tradeFilter, locationFilter, columnFilters]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(Math.max(1, page), totalContractorPages));
+  }, [totalContractorPages]);
   const selectedRequestContractors = contractorRows.filter((contractor) =>
     selectedContractors.includes(contractor.id),
   );
@@ -1792,8 +1847,8 @@ function ContractorHubApp() {
       !nominationSelectedOnly || selectedContractors.includes(contractor.id);
     return searchMatches && selectionMatches;
   });
-  const nominationSelectedContractors = contractorRows.filter(
-    (contractor) => selectedContractors.includes(contractor.id),
+  const nominationSelectedContractors = contractorRows.filter((contractor) =>
+    selectedContractors.includes(contractor.id),
   );
   const projectReferenceContractor =
     contractorRows.find(
@@ -1894,9 +1949,7 @@ function ContractorHubApp() {
       client: project.client,
       location: project.location,
       value: `${project.value} ${money(project.value)}`,
-      commencementDate: formatProjectDate(
-        project.commencementDate ?? dates[0],
-      ),
+      commencementDate: formatProjectDate(project.commencementDate ?? dates[0]),
       completionDate: formatProjectDate(project.completionDate ?? dates[1]),
       status: project.status,
       progress: project.progress ?? "",
@@ -1916,7 +1969,8 @@ function ContractorHubApp() {
       : 0;
     if (projectValueMin && projectValue < Number(projectValueMin)) return false;
     if (projectValueMax && projectValue > Number(projectValueMax)) return false;
-    if (projectYearFrom && commencementYear < Number(projectYearFrom)) return false;
+    if (projectYearFrom && commencementYear < Number(projectYearFrom))
+      return false;
     if (projectYearTo && commencementYear > Number(projectYearTo)) return false;
     if (
       projectCompletionYearFrom &&
@@ -2115,7 +2169,11 @@ function ContractorHubApp() {
     notify(`${fileName} downloaded.`);
   }
 
-  function downloadBinaryFile(fileName: string, content: Uint8Array, type: string) {
+  function downloadBinaryFile(
+    fileName: string,
+    content: Uint8Array,
+    type: string,
+  ) {
     const bytes = new Uint8Array(content.byteLength);
     bytes.set(content);
     const url = URL.createObjectURL(new Blob([bytes.buffer], { type }));
@@ -2406,19 +2464,21 @@ function ContractorHubApp() {
         "Total contract sum (RM)",
         "Highest project value (RM)",
       ],
-      [[
-        evaluationOverallCompleted.length,
-        evaluationOverallOngoing.length,
-        evaluationOverallGroup.length,
-        evaluationOverallValue.toLocaleString("en-MY", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        }),
-        evaluationHighestValue.toLocaleString("en-MY", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        }),
-      ]],
+      [
+        [
+          evaluationOverallCompleted.length,
+          evaluationOverallOngoing.length,
+          evaluationOverallGroup.length,
+          evaluationOverallValue.toLocaleString("en-MY", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }),
+          evaluationHighestValue.toLocaleString("en-MY", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }),
+        ],
+      ],
     );
     const scopeSummary = reportTable(
       [
@@ -2444,44 +2504,51 @@ function ContractorHubApp() {
         }),
       ]),
     );
-    const projectDetails = (projects: typeof evaluationMatches) => reportTable(
-      [
-        "Scope",
-        "Project",
-        "Building type",
-        "Developer",
-        "Client / Main contractor",
-        "Year",
-        "Location",
-        "Contract value (RM)",
-      ],
-      sortedEvaluationProjects(projects).map((project) => [
-        project.scope || "Not provided",
-        project.name,
-        project.projectType || "Not provided",
-        project.developer || "Not provided",
-        project.client || "Not provided",
-        project.evaluationYear || "Not provided",
-        project.location || "Not provided",
-        project.value.toLocaleString("en-MY", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        }),
-      ]),
-    );
+    const projectDetails = (projects: typeof evaluationMatches) =>
+      reportTable(
+        [
+          "Scope",
+          "Project",
+          "Building type",
+          "Developer",
+          "Client / Main contractor",
+          "Year",
+          "Location",
+          "Contract value (RM)",
+        ],
+        sortedEvaluationProjects(projects).map((project) => [
+          project.scope || "Not provided",
+          project.name,
+          project.projectType || "Not provided",
+          project.developer || "Not provided",
+          project.client || "Not provided",
+          project.evaluationYear || "Not provided",
+          project.location || "Not provided",
+          project.value.toLocaleString("en-MY", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }),
+        ]),
+      );
     const selectedScopeSummary = evaluationKeywords.length
       ? reportTable(
-          ["Selected scopes", "All-year projects", "All-year contract sum (RM)"],
-          [[
-            evaluationKeywords.join(", "),
-            evaluationOverallScopeMatches.length,
-            evaluationOverallScopeMatches
-              .reduce((sum, project) => sum + project.value, 0)
-              .toLocaleString("en-MY", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              }),
-          ]],
+          [
+            "Selected scopes",
+            "All-year projects",
+            "All-year contract sum (RM)",
+          ],
+          [
+            [
+              evaluationKeywords.join(", "),
+              evaluationOverallScopeMatches.length,
+              evaluationOverallScopeMatches
+                .reduce((sum, project) => sum + project.value, 0)
+                .toLocaleString("en-MY", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                }),
+            ],
+          ],
         )
       : "";
     const reportProjects = evaluationSelectedRecords.length
@@ -2506,9 +2573,9 @@ function ContractorHubApp() {
     const contractorLabel =
       evaluationContractorId === "all"
         ? "All contractors"
-        : contractorRows.find(
+        : (contractorRows.find(
             (contractor) => contractor.id === evaluationContractorId,
-          )?.name ?? "Selected contractor";
+          )?.name ?? "Selected contractor");
     downloadFile(
       "project-evaluation-report.doc",
       reportDocument(
@@ -3239,13 +3306,7 @@ function ContractorHubApp() {
       );
       projectGroups.forEach((group) => {
         batch.set(
-          doc(
-            db,
-            "appState",
-            "berinda-group",
-            "projectBatches",
-            group.id,
-          ),
+          doc(db, "appState", "berinda-group", "projectBatches", group.id),
           cleanForFirestore({ projects: group.projects }),
         );
       });
@@ -3314,13 +3375,7 @@ function ContractorHubApp() {
       await Promise.all(
         archiveBatches.map((batch) =>
           setDoc(
-            doc(
-              db,
-              "appState",
-              "berinda-group",
-              "projectArchives",
-              batch.id,
-            ),
+            doc(db, "appState", "berinda-group", "projectArchives", batch.id),
             cleanForFirestore({
               ...batch,
               contractorId: contractor.id,
@@ -3523,9 +3578,7 @@ function ContractorHubApp() {
     setActiveContractor(updatedContractor);
     setContractorRows((current) =>
       current.map((contractor) =>
-        contractor.id === updatedContractor.id
-          ? updatedContractor
-          : contractor,
+        contractor.id === updatedContractor.id ? updatedContractor : contractor,
       ),
     );
     setEditingProject(null);
@@ -3591,10 +3644,7 @@ function ContractorHubApp() {
   function handleEditProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const score = Math.min(
-      100,
-      Math.max(0, Number(form.get("score")) || 0),
-    );
+    const score = Math.min(100, Math.max(0, Number(form.get("score")) || 0));
     const updatedContractor = {
       ...activeContractor,
       name: String(form.get("name")),
@@ -3807,8 +3857,7 @@ function ContractorHubApp() {
             <span className="building-type-value">
               {project.projectType ?? "Building type not provided"}
             </span>{" "}
-            · Developer:{" "}
-            {project.developer ?? "Not provided"}
+            · Developer: {project.developer ?? "Not provided"}
           </small>
         </span>
         <span>
@@ -3880,195 +3929,197 @@ function ContractorHubApp() {
           </div>
         </header>
         {!collapsed && (
-        <div className="evaluation-table-wrap evaluation-detail-wrap">
-          <table className="evaluation-table evaluation-project-table">
-            <thead>
-              <tr>
-                {columns.map((column) => (
-                  <th key={column.key}>
-                    <button
-                      type="button"
-                      className="evaluation-sort-button"
-                      onClick={() => toggleEvaluationSort(column.key)}
-                    >
-                      {column.label}{" "}
-                      <span>
-                        {evaluationSort.key === column.key
-                          ? evaluationSort.direction === "asc"
-                            ? "↑"
-                            : "↓"
-                          : "↕"}
-                      </span>
-                    </button>
-                  </th>
-                ))}
-              </tr>
-              <tr className="evaluation-filter-row">
-                <th className="evaluation-print-filter">
-                  <input
-                    type="checkbox"
-                    aria-label={`Select all visible ${title.toLowerCase()} for report`}
-                    checked={allVisibleSelected}
-                    onChange={() => {
-                      const visibleKeys = visibleProjects.map(
-                        evaluationProjectSelectionKey,
-                      );
-                      setSelectedEvaluationProjects((current) =>
-                        allVisibleSelected
-                          ? current.filter((key) => !visibleKeys.includes(key))
-                          : Array.from(new Set([...current, ...visibleKeys])),
-                      );
-                    }}
-                  />
-                </th>
-                <th>
-                  <input
-                    value={evaluationColumnFilters.scope}
-                    placeholder="Filter scope"
-                    onChange={(event) =>
-                      setEvaluationColumnFilters((current) => ({
-                        ...current,
-                        scope: event.target.value,
-                      }))
-                    }
-                  />
-                </th>
-                <th>
-                  <input
-                    value={evaluationColumnFilters.name}
-                    placeholder="Filter project"
-                    onChange={(event) =>
-                      setEvaluationColumnFilters((current) => ({
-                        ...current,
-                        name: event.target.value,
-                      }))
-                    }
-                  />
-                </th>
-                <th>
-                  <input
-                    value={evaluationColumnFilters.projectType}
-                    placeholder="Filter type"
-                    onChange={(event) =>
-                      setEvaluationColumnFilters((current) => ({
-                        ...current,
-                        projectType: event.target.value,
-                      }))
-                    }
-                  />
-                </th>
-                <th>
-                  <input
-                    value={evaluationColumnFilters.developer}
-                    placeholder="Filter developer"
-                    onChange={(event) =>
-                      setEvaluationColumnFilters((current) => ({
-                        ...current,
-                        developer: event.target.value,
-                      }))
-                    }
-                  />
-                </th>
-                <th>
-                  <input
-                    value={evaluationColumnFilters.client}
-                    placeholder="Filter client"
-                    onChange={(event) =>
-                      setEvaluationColumnFilters((current) => ({
-                        ...current,
-                        client: event.target.value,
-                      }))
-                    }
-                  />
-                </th>
-                <th>
-                  <input
-                    value={evaluationColumnFilters.year}
-                    placeholder="Year"
-                    inputMode="numeric"
-                    onChange={(event) =>
-                      setEvaluationColumnFilters((current) => ({
-                        ...current,
-                        year: event.target.value,
-                      }))
-                    }
-                  />
-                </th>
-                <th>
-                  <input
-                    value={evaluationColumnFilters.location}
-                    placeholder="Location"
-                    onChange={(event) =>
-                      setEvaluationColumnFilters((current) => ({
-                        ...current,
-                        location: event.target.value,
-                      }))
-                    }
-                  />
-                </th>
-                <th>
-                  <div className="evaluation-value-filter">
-                    <input
-                      value={evaluationColumnFilters.valueMin}
-                      placeholder="Min"
-                      inputMode="decimal"
-                      onChange={(event) =>
-                        setEvaluationColumnFilters((current) => ({
-                          ...current,
-                          valueMin: event.target.value,
-                        }))
-                      }
-                    />
-                    <input
-                      value={evaluationColumnFilters.valueMax}
-                      placeholder="Max"
-                      inputMode="decimal"
-                      onChange={(event) =>
-                        setEvaluationColumnFilters((current) => ({
-                          ...current,
-                          valueMax: event.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedEvaluationProjects(visibleProjects).map((project) => (
-                <tr key={`${project.contractorId}-${project.id}`}>
-                  <td className="evaluation-print-cell">
+          <div className="evaluation-table-wrap evaluation-detail-wrap">
+            <table className="evaluation-table evaluation-project-table">
+              <thead>
+                <tr>
+                  {columns.map((column) => (
+                    <th key={column.key}>
+                      <button
+                        type="button"
+                        className="evaluation-sort-button"
+                        onClick={() => toggleEvaluationSort(column.key)}
+                      >
+                        {column.label}{" "}
+                        <span>
+                          {evaluationSort.key === column.key
+                            ? evaluationSort.direction === "asc"
+                              ? "↑"
+                              : "↓"
+                            : "↕"}
+                        </span>
+                      </button>
+                    </th>
+                  ))}
+                </tr>
+                <tr className="evaluation-filter-row">
+                  <th className="evaluation-print-filter">
                     <input
                       type="checkbox"
-                      aria-label={`Include ${project.name} in report`}
-                      checked={evaluationProjectIsSelected(project)}
-                      onChange={() => toggleEvaluationProject(project)}
+                      aria-label={`Select all visible ${title.toLowerCase()} for report`}
+                      checked={allVisibleSelected}
+                      onChange={() => {
+                        const visibleKeys = visibleProjects.map(
+                          evaluationProjectSelectionKey,
+                        );
+                        setSelectedEvaluationProjects((current) =>
+                          allVisibleSelected
+                            ? current.filter(
+                                (key) => !visibleKeys.includes(key),
+                              )
+                            : Array.from(new Set([...current, ...visibleKeys])),
+                        );
+                      }}
                     />
-                  </td>
-                  <td>
-                    <strong>{project.scope || "Not provided"}</strong>
-                    {project.withinGroup && project.groupCompany && (
-                      <small>Group company: {project.groupCompany}</small>
-                    )}
-                  </td>
-                  <td>{project.name}</td>
-                  <td>{project.projectType || "Not provided"}</td>
-                  <td>{project.developer || "Not provided"}</td>
-                  <td>{project.client || "Not provided"}</td>
-                  <td>{project.evaluationYear || "Not provided"}</td>
-                  <td>{project.location || "Not provided"}</td>
-                  <td>{money(project.value)}</td>
+                  </th>
+                  <th>
+                    <input
+                      value={evaluationColumnFilters.scope}
+                      placeholder="Filter scope"
+                      onChange={(event) =>
+                        setEvaluationColumnFilters((current) => ({
+                          ...current,
+                          scope: event.target.value,
+                        }))
+                      }
+                    />
+                  </th>
+                  <th>
+                    <input
+                      value={evaluationColumnFilters.name}
+                      placeholder="Filter project"
+                      onChange={(event) =>
+                        setEvaluationColumnFilters((current) => ({
+                          ...current,
+                          name: event.target.value,
+                        }))
+                      }
+                    />
+                  </th>
+                  <th>
+                    <input
+                      value={evaluationColumnFilters.projectType}
+                      placeholder="Filter type"
+                      onChange={(event) =>
+                        setEvaluationColumnFilters((current) => ({
+                          ...current,
+                          projectType: event.target.value,
+                        }))
+                      }
+                    />
+                  </th>
+                  <th>
+                    <input
+                      value={evaluationColumnFilters.developer}
+                      placeholder="Filter developer"
+                      onChange={(event) =>
+                        setEvaluationColumnFilters((current) => ({
+                          ...current,
+                          developer: event.target.value,
+                        }))
+                      }
+                    />
+                  </th>
+                  <th>
+                    <input
+                      value={evaluationColumnFilters.client}
+                      placeholder="Filter client"
+                      onChange={(event) =>
+                        setEvaluationColumnFilters((current) => ({
+                          ...current,
+                          client: event.target.value,
+                        }))
+                      }
+                    />
+                  </th>
+                  <th>
+                    <input
+                      value={evaluationColumnFilters.year}
+                      placeholder="Year"
+                      inputMode="numeric"
+                      onChange={(event) =>
+                        setEvaluationColumnFilters((current) => ({
+                          ...current,
+                          year: event.target.value,
+                        }))
+                      }
+                    />
+                  </th>
+                  <th>
+                    <input
+                      value={evaluationColumnFilters.location}
+                      placeholder="Location"
+                      onChange={(event) =>
+                        setEvaluationColumnFilters((current) => ({
+                          ...current,
+                          location: event.target.value,
+                        }))
+                      }
+                    />
+                  </th>
+                  <th>
+                    <div className="evaluation-value-filter">
+                      <input
+                        value={evaluationColumnFilters.valueMin}
+                        placeholder="Min"
+                        inputMode="decimal"
+                        onChange={(event) =>
+                          setEvaluationColumnFilters((current) => ({
+                            ...current,
+                            valueMin: event.target.value,
+                          }))
+                        }
+                      />
+                      <input
+                        value={evaluationColumnFilters.valueMax}
+                        placeholder="Max"
+                        inputMode="decimal"
+                        onChange={(event) =>
+                          setEvaluationColumnFilters((current) => ({
+                            ...current,
+                            valueMax: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {!visibleProjects.length && (
-            <div className="empty-state">
-              <strong>No projects</strong>
-              <span>{emptyMessage}</span>
-            </div>
-          )}
-        </div>
+              </thead>
+              <tbody>
+                {sortedEvaluationProjects(visibleProjects).map((project) => (
+                  <tr key={`${project.contractorId}-${project.id}`}>
+                    <td className="evaluation-print-cell">
+                      <input
+                        type="checkbox"
+                        aria-label={`Include ${project.name} in report`}
+                        checked={evaluationProjectIsSelected(project)}
+                        onChange={() => toggleEvaluationProject(project)}
+                      />
+                    </td>
+                    <td>
+                      <strong>{project.scope || "Not provided"}</strong>
+                      {project.withinGroup && project.groupCompany && (
+                        <small>Group company: {project.groupCompany}</small>
+                      )}
+                    </td>
+                    <td>{project.name}</td>
+                    <td>{project.projectType || "Not provided"}</td>
+                    <td>{project.developer || "Not provided"}</td>
+                    <td>{project.client || "Not provided"}</td>
+                    <td>{project.evaluationYear || "Not provided"}</td>
+                    <td>{project.location || "Not provided"}</td>
+                    <td>{money(project.value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!visibleProjects.length && (
+              <div className="empty-state">
+                <strong>No projects</strong>
+                <span>{emptyMessage}</span>
+              </div>
+            )}
+          </div>
         )}
       </section>
     );
@@ -4086,7 +4137,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.36
+              Version 0.37
             </button>
           </div>
         </div>
@@ -4764,7 +4815,7 @@ function ContractorHubApp() {
                       </tr>
                     </thead>
                     <tbody>
-                      {sortedContractors.map((contractor) => {
+                      {paginatedContractors.map((contractor) => {
                         const isActive = activeContractor.id === contractor.id;
                         return (
                           <tr
@@ -4894,7 +4945,8 @@ function ContractorHubApp() {
                                     setGroupProjectsContractor(contractor);
                                   }}
                                 >
-                                  Group projects: {groupProjectsFor(contractor).length} →
+                                  Group projects:{" "}
+                                  {groupProjectsFor(contractor).length} →
                                 </button>
                                 <button
                                   className="project-link project-count"
@@ -4903,12 +4955,14 @@ function ContractorHubApp() {
                                     openProjectList(contractor, "Completed");
                                   }}
                                 >
-                                  Completed projects: {" "}
+                                  Completed projects:{" "}
                                   {
                                     contractor.projects.filter(
-                                      (project) => project.status === "Completed",
+                                      (project) =>
+                                        project.status === "Completed",
                                     ).length
-                                  } →
+                                  }{" "}
+                                  →
                                 </button>
                                 <button
                                   className="project-link project-count ongoing"
@@ -4917,12 +4971,13 @@ function ContractorHubApp() {
                                     openProjectList(contractor, "Ongoing");
                                   }}
                                 >
-                                  Ongoing projects: {" "}
+                                  Ongoing projects:{" "}
                                   {
                                     contractor.projects.filter(
                                       (project) => project.status === "Ongoing",
                                     ).length
-                                  } →
+                                  }{" "}
+                                  →
                                 </button>
                                 <button
                                   className="project-link project-count evaluation"
@@ -4964,51 +5019,65 @@ function ContractorHubApp() {
                   )}
                   <footer className="table-footer">
                     <span>
-                      Showing {filtered.length} of {contractorRows.length}{" "}
-                      contractors · Page {currentPage}
+                      {filtered.length === 0
+                        ? `Showing 0 of ${contractorRows.length} contractors`
+                        : `Showing ${contractorPageStart + 1}-${Math.min(
+                            contractorPageStart + CONTRACTORS_PER_PAGE,
+                            filtered.length,
+                          )} of ${filtered.length} matching contractors · Page ${contractorPage} of ${totalContractorPages}`}
                     </span>
-                    <div>
-                      <button
-                        disabled={currentPage === 1}
-                        onClick={() =>
-                          setCurrentPage((page) => Math.max(1, page - 1))
-                        }
-                      >
-                        ‹
-                      </button>
-                      {[1, 2, 3].map((page) => (
+                    {totalContractorPages > 1 && (
+                      <div aria-label="Contractor table pagination">
                         <button
-                          key={page}
-                          className={currentPage === page ? "page-active" : ""}
-                          onClick={() => setCurrentPage(page)}
+                          type="button"
+                          aria-label="Previous contractor page"
+                          disabled={contractorPage === 1}
+                          onClick={() =>
+                            setCurrentPage((page) => Math.max(1, page - 1))
+                          }
                         >
-                          {page}
+                          ‹
                         </button>
-                      ))}
-                      <button
-                        onClick={() =>
-                          notify(
-                            "Additional pages will load after the permanent database is connected.",
-                          )
-                        }
-                      >
-                        …
-                      </button>
-                      <button
-                        onClick={() => setCurrentPage(13)}
-                        className={currentPage === 13 ? "page-active" : ""}
-                      >
-                        13
-                      </button>
-                      <button
-                        disabled={currentPage === 13}
-                        onClick={() =>
-                          setCurrentPage((page) => Math.min(13, page + 1))
-                        }
-                      >
-                        ›
-                      </button>
-                    </div>
+                        {contractorPaginationItems.map((item, index) =>
+                          item === "ellipsis" ? (
+                            <span
+                              key={`ellipsis-${index}`}
+                              className="pagination-ellipsis"
+                              aria-hidden="true"
+                            >
+                              …
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              key={item}
+                              aria-label={`Contractor page ${item}`}
+                              aria-current={
+                                contractorPage === item ? "page" : undefined
+                              }
+                              className={
+                                contractorPage === item ? "page-active" : ""
+                              }
+                              onClick={() => setCurrentPage(item)}
+                            >
+                              {item}
+                            </button>
+                          ),
+                        )}
+                        <button
+                          type="button"
+                          aria-label="Next contractor page"
+                          disabled={contractorPage === totalContractorPages}
+                          onClick={() =>
+                            setCurrentPage((page) =>
+                              Math.min(totalContractorPages, page + 1),
+                            )
+                          }
+                        >
+                          ›
+                        </button>
+                      </div>
+                    )}
                   </footer>
                 </div>
 
@@ -5513,7 +5582,11 @@ function ContractorHubApp() {
                                   {contractor.location}
                                 </span>
                                 <span className="import-history">
-                                  Imported projects: {contractor.projects.length} · Last import: {formatImportDate(contractor.lastProjectImportDate)}
+                                  Imported projects:{" "}
+                                  {contractor.projects.length} · Last import:{" "}
+                                  {formatImportDate(
+                                    contractor.lastProjectImportDate,
+                                  )}
                                   {contractor.lastProjectImportCount
                                     ? ` · ${contractor.lastProjectImportCount} added`
                                     : ""}
@@ -5523,7 +5596,9 @@ function ContractorHubApp() {
                                 <button
                                   type="button"
                                   className="import-project-delete"
-                                  disabled={projectDeleteSavingId === contractor.id}
+                                  disabled={
+                                    projectDeleteSavingId === contractor.id
+                                  }
                                   onClick={() =>
                                     void archiveImportedProjects(contractor)
                                   }
@@ -5939,7 +6014,9 @@ function ContractorHubApp() {
                       <>
                         <article className="scope-highlight-card">
                           <small>SELECTED SCOPE PROJECTS</small>
-                          <strong>{evaluationOverallScopeMatches.length}</strong>
+                          <strong>
+                            {evaluationOverallScopeMatches.length}
+                          </strong>
                           <span>{evaluationKeywords.join(", ")}</span>
                         </article>
                         <article className="scope-highlight-card">
@@ -5985,7 +6062,9 @@ function ContractorHubApp() {
                         <tbody>
                           {evaluationPeriodRows.map((row) => (
                             <tr key={`${row.keyword}-${row.period}`}>
-                              <td><strong>{row.keyword}</strong></td>
+                              <td>
+                                <strong>{row.keyword}</strong>
+                              </td>
                               <td>{row.period}</td>
                               <td>{row.completedCount}</td>
                               <td>{money(row.completedValue)}</td>
@@ -6245,11 +6324,14 @@ function ContractorHubApp() {
                                           setContractorExportFields,
                                         )
                                       }
-                                    >↑</button>
+                                    >
+                                      ↑
+                                    </button>
                                     <button
                                       type="button"
                                       disabled={
-                                        index === contractorExportFields.length - 1
+                                        index ===
+                                        contractorExportFields.length - 1
                                       }
                                       onClick={() =>
                                         moveSelectedField(
@@ -6258,7 +6340,9 @@ function ContractorHubApp() {
                                           setContractorExportFields,
                                         )
                                       }
-                                    >↓</button>
+                                    >
+                                      ↓
+                                    </button>
                                   </div>
                                 )}
                               </div>
@@ -6320,16 +6404,26 @@ function ContractorHubApp() {
                             <input
                               value={nominationContractorSearch}
                               onChange={(event) =>
-                                setNominationContractorSearch(event.target.value)
+                                setNominationContractorSearch(
+                                  event.target.value,
+                                )
                               }
                               placeholder="Type contractor name or trade..."
                             />
                           </label>
                           <button
-                            className={nominationSelectedOnly ? "secondary-button active-filter-button" : "secondary-button"}
-                            onClick={() => setNominationSelectedOnly((current) => !current)}
+                            className={
+                              nominationSelectedOnly
+                                ? "secondary-button active-filter-button"
+                                : "secondary-button"
+                            }
+                            onClick={() =>
+                              setNominationSelectedOnly((current) => !current)
+                            }
                           >
-                            {nominationSelectedOnly ? "Show all contractors" : "Show selected only"}
+                            {nominationSelectedOnly
+                              ? "Show all contractors"
+                              : "Show selected only"}
                           </button>
                           <button
                             className="secondary-button"
@@ -6340,26 +6434,48 @@ function ContractorHubApp() {
                         </div>
                         <div className="report-candidate-list tall nomination-contractor-list">
                           {nominationCandidates.map((contractor) => (
-                            <div className="nomination-contractor-row" key={contractor.id}>
+                            <div
+                              className="nomination-contractor-row"
+                              key={contractor.id}
+                            >
                               <label>
                                 <input
                                   type="checkbox"
-                                  checked={selectedContractors.includes(contractor.id)}
+                                  checked={selectedContractors.includes(
+                                    contractor.id,
+                                  )}
                                   onChange={() => toggleContractor(contractor)}
                                 />
                                 <span>
                                   <strong>{contractor.name}</strong>
                                   <small>
-                                    {contractor.trade} · Pre-Q {contractor.score} · {contractorValidity(contractor)} · Capacity {contractor.recommendedMaxProjectValue ? money(contractor.recommendedMaxProjectValue) : "not assessed"}
+                                    {contractor.trade} · Pre-Q{" "}
+                                    {contractor.score} ·{" "}
+                                    {contractorValidity(contractor)} · Capacity{" "}
+                                    {contractor.recommendedMaxProjectValue
+                                      ? money(
+                                          contractor.recommendedMaxProjectValue,
+                                        )
+                                      : "not assessed"}
                                   </small>
                                 </span>
                               </label>
                               <button
                                 type="button"
                                 className="secondary-button nomination-project-button"
-                                onClick={() => openProjectList(contractor, "All")}
+                                onClick={() =>
+                                  openProjectList(contractor, "All")
+                                }
                               >
-                                Select projects ({selectedProjects.filter((projectId) => reportProjectsFor(contractor).some((project) => project.id === projectId)).length})
+                                Select projects (
+                                {
+                                  selectedProjects.filter((projectId) =>
+                                    reportProjectsFor(contractor).some(
+                                      (project) => project.id === projectId,
+                                    ),
+                                  ).length
+                                }
+                                )
                               </button>
                             </div>
                           ))}
@@ -6384,15 +6500,59 @@ function ContractorHubApp() {
                             );
                             const selected = index >= 0;
                             return (
-                              <div className={`report-field-order-item ${selected ? "selected" : ""}`} key={field.key}>
+                              <div
+                                className={`report-field-order-item ${selected ? "selected" : ""}`}
+                                key={field.key}
+                              >
                                 <label>
-                                  <input type="checkbox" checked={selected} onChange={() => toggleField(field.key, setNominationContractorFields, CONTRACTOR_EXPORT_FIELDS.map((option) => option.key))} />
+                                  <input
+                                    type="checkbox"
+                                    checked={selected}
+                                    onChange={() =>
+                                      toggleField(
+                                        field.key,
+                                        setNominationContractorFields,
+                                        CONTRACTOR_EXPORT_FIELDS.map(
+                                          (option) => option.key,
+                                        ),
+                                      )
+                                    }
+                                  />
                                   <span>{field.label}</span>
                                 </label>
-                                {selected && <div className="field-order-actions">
-                                  <button type="button" disabled={index === 0} onClick={() => moveSelectedField(field.key, -1, setNominationContractorFields)}>↑</button>
-                                  <button type="button" disabled={index === nominationContractorFields.length - 1} onClick={() => moveSelectedField(field.key, 1, setNominationContractorFields)}>↓</button>
-                                </div>}
+                                {selected && (
+                                  <div className="field-order-actions">
+                                    <button
+                                      type="button"
+                                      disabled={index === 0}
+                                      onClick={() =>
+                                        moveSelectedField(
+                                          field.key,
+                                          -1,
+                                          setNominationContractorFields,
+                                        )
+                                      }
+                                    >
+                                      ↑
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        index ===
+                                        nominationContractorFields.length - 1
+                                      }
+                                      onClick={() =>
+                                        moveSelectedField(
+                                          field.key,
+                                          1,
+                                          setNominationContractorFields,
+                                        )
+                                      }
+                                    >
+                                      ↓
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -6410,15 +6570,59 @@ function ContractorHubApp() {
                             );
                             const selected = index >= 0;
                             return (
-                              <div className={`report-field-order-item ${selected ? "selected" : ""}`} key={field.key}>
+                              <div
+                                className={`report-field-order-item ${selected ? "selected" : ""}`}
+                                key={field.key}
+                              >
                                 <label>
-                                  <input type="checkbox" checked={selected} onChange={() => toggleField(field.key, setNominationProjectFields, PROJECT_EXPORT_FIELDS.map((option) => option.key))} />
+                                  <input
+                                    type="checkbox"
+                                    checked={selected}
+                                    onChange={() =>
+                                      toggleField(
+                                        field.key,
+                                        setNominationProjectFields,
+                                        PROJECT_EXPORT_FIELDS.map(
+                                          (option) => option.key,
+                                        ),
+                                      )
+                                    }
+                                  />
                                   <span>{field.label}</span>
                                 </label>
-                                {selected && <div className="field-order-actions">
-                                  <button type="button" disabled={index === 0} onClick={() => moveSelectedField(field.key, -1, setNominationProjectFields)}>↑</button>
-                                  <button type="button" disabled={index === nominationProjectFields.length - 1} onClick={() => moveSelectedField(field.key, 1, setNominationProjectFields)}>↓</button>
-                                </div>}
+                                {selected && (
+                                  <div className="field-order-actions">
+                                    <button
+                                      type="button"
+                                      disabled={index === 0}
+                                      onClick={() =>
+                                        moveSelectedField(
+                                          field.key,
+                                          -1,
+                                          setNominationProjectFields,
+                                        )
+                                      }
+                                    >
+                                      ↑
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        index ===
+                                        nominationProjectFields.length - 1
+                                      }
+                                      onClick={() =>
+                                        moveSelectedField(
+                                          field.key,
+                                          1,
+                                          setNominationProjectFields,
+                                        )
+                                      }
+                                    >
+                                      ↓
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -7038,7 +7242,10 @@ function ContractorHubApp() {
             </button>
             <p className="eyebrow">CONTRACTOR DIRECTORY</p>
             <h2 id="contractor-picker-title">Select a contractor</h2>
-            <p>Choose the contractor whose projects will be used in the reference report.</p>
+            <p>
+              Choose the contractor whose projects will be used in the reference
+              report.
+            </p>
             <div className="contractor-picker-list">
               {contractorRows.map((contractor) => (
                 <button
@@ -7056,7 +7263,9 @@ function ContractorHubApp() {
                   }}
                 >
                   <strong>{contractor.name}</strong>
-                  <small>{contractor.trade} · CIDB {contractor.grade}</small>
+                  <small>
+                    {contractor.trade} · CIDB {contractor.grade}
+                  </small>
                 </button>
               ))}
             </div>
@@ -7831,8 +8040,8 @@ function ContractorHubApp() {
               {relevantProjectMatches.length > 0 && (
                 <div className="matcher-selection-actions">
                   <span>
-                    {selectedRelevantProjectCount} of {relevantProjectIds.length}{" "}
-                    matching selected
+                    {selectedRelevantProjectCount} of{" "}
+                    {relevantProjectIds.length} matching selected
                   </span>
                   <button
                     type="button"
@@ -7886,8 +8095,8 @@ function ContractorHubApp() {
                             <span className="matcher-contractor-identity">
                               <strong>{group.contractor.name}</strong>
                               <small>
-                                {contractorTrades(group.contractor).join(", ")} ·
-                                CIDB {group.contractor.grade}
+                                {contractorTrades(group.contractor).join(", ")}{" "}
+                                · CIDB {group.contractor.grade}
                               </small>
                             </span>
                             <span className="matcher-project-count">
@@ -7933,8 +8142,15 @@ function ContractorHubApp() {
                               </thead>
                               <tbody>
                                 {group.matches.map(
-                                  ({ contractor, project, relevance, matchedTerms }) => {
-                                    const selected = selectedProjects.includes(project.id);
+                                  ({
+                                    contractor,
+                                    project,
+                                    relevance,
+                                    matchedTerms,
+                                  }) => {
+                                    const selected = selectedProjects.includes(
+                                      project.id,
+                                    );
                                     const dates = project.period.split(" – ");
                                     return (
                                       <tr
@@ -7944,7 +8160,12 @@ function ContractorHubApp() {
                                         <td>
                                           <button
                                             className={`row-check ${selected ? "checked" : ""}`}
-                                            onClick={() => toggleMatchedProject(contractor, project.id)}
+                                            onClick={() =>
+                                              toggleMatchedProject(
+                                                contractor,
+                                                project.id,
+                                              )
+                                            }
                                             aria-label={`${selected ? "Remove" : "Select"} ${project.name}`}
                                           >
                                             {selected ? "✓" : ""}
@@ -7954,9 +8175,11 @@ function ContractorHubApp() {
                                           <strong>{project.name}</strong>
                                           <small>{relevance}% relevant</small>
                                           <div className="matched-terms">
-                                            {matchedTerms.slice(0, 6).map((term) => (
-                                              <span key={term}>{term}</span>
-                                            ))}
+                                            {matchedTerms
+                                              .slice(0, 6)
+                                              .map((term) => (
+                                                <span key={term}>{term}</span>
+                                              ))}
                                           </div>
                                         </td>
                                         <td>{project.scope || "-"}</td>
@@ -7964,11 +8187,26 @@ function ContractorHubApp() {
                                         <td>{project.developer ?? "-"}</td>
                                         <td>{project.client || "-"}</td>
                                         <td>{project.location || "-"}</td>
-                                        <td><strong>{money(project.value)}</strong></td>
-                                        <td>{formatProjectDate(project.commencementDate ?? dates[0])}</td>
-                                        <td>{formatProjectDate(project.completionDate ?? dates[1])}</td>
                                         <td>
-                                          <span className={`table-project-status ${project.status.toLowerCase()}`}>
+                                          <strong>
+                                            {money(project.value)}
+                                          </strong>
+                                        </td>
+                                        <td>
+                                          {formatProjectDate(
+                                            project.commencementDate ??
+                                              dates[0],
+                                          )}
+                                        </td>
+                                        <td>
+                                          {formatProjectDate(
+                                            project.completionDate ?? dates[1],
+                                          )}
+                                        </td>
+                                        <td>
+                                          <span
+                                            className={`table-project-status ${project.status.toLowerCase()}`}
+                                          >
                                             {project.status}
                                           </span>
                                         </td>
@@ -8658,10 +8896,7 @@ function ContractorHubApp() {
               </label>
               <label>
                 Location
-                <input
-                  name="location"
-                  defaultValue={editingProject.location}
-                />
+                <input name="location" defaultValue={editingProject.location} />
               </label>
               <label>
                 Contract value (RM)
@@ -9374,10 +9609,15 @@ function ContractorHubApp() {
                     <header>
                       <div>
                         <strong>{group.name}</strong>
-                        <span>{group.email || "Uploader email not recorded"}</span>
+                        <span>
+                          {group.email || "Uploader email not recorded"}
+                        </span>
                         <small>Contact: {group.phone}</small>
                       </div>
-                      <b>{group.contractors.length} contractor{group.contractors.length === 1 ? "" : "s"}</b>
+                      <b>
+                        {group.contractors.length} contractor
+                        {group.contractors.length === 1 ? "" : "s"}
+                      </b>
                     </header>
                     <label>
                       Subject
@@ -9535,38 +9775,38 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.36</h2>
+            <h2 id="changelog-title">Version 0.37</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  The nomination Word export now places one contractor on each
-                  row and lists all selected reference projects in a single
-                  wide, numbered Reference Projects column.
+                  Contractor pagination now uses the real filtered database
+                  count. Each page shows up to 10 contractors, navigation
+                  buttons load the correct rows, and the displayed range and
+                  page total update automatically.
                 </p>
               </article>
               <article>
                 <strong>Relevant experience finder</strong>
                 <p>
-                  Keyword matches are grouped by contractor. Expand a
-                  contractor to view the full project register and select one,
-                  all within a contractor, or all matching projects for
-                  reporting.
+                  Keyword matches are grouped by contractor. Expand a contractor
+                  to view the full project register and select one, all within a
+                  contractor, or all matching projects for reporting.
                 </p>
               </article>
               <article>
                 <strong>Project evaluation</strong>
                 <p>
-                  Analyse multiple scopes separately with completed and
-                  ongoing project counts and contract-value totals.
+                  Analyse multiple scopes separately with completed and ongoing
+                  project counts and contract-value totals.
                 </p>
               </article>
               <article>
                 <strong>Import history</strong>
                 <p>
-                  Contractor selection on the project-import page shows
-                  imported project totals and the latest import date. Project
-                  preparation uses the dedicated Project Extractor.
+                  Contractor selection on the project-import page shows imported
+                  project totals and the latest import date. Project preparation
+                  uses the dedicated Project Extractor.
                 </p>
               </article>
               <article>
@@ -9595,8 +9835,8 @@ function ContractorHubApp() {
               <article>
                 <strong>Pre-Q profile editing</strong>
                 <p>
-                  Contractor administrators can correct the Pre-Q score from
-                  the profile edit screen while retaining all existing project
+                  Contractor administrators can correct the Pre-Q score from the
+                  profile edit screen while retaining all existing project
                   history.
                 </p>
               </article>
