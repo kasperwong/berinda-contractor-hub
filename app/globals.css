@@ -4232,6 +4232,7 @@ td {
   padding: 8px 20px;
   border-bottom: 1px solid var(--line);
   background: white;
+  flex-wrap: wrap;
 }
 .matcher-result-head strong,
 .matcher-result-head span {
@@ -4252,6 +4253,9 @@ td {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .matcher-selection-actions span {
   margin: 0;
@@ -4259,7 +4263,7 @@ td {
 }
 .matcher-selection-actions button,
 .matcher-group-select button {
-  min-height: 32px;
+  min-height: 44px;
   border: 1px solid #9ecac4;
   border-radius: 7px;
   padding: 0 12px;
@@ -4267,6 +4271,7 @@ td {
   color: var(--teal);
   font-size: 9px;
   font-weight: 750;
+  white-space: nowrap;
 }
 .matcher-groups-wrap {
   min-height: 0;

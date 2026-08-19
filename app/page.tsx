@@ -2089,8 +2089,7 @@ function ContractorHubApp() {
             /\b(19|20)\d{2}\b/,
           )?.[0] ?? 0,
         );
-        const searchable = normalizeMatcherText(
-          [
+        const searchableFields = [
             project.name,
             project.scope,
             project.projectType,
@@ -2111,16 +2110,34 @@ function ContractorHubApp() {
             contractor.trade,
             contractor.grade ? `cidb ${contractor.grade}` : "",
             contractor.location,
-          ].join(" "),
-        );
+          ]
+          .map((value) => normalizeMatcherText(value))
+          .filter(Boolean);
+        const searchable = searchableFields.join(" ");
+        const compactSearchable = searchableFields
+          .map((value) => value.replace(/\s+/g, ""))
+          .join(" ");
+        const includesMatcherText = (value: string) => {
+          const normalized = normalizeMatcherText(value);
+          if (!normalized) return false;
+          return (
+            searchable.includes(normalized) ||
+            compactSearchable.includes(normalized.replace(/\s+/g, ""))
+          );
+        };
         const matchedKeywordGroups = matcherKeywordGroups.filter(
           (group) =>
-            searchable.includes(group.phrase) ||
-            group.terms.every((term) => searchable.includes(term)),
+            includesMatcherText(group.phrase) ||
+            group.terms.every((term) => includesMatcherText(term)),
         );
+        const fullyMatchesSearch =
+          matcherKeywordGroups.length > 0 &&
+          (hasCommaSeparatedSearch
+            ? matchedKeywordGroups.length === matcherKeywordGroups.length
+            : matchedKeywordGroups.length > 0);
         const matchedTerms = matchedKeywordGroups.map((group) => group.label);
         const matchedIndividualTerms = matcherTerms.filter((term) =>
-          searchable.includes(term),
+          includesMatcherText(term),
         );
         const coverage = matcherKeywordGroups.length
           ? matchedKeywordGroups.length /
@@ -2130,7 +2147,7 @@ function ContractorHubApp() {
           ? matchedIndividualTerms.length / Math.min(matcherTerms.length, 24)
           : 0;
         const phraseBonus = matchedKeywordGroups.some(
-          (group) => group.phrase.length > 5 && searchable.includes(group.phrase),
+          (group) => group.phrase.length > 5 && includesMatcherText(group.phrase),
         )
           ? 4
           : 0;
@@ -2138,7 +2155,14 @@ function ContractorHubApp() {
           99,
           Math.round(coverage * 75 + termCoverage * 20 + phraseBonus),
         );
-        return { contractor, project, projectYear, relevance, matchedTerms };
+        return {
+          contractor,
+          project,
+          projectYear,
+          relevance,
+          matchedTerms,
+          fullyMatchesSearch,
+        };
       }),
     )
     .filter((match) => {
@@ -2151,7 +2175,7 @@ function ContractorHubApp() {
         contractorTrades(match.contractor).includes(matcherTrade);
       return (
         matcherKeywordGroups.length > 0 &&
-        match.relevance > 0 &&
+        match.fullyMatchesSearch &&
         tradeMatches &&
         match.project.value >= minCost &&
         match.project.value <= maxCost &&
@@ -4194,7 +4218,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.38
+              Version 0.39
             </button>
           </div>
         </div>
@@ -7999,8 +8023,8 @@ function ContractorHubApp() {
                   Find the most relevant contractor projects
                 </h2>
                 <p>
-                  Search every project field with one or more keywords. Results
-                  matching more comma-separated keywords rank higher.
+                  Search the complete project record. Every comma-separated
+                  keyword must match somewhere in the same project.
                 </p>
               </div>
               <div>
@@ -8018,9 +8042,10 @@ function ContractorHubApp() {
                   aria-describedby="matcher-keyword-help"
                 />
                 <span id="matcher-keyword-help">
-                  Separate keywords with commas. Search includes project name,
-                  scope, type, developer, client, location, value, dates,
-                  status, progress and contractor details.
+                  Separate keywords with commas. All keywords are required, but
+                  they may match different fields: project name, scope, type,
+                  developer, client, location, value, dates, status, progress
+                  or contractor details.
                 </span>
               </label>
               <label>
@@ -8096,7 +8121,7 @@ function ContractorHubApp() {
                 <strong>Matching contractors and projects</strong>
                 <span>
                   {matcherKeywordGroups.length
-                    ? `${relevantProjectGroups.length} contractor${relevantProjectGroups.length === 1 ? "" : "s"} · ${relevantProjectMatches.length} related project${relevantProjectMatches.length === 1 ? "" : "s"}`
+                    ? `${relevantProjectGroups.length} contractor${relevantProjectGroups.length === 1 ? "" : "s"} · ${relevantProjectMatches.length} fully matched project${relevantProjectMatches.length === 1 ? "" : "s"}`
                     : "Paste a scope to begin matching"}
                 </span>
               </div>
@@ -8104,7 +8129,7 @@ function ContractorHubApp() {
                 <div className="matcher-selection-actions">
                   <span>
                     {selectedRelevantProjectCount} of{" "}
-                    {relevantProjectIds.length} matching selected
+                    {relevantProjectIds.length} fully matched selected
                   </span>
                   <button
                     type="button"
@@ -8116,8 +8141,8 @@ function ContractorHubApp() {
                     }
                   >
                     {allRelevantProjectsSelected
-                      ? "Clear all matching"
-                      : "Select all matching"}
+                      ? "Clear fully matched"
+                      : "Select all fully matched"}
                   </button>
                 </div>
               )}
@@ -9838,16 +9863,16 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.38</h2>
+            <h2 id="changelog-title">Version 0.39</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Relevant-project search now accepts comma-separated keywords
-                  and checks the complete project record, including project
-                  name, scope, type, developer, client, location, value, dates,
-                  status and progress. Contractor details are searchable too,
-                  and records matching more keywords rank higher.
+                  Comma-separated relevant-project searches now require every
+                  keyword to match within the same project. Keywords may match
+                  different fields across the complete record, including type,
+                  developer and client, and all fully matched projects can be
+                  selected together for reporting.
                 </p>
               </article>
               <article>
