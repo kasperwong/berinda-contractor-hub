@@ -4205,6 +4205,35 @@ td {
   font-size: 9px;
   font-weight: 500;
 }
+.matcher-mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid #cfdce0;
+  border-radius: 9px;
+  background: #eaf0f2;
+}
+.matcher-mode-toggle button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: transparent;
+  color: #526478;
+  font-size: 9px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.matcher-mode-toggle button.active {
+  background: white;
+  color: var(--teal);
+  box-shadow: 0 1px 4px rgba(18, 43, 68, 0.14);
+}
+.matcher-mode-toggle button:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
 .matcher-range-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

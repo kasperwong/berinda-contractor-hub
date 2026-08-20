@@ -1174,6 +1174,9 @@ function ContractorHubApp() {
   }>({ key: "name", direction: "asc" });
   const [showProjectMatcher, setShowProjectMatcher] = useState(false);
   const [matcherScope, setMatcherScope] = useState("");
+  const [matcherMatchMode, setMatcherMatchMode] = useState<"all" | "any">(
+    "all",
+  );
   const [matcherTrade, setMatcherTrade] = useState("All trades");
   const [matcherMinCost, setMatcherMinCost] = useState("");
   const [matcherMaxCost, setMatcherMaxCost] = useState("");
@@ -2126,9 +2129,9 @@ function ContractorHubApp() {
             includesMatcherText(group.phrase) ||
             group.terms.every((term) => includesMatcherText(term)),
         );
-        const fullyMatchesSearch =
+        const matchesSearchMode =
           matcherKeywordGroups.length > 0 &&
-          (hasCommaSeparatedSearch
+          (matcherMatchMode === "all"
             ? matchedKeywordGroups.length === matcherKeywordGroups.length
             : matchedKeywordGroups.length > 0);
         const matchedTerms = matchedKeywordGroups.map((group) => group.label);
@@ -2157,7 +2160,7 @@ function ContractorHubApp() {
           projectYear,
           relevance,
           matchedTerms,
-          fullyMatchesSearch,
+          matchesSearchMode,
         };
       }),
     )
@@ -2171,7 +2174,7 @@ function ContractorHubApp() {
         contractorTrades(match.contractor).includes(matcherTrade);
       return (
         matcherKeywordGroups.length > 0 &&
-        match.fullyMatchesSearch &&
+        match.matchesSearchMode &&
         tradeMatches &&
         match.project.value >= minCost &&
         match.project.value <= maxCost &&
@@ -4214,7 +4217,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.40
+              Version 0.41
             </button>
           </div>
         </div>
@@ -8019,8 +8022,8 @@ function ContractorHubApp() {
                   Find the most relevant contractor projects
                 </h2>
                 <p>
-                  Search every field in each project. Every comma-separated
-                  keyword must match within that same project.
+                  Search every field in each project. Choose whether every
+                  keyword or any keyword must match.
                 </p>
               </div>
               <div>
@@ -8029,22 +8032,44 @@ function ContractorHubApp() {
               </div>
             </div>
             <div className="matcher-controls compact">
-              <label className="matcher-scope">
-                Project search keywords
+              <div className="matcher-scope">
+                <label htmlFor="matcher-keywords">Project search keywords</label>
                 <input
+                  id="matcher-keywords"
                   value={matcherScope}
                   onChange={(event) => setMatcherScope(event.target.value)}
                   placeholder="e.g. piling, Johor, reservoir, 2025"
                   aria-describedby="matcher-keyword-help"
                 />
                 <span id="matcher-keyword-help">
-                  Separate keywords with commas. All keywords are required, but
-                  they may match different fields: project name, scope, type,
-                  developer, client, location, value, dates, status or
-                  progress. Contractor names and trades do not count as a
-                  project match.
+                  Separate keywords with commas. Keywords may match different
+                  fields: project name, scope, type, developer, client,
+                  location, value, dates, status or progress. Contractor names
+                  and trades do not count as a project match.
                 </span>
-              </label>
+                <div
+                  className="matcher-mode-toggle"
+                  role="group"
+                  aria-label="Keyword matching mode"
+                >
+                  <button
+                    type="button"
+                    className={matcherMatchMode === "all" ? "active" : ""}
+                    aria-pressed={matcherMatchMode === "all"}
+                    onClick={() => setMatcherMatchMode("all")}
+                  >
+                    Match all keywords
+                  </button>
+                  <button
+                    type="button"
+                    className={matcherMatchMode === "any" ? "active" : ""}
+                    aria-pressed={matcherMatchMode === "any"}
+                    onClick={() => setMatcherMatchMode("any")}
+                  >
+                    Match any keyword
+                  </button>
+                </div>
+              </div>
               <label>
                 Trade
                 <select
@@ -8118,7 +8143,7 @@ function ContractorHubApp() {
                 <strong>Matching contractors and projects</strong>
                 <span>
                   {matcherKeywordGroups.length
-                    ? `${relevantProjectGroups.length} contractor${relevantProjectGroups.length === 1 ? "" : "s"} · ${relevantProjectMatches.length} fully matched project${relevantProjectMatches.length === 1 ? "" : "s"}`
+                    ? `${relevantProjectGroups.length} contractor${relevantProjectGroups.length === 1 ? "" : "s"} · ${relevantProjectMatches.length} ${matcherMatchMode === "all" ? "fully matched" : "matching any keyword"} project${relevantProjectMatches.length === 1 ? "" : "s"}`
                     : "Paste a scope to begin matching"}
                 </span>
               </div>
@@ -8126,7 +8151,11 @@ function ContractorHubApp() {
                 <div className="matcher-selection-actions">
                   <span>
                     {selectedRelevantProjectCount} of{" "}
-                    {relevantProjectIds.length} fully matched selected
+                    {relevantProjectIds.length}{" "}
+                    {matcherMatchMode === "all"
+                      ? "fully matched"
+                      : "matching any keyword"}{" "}
+                    selected
                   </span>
                   <button
                     type="button"
@@ -8138,8 +8167,10 @@ function ContractorHubApp() {
                     }
                   >
                     {allRelevantProjectsSelected
-                      ? "Clear fully matched"
-                      : "Select all fully matched"}
+                      ? "Clear matched projects"
+                      : matcherMatchMode === "all"
+                        ? "Select all fully matched"
+                        : "Select all matching any keyword"}
                   </button>
                 </div>
               )}
@@ -9860,15 +9891,14 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.40</h2>
+            <h2 id="changelog-title">Version 0.41</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Relevant-project filtering now checks only each project&apos;s
-                  own information. A contractor name or trade can no longer
-                  satisfy a keyword; every comma-separated keyword must appear
-                  within the same project record before it is shown.
+                  Relevant-project search now has Match all keywords and Match
+                  any keyword modes. Results, totals and bulk selection update
+                  immediately to follow the selected matching rule.
                 </p>
               </article>
               <article>
