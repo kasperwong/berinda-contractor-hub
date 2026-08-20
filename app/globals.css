@@ -4437,6 +4437,7 @@ td {
 .matcher-project-register th:nth-child(11) { width: 6%; }
 .matcher-project-register th:nth-child(12) { width: 5%; }
 .matcher-project-register td {
+  height: 52px;
   padding: 6px 5px;
   border-top: 1px solid #e4eaee;
   color: #526276;
