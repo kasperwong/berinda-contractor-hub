@@ -2145,19 +2145,21 @@ function ContractorHubApp() {
           (matcherMatchMode === "all"
             ? matchedKeywordGroups.length === matcherKeywordGroups.length
             : matchedKeywordGroups.length > 0);
-        const matchedFields = searchableFieldEntries
-          .filter(
-            (field) =>
-              field.normalized &&
-              matcherTerms.some(
-                (term) =>
-                  field.normalized.includes(term) ||
-                  field.normalized
-                    .replace(/\s+/g, "")
-                    .includes(term.replace(/\s+/g, "")),
-              ),
-          )
-          .map((field) => field.label);
+        const matchedKeywordsByField: Record<string, string[]> =
+          Object.fromEntries(
+            searchableFieldEntries.map((field) => [
+              field.label,
+              field.normalized
+                ? matcherTerms.filter(
+                    (term) =>
+                      field.normalized.includes(term) ||
+                      field.normalized
+                        .replace(/\s+/g, "")
+                        .includes(term.replace(/\s+/g, "")),
+                  )
+                : [],
+            ]),
+          );
         const matchedIndividualTerms = matcherTerms.filter((term) =>
           includesMatcherText(term),
         );
@@ -2182,7 +2184,7 @@ function ContractorHubApp() {
           project,
           projectYear,
           relevance,
-          matchedFields,
+          matchedKeywordsByField,
           matchesSearchMode,
         };
       }),
@@ -4240,7 +4242,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.43
+              Version 0.44
             </button>
           </div>
         </div>
@@ -8290,12 +8292,31 @@ function ContractorHubApp() {
                                     contractor,
                                     project,
                                     relevance,
-                                    matchedFields,
+                                    matchedKeywordsByField,
                                   }) => {
                                     const selected = selectedProjects.includes(
                                       project.id,
                                     );
                                     const dates = project.period.split(" – ");
+                                    const renderMatchedKeywords = (
+                                      field: string,
+                                    ) => {
+                                      const keywords =
+                                        matchedKeywordsByField[field] ?? [];
+                                      if (!keywords.length) return null;
+                                      return (
+                                        <div
+                                          className="matched-terms"
+                                          aria-label={`${field} matched ${keywords.join(", ")}`}
+                                        >
+                                          {keywords.slice(0, 4).map((keyword) => (
+                                            <span key={`${field}-${keyword}`}>
+                                              {keyword}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      );
+                                    };
                                     return (
                                       <tr
                                         key={`${contractor.id}-${project.id}`}
@@ -8318,22 +8339,28 @@ function ContractorHubApp() {
                                         <td className="matcher-project-name">
                                           <strong title={project.name}>{project.name}</strong>
                                           <small>{relevance}% relevant</small>
-                                          <div
-                                            className="matched-terms"
-                                            aria-label={`Matched in ${matchedFields.join(", ")}`}
-                                          >
-                                            {matchedFields
-                                              .slice(0, 6)
-                                              .map((field) => (
-                                                <span key={field}>{field}</span>
-                                              ))}
-                                          </div>
+                                          {renderMatchedKeywords("Project name")}
                                         </td>
-                                        <td><span className="matcher-cell-clamp" title={project.scope || "-"}>{project.scope || "-"}</span></td>
-                                        <td><span className="matcher-cell-clamp" title={project.projectType ?? "-"}>{project.projectType ?? "-"}</span></td>
-                                        <td><span className="matcher-cell-clamp" title={project.developer ?? "-"}>{project.developer ?? "-"}</span></td>
-                                        <td><span className="matcher-cell-clamp" title={project.client || "-"}>{project.client || "-"}</span></td>
-                                        <td><span className="matcher-cell-clamp" title={project.location || "-"}>{project.location || "-"}</span></td>
+                                        <td>
+                                          <span className="matcher-cell-clamp" title={project.scope || "-"}>{project.scope || "-"}</span>
+                                          {renderMatchedKeywords("Scope")}
+                                        </td>
+                                        <td>
+                                          <span className="matcher-cell-clamp" title={project.projectType ?? "-"}>{project.projectType ?? "-"}</span>
+                                          {renderMatchedKeywords("Building type")}
+                                        </td>
+                                        <td>
+                                          <span className="matcher-cell-clamp" title={project.developer ?? "-"}>{project.developer ?? "-"}</span>
+                                          {renderMatchedKeywords("Developer")}
+                                        </td>
+                                        <td>
+                                          <span className="matcher-cell-clamp" title={project.client || "-"}>{project.client || "-"}</span>
+                                          {renderMatchedKeywords("Client")}
+                                        </td>
+                                        <td>
+                                          <span className="matcher-cell-clamp" title={project.location || "-"}>{project.location || "-"}</span>
+                                          {renderMatchedKeywords("Location")}
+                                        </td>
                                         <td>
                                           <strong>
                                             {money(project.value)}
@@ -9922,14 +9949,14 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.43</h2>
+            <h2 id="changelog-title">Version 0.44</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Relevant-project keyword search explicitly covers project
-                  name, scope, building type, developer, client and location.
-                  Each result now identifies which project fields matched.
+                  Each searched keyword now appears beneath the exact project
+                  field where it was found: project name, scope, building type,
+                  developer, client or location.
                 </p>
               </article>
               <article>
