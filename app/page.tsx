@@ -2092,25 +2092,36 @@ function ContractorHubApp() {
             /\b(19|20)\d{2}\b/,
           )?.[0] ?? 0,
         );
-        const searchableFields = [
-            project.name,
-            project.scope,
-            project.projectType,
-            project.developer,
-            project.client,
-            project.location,
-            project.value,
-            money(project.value),
-            project.period,
-            project.commencementDate,
-            formatProjectDate(project.commencementDate),
-            project.completionDate,
-            formatProjectDate(project.completionDate),
-            project.status,
-            project.progress,
-            project.sourcePage ? `source page ${project.sourcePage}` : "",
+        const searchableFieldEntries = [
+            { label: "Project name", value: project.name },
+            { label: "Scope", value: project.scope },
+            { label: "Building type", value: project.projectType },
+            { label: "Developer", value: project.developer },
+            { label: "Client", value: project.client },
+            { label: "Location", value: project.location },
+            {
+              label: "Contract value",
+              value: `${project.value} ${money(project.value)}`,
+            },
+            {
+              label: "Dates",
+              value: `${project.period} ${project.commencementDate ?? ""} ${formatProjectDate(project.commencementDate)} ${project.completionDate ?? ""} ${formatProjectDate(project.completionDate)}`,
+            },
+            { label: "Status", value: project.status },
+            { label: "Progress", value: project.progress },
+            {
+              label: "Source",
+              value: project.sourcePage
+                ? `source page ${project.sourcePage}`
+                : "",
+            },
           ]
-          .map((value) => normalizeMatcherText(value))
+          .map((field) => ({
+            ...field,
+            normalized: normalizeMatcherText(field.value),
+          }));
+        const searchableFields = searchableFieldEntries
+          .map((field) => field.normalized)
           .filter(Boolean);
         const searchable = searchableFields.join(" ");
         const compactSearchable = searchableFields
@@ -2134,7 +2145,19 @@ function ContractorHubApp() {
           (matcherMatchMode === "all"
             ? matchedKeywordGroups.length === matcherKeywordGroups.length
             : matchedKeywordGroups.length > 0);
-        const matchedTerms = matchedKeywordGroups.map((group) => group.label);
+        const matchedFields = searchableFieldEntries
+          .filter(
+            (field) =>
+              field.normalized &&
+              matcherTerms.some(
+                (term) =>
+                  field.normalized.includes(term) ||
+                  field.normalized
+                    .replace(/\s+/g, "")
+                    .includes(term.replace(/\s+/g, "")),
+              ),
+          )
+          .map((field) => field.label);
         const matchedIndividualTerms = matcherTerms.filter((term) =>
           includesMatcherText(term),
         );
@@ -2159,7 +2182,7 @@ function ContractorHubApp() {
           project,
           projectYear,
           relevance,
-          matchedTerms,
+          matchedFields,
           matchesSearchMode,
         };
       }),
@@ -4217,7 +4240,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.42
+              Version 0.43
             </button>
           </div>
         </div>
@@ -8022,8 +8045,9 @@ function ContractorHubApp() {
                   Find the most relevant contractor projects
                 </h2>
                 <p>
-                  Search every field in each project. Choose whether every
-                  keyword or any keyword must match.
+                  Search project name, scope, building type, developer, client
+                  and location. Choose whether every keyword or any keyword
+                  must match.
                 </p>
               </div>
               <div>
@@ -8033,7 +8057,9 @@ function ContractorHubApp() {
             </div>
             <div className="matcher-controls compact">
               <div className="matcher-scope">
-                <label htmlFor="matcher-keywords">Project search keywords</label>
+                <label htmlFor="matcher-keywords">
+                  Search all project fields
+                </label>
                 <div className="matcher-scope-input-row">
                   <input
                     id="matcher-keywords"
@@ -8264,7 +8290,7 @@ function ContractorHubApp() {
                                     contractor,
                                     project,
                                     relevance,
-                                    matchedTerms,
+                                    matchedFields,
                                   }) => {
                                     const selected = selectedProjects.includes(
                                       project.id,
@@ -8292,11 +8318,14 @@ function ContractorHubApp() {
                                         <td className="matcher-project-name">
                                           <strong title={project.name}>{project.name}</strong>
                                           <small>{relevance}% relevant</small>
-                                          <div className="matched-terms">
-                                            {matchedTerms
+                                          <div
+                                            className="matched-terms"
+                                            aria-label={`Matched in ${matchedFields.join(", ")}`}
+                                          >
+                                            {matchedFields
                                               .slice(0, 6)
-                                              .map((term) => (
-                                                <span key={term}>{term}</span>
+                                              .map((field) => (
+                                                <span key={field}>{field}</span>
                                               ))}
                                           </div>
                                         </td>
@@ -9893,15 +9922,14 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.42</h2>
+            <h2 id="changelog-title">Version 0.43</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Relevant-project search controls now sit in one compact upper
-                  bar. The results area uses the remaining screen height and
-                  long project descriptions use concise previews so more
-                  projects remain visible at once.
+                  Relevant-project keyword search explicitly covers project
+                  name, scope, building type, developer, client and location.
+                  Each result now identifies which project fields matched.
                 </p>
               </article>
               <article>
