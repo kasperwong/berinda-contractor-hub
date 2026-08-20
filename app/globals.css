@@ -4475,6 +4475,22 @@ td {
   color: #718191;
   font-size: 7px;
 }
+.matcher-project-register .matcher-project-name > small {
+  display: none;
+}
+.matcher-project-register .matched-terms {
+  height: 14px;
+  flex-wrap: nowrap;
+  gap: 2px;
+  margin-top: 3px;
+  overflow: hidden;
+}
+.matcher-project-register .matched-terms span {
+  flex: 0 0 auto;
+  padding: 1px 4px;
+  font-size: 7px;
+  line-height: 1.2;
+}
 .matcher-table-wrap {
   min-height: 0;
   flex: 1;
