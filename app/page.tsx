@@ -2106,10 +2106,6 @@ function ContractorHubApp() {
             project.status,
             project.progress,
             project.sourcePage ? `source page ${project.sourcePage}` : "",
-            contractor.name,
-            contractor.trade,
-            contractor.grade ? `cidb ${contractor.grade}` : "",
-            contractor.location,
           ]
           .map((value) => normalizeMatcherText(value))
           .filter(Boolean);
@@ -4218,7 +4214,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.39
+              Version 0.40
             </button>
           </div>
         </div>
@@ -8023,8 +8019,8 @@ function ContractorHubApp() {
                   Find the most relevant contractor projects
                 </h2>
                 <p>
-                  Search the complete project record. Every comma-separated
-                  keyword must match somewhere in the same project.
+                  Search every field in each project. Every comma-separated
+                  keyword must match within that same project.
                 </p>
               </div>
               <div>
@@ -8044,8 +8040,9 @@ function ContractorHubApp() {
                 <span id="matcher-keyword-help">
                   Separate keywords with commas. All keywords are required, but
                   they may match different fields: project name, scope, type,
-                  developer, client, location, value, dates, status, progress
-                  or contractor details.
+                  developer, client, location, value, dates, status or
+                  progress. Contractor names and trades do not count as a
+                  project match.
                 </span>
               </label>
               <label>
@@ -9863,16 +9860,15 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.39</h2>
+            <h2 id="changelog-title">Version 0.40</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Comma-separated relevant-project searches now require every
-                  keyword to match within the same project. Keywords may match
-                  different fields across the complete record, including type,
-                  developer and client, and all fully matched projects can be
-                  selected together for reporting.
+                  Relevant-project filtering now checks only each project&apos;s
+                  own information. A contractor name or trade can no longer
+                  satisfy a keyword; every comma-separated keyword must appear
+                  within the same project record before it is shown.
                 </p>
               </article>
               <article>
