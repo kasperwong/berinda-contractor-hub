@@ -4217,7 +4217,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.41
+              Version 0.42
             </button>
           </div>
         </div>
@@ -8034,41 +8034,43 @@ function ContractorHubApp() {
             <div className="matcher-controls compact">
               <div className="matcher-scope">
                 <label htmlFor="matcher-keywords">Project search keywords</label>
-                <input
-                  id="matcher-keywords"
-                  value={matcherScope}
-                  onChange={(event) => setMatcherScope(event.target.value)}
-                  placeholder="e.g. piling, Johor, reservoir, 2025"
-                  aria-describedby="matcher-keyword-help"
-                />
-                <span id="matcher-keyword-help">
+                <div className="matcher-scope-input-row">
+                  <input
+                    id="matcher-keywords"
+                    value={matcherScope}
+                    onChange={(event) => setMatcherScope(event.target.value)}
+                    placeholder="e.g. piling, Johor, reservoir, 2025"
+                    aria-describedby="matcher-keyword-help"
+                  />
+                  <div
+                    className="matcher-mode-toggle"
+                    role="group"
+                    aria-label="Keyword matching mode"
+                  >
+                    <button
+                      type="button"
+                      className={matcherMatchMode === "all" ? "active" : ""}
+                      aria-pressed={matcherMatchMode === "all"}
+                      onClick={() => setMatcherMatchMode("all")}
+                    >
+                      Match all
+                    </button>
+                    <button
+                      type="button"
+                      className={matcherMatchMode === "any" ? "active" : ""}
+                      aria-pressed={matcherMatchMode === "any"}
+                      onClick={() => setMatcherMatchMode("any")}
+                    >
+                      Match any
+                    </button>
+                  </div>
+                </div>
+                <span id="matcher-keyword-help" className="matcher-keyword-help">
                   Separate keywords with commas. Keywords may match different
                   fields: project name, scope, type, developer, client,
                   location, value, dates, status or progress. Contractor names
                   and trades do not count as a project match.
                 </span>
-                <div
-                  className="matcher-mode-toggle"
-                  role="group"
-                  aria-label="Keyword matching mode"
-                >
-                  <button
-                    type="button"
-                    className={matcherMatchMode === "all" ? "active" : ""}
-                    aria-pressed={matcherMatchMode === "all"}
-                    onClick={() => setMatcherMatchMode("all")}
-                  >
-                    Match all keywords
-                  </button>
-                  <button
-                    type="button"
-                    className={matcherMatchMode === "any" ? "active" : ""}
-                    aria-pressed={matcherMatchMode === "any"}
-                    onClick={() => setMatcherMatchMode("any")}
-                  >
-                    Match any keyword
-                  </button>
-                </div>
               </div>
               <label>
                 Trade
@@ -8288,7 +8290,7 @@ function ContractorHubApp() {
                                           </button>
                                         </td>
                                         <td className="matcher-project-name">
-                                          <strong>{project.name}</strong>
+                                          <strong title={project.name}>{project.name}</strong>
                                           <small>{relevance}% relevant</small>
                                           <div className="matched-terms">
                                             {matchedTerms
@@ -8298,11 +8300,11 @@ function ContractorHubApp() {
                                               ))}
                                           </div>
                                         </td>
-                                        <td>{project.scope || "-"}</td>
-                                        <td>{project.projectType ?? "-"}</td>
-                                        <td>{project.developer ?? "-"}</td>
-                                        <td>{project.client || "-"}</td>
-                                        <td>{project.location || "-"}</td>
+                                        <td><span className="matcher-cell-clamp" title={project.scope || "-"}>{project.scope || "-"}</span></td>
+                                        <td><span className="matcher-cell-clamp" title={project.projectType ?? "-"}>{project.projectType ?? "-"}</span></td>
+                                        <td><span className="matcher-cell-clamp" title={project.developer ?? "-"}>{project.developer ?? "-"}</span></td>
+                                        <td><span className="matcher-cell-clamp" title={project.client || "-"}>{project.client || "-"}</span></td>
+                                        <td><span className="matcher-cell-clamp" title={project.location || "-"}>{project.location || "-"}</span></td>
                                         <td>
                                           <strong>
                                             {money(project.value)}
@@ -9891,14 +9893,22 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.41</h2>
+            <h2 id="changelog-title">Version 0.42</h2>
             <div className="changelog-list">
               <article>
                 <strong>Latest update</strong>
                 <p>
-                  Relevant-project search now has Match all keywords and Match
-                  any keyword modes. Results, totals and bulk selection update
-                  immediately to follow the selected matching rule.
+                  Relevant-project search controls now sit in one compact upper
+                  bar. The results area uses the remaining screen height and
+                  long project descriptions use concise previews so more
+                  projects remain visible at once.
+                </p>
+              </article>
+              <article>
+                <strong>Keyword matching modes</strong>
+                <p>
+                  Choose Match all or Match any. Results, totals and bulk
+                  selection update immediately to follow the selected rule.
                 </p>
               </article>
               <article>
