@@ -4464,6 +4464,9 @@ td {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+.matcher-project-name > strong {
+  max-height: 2.5em;
+}
 .matcher-cell-clamp {
   max-height: 2.5em;
 }
