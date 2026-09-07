@@ -3364,6 +3364,30 @@ td {
   gap: 16px;
   margin-top: 24px;
 }
+.auth-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-top: 22px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #edf2f6;
+}
+.auth-mode-switch button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 7px;
+  color: #607184;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.auth-mode-switch button.active {
+  color: #102642;
+  background: #fff;
+  box-shadow: 0 2px 7px rgba(16, 38, 66, 0.12);
+}
 .auth-card label {
   display: grid;
   gap: 8px;
@@ -3391,6 +3415,16 @@ td {
 .auth-message.error {
   color: #9a3d38;
   background: #fcecea;
+}
+.auth-text-button {
+  margin-top: 18px;
+  padding: 0;
+  border: 0;
+  color: #365d7d;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 .account-bar {
   position: fixed;
@@ -3458,12 +3492,57 @@ td {
   color: #607184;
   line-height: 1.5;
 }
+.admin-panel h3 {
+  margin: 0;
+  color: #183854;
+  font-size: 18px;
+}
 .admin-panel .icon-button {
   border: 0;
   color: #607184;
   background: transparent;
   font-size: 24px;
   cursor: pointer;
+}
+.admin-create-account {
+  margin-top: 22px;
+  padding: 20px;
+  border: 1px solid #d9e1e7;
+  border-radius: 12px;
+  background: #f8fafb;
+}
+.admin-create-account > div:first-child p,
+.admin-pending-head p {
+  margin: 5px 0 0;
+  color: #607184;
+  line-height: 1.5;
+}
+.admin-create-account form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  margin-top: 16px;
+}
+.admin-create-account label {
+  display: grid;
+  gap: 7px;
+  color: #42566e;
+  font-weight: 700;
+}
+.admin-create-account input {
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid #cbd7e2;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+}
+.admin-create-account .auth-message {
+  margin-top: 14px;
+}
+.admin-pending-head {
+  margin-top: 26px;
 }
 .admin-request-list {
   display: grid;
@@ -3489,6 +3568,20 @@ td {
 .admin-request > div:last-child {
   display: flex;
   gap: 8px;
+}
+@media (max-width: 760px) {
+  .admin-create-account form {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-request {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-request > div:last-child {
+    flex-wrap: wrap;
+  }
 }
 .account-menu-popover {
   position: fixed;

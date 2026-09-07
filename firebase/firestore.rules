@@ -145,6 +145,16 @@ service cloud.firestore {
             && resource.data.role in ['project_user', 'viewer']
             && request.resource.data.role in ['project_user', 'viewer']
           )
+          || (
+            request.auth.uid == userId
+            && resource.data.mustChangePassword == true
+            && request.resource.data.mustChangePassword == false
+            && request.resource.data.passwordChangedAt == request.time
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'mustChangePassword',
+              'passwordChangedAt'
+            ])
+          )
         );
       allow delete: if false;
     }
