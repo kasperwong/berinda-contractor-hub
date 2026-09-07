@@ -340,7 +340,7 @@ function AdminUserPanel({ auth, db, onClose }: {
 
         <div className="admin-pending-head">
           <h3>Active users</h3>
-          <p>Choose the access level each person needs. Your own administrator role is protected.</p>
+          <p>Viewer can read, Editor can update records, and Admin can manage users. Your own administrator role is protected.</p>
         </div>
         {managementMessage && <div className="auth-message success">{managementMessage}</div>}
         {managementError && <div className="auth-message error">{managementError}</div>}
