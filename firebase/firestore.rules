@@ -18,12 +18,19 @@ service cloud.firestore {
       return userExists() && userProfile().active == true;
     }
 
+    function userGroupId() {
+      return userProfile().get(
+        'groupId',
+        userProfile().role == 'admin' ? 'berinda-group' : ''
+      );
+    }
+
     function roleIs(allowedRoles) {
       return activeUser() && userProfile().role in allowedRoles;
     }
 
     function sameGroup(groupId) {
-      return activeUser() && userProfile().groupId == groupId;
+      return activeUser() && userGroupId() == groupId;
     }
 
     function groupAdmin() {
@@ -69,7 +76,7 @@ service cloud.firestore {
         'createdBy',
         'updatedBy'
       ])
-      && request.resource.data.groupId == userProfile().groupId
+      && request.resource.data.groupId == userGroupId()
       && validContractorState(request.resource.data);
     }
 
@@ -113,7 +120,7 @@ service cloud.firestore {
     match /companies/{companyId} {
       allow read: if sameGroup(resource.data.groupId);
       allow create: if groupAdmin()
-        && request.resource.data.groupId == userProfile().groupId
+        && request.resource.data.groupId == userGroupId()
         && request.resource.data.id == companyId;
       allow update: if groupAdmin()
         && request.resource.data.groupId == resource.data.groupId;
@@ -128,7 +135,7 @@ service cloud.firestore {
           || (ownsCompany(resource.data.companyId) && sameGroup(resource.data.groupId))
         );
       allow create: if request.resource.data.id == userId
-        && request.resource.data.groupId == userProfile().groupId
+        && request.resource.data.groupId == userGroupId()
         && (
           groupAdmin()
           || (
@@ -139,7 +146,7 @@ service cloud.firestore {
       allow update: if request.resource.data.groupId == resource.data.groupId
         && request.resource.data.companyId == resource.data.companyId
         && (
-          (groupAdmin() && resource.data.groupId == userProfile().groupId)
+          (groupAdmin() && resource.data.groupId == userGroupId())
           || (
             ownsCompany(resource.data.companyId)
             && resource.data.role in ['project_user', 'viewer']
@@ -251,7 +258,7 @@ service cloud.firestore {
     match /prequalificationCriteria/{criteriaId} {
       allow read: if sameGroup(resource.data.groupId);
       allow create, update: if groupAdmin()
-        && request.resource.data.groupId == userProfile().groupId;
+        && request.resource.data.groupId == userGroupId();
       allow delete: if false;
     }
 
@@ -275,7 +282,7 @@ service cloud.firestore {
     match /nominations/{nominationId} {
       allow read: if canReadNomination(resource.data);
       allow create: if roleIs(['group_admin', 'company_admin', 'reviewer', 'project_user'])
-        && request.resource.data.groupId == userProfile().groupId
+        && request.resource.data.groupId == userGroupId()
         && request.resource.data.companyId == userProfile().companyId
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.status == 'draft';
@@ -305,7 +312,7 @@ service cloud.firestore {
       allow read: if sameGroup(resource.data.groupId)
         && (resource.data.createdBy == request.auth.uid || privilegedReviewer());
       allow create: if roleIs(['group_admin', 'company_admin', 'reviewer'])
-        && request.resource.data.groupId == userProfile().groupId
+        && request.resource.data.groupId == userGroupId()
         && request.resource.data.companyId == userProfile().companyId
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.status == 'queued';
@@ -315,7 +322,7 @@ service cloud.firestore {
     match /accessRequests/{requestId} {
       allow read: if signedIn()
         && (resource.data.requestedBy == request.auth.uid
-          || (groupAdmin() && resource.data.groupId == userProfile().groupId));
+          || (groupAdmin() && resource.data.groupId == userGroupId()));
       allow create: if signedIn()
         && request.resource.data.requestedBy == request.auth.uid
         && request.resource.data.status == 'pending'
@@ -331,7 +338,7 @@ service cloud.firestore {
     match /appState/{stateId} {
       allow read: if activeUser();
       allow create, update: if roleIs(['admin', 'editor', 'group_admin', 'company_admin'])
-        && request.resource.data.groupId == userProfile().groupId;
+        && request.resource.data.groupId == userGroupId();
       allow delete: if false;
 
       match /projectBatches/{batchId} {

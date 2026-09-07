@@ -221,6 +221,8 @@ function AdminUserPanel({ auth, db, onClose }: {
 
     setBusy("create-account");
     let createdToken = "";
+    let localId = "";
+    let repairedExistingAccount = false;
     try {
       const response = await fetch(
         `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(apiKey)}`,
@@ -235,15 +237,34 @@ function AdminUserPanel({ auth, db, onClose }: {
         idToken?: string;
         error?: { message?: string };
       };
-      if (!response.ok || !result.localId) {
-        if (result.error?.message === "EMAIL_EXISTS") throw new Error("EMAIL_EXISTS");
+      if (response.ok && result.localId) {
+        localId = result.localId;
+        createdToken = result.idToken ?? "";
+      } else if (result.error?.message === "EMAIL_EXISTS") {
+        const recoveryResponse = await fetch(
+          `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(apiKey)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: normalized, password: temporaryPassword, returnSecureToken: true }),
+          },
+        );
+        const recoveryResult = (await recoveryResponse.json()) as {
+          localId?: string;
+          error?: { message?: string };
+        };
+        if (!recoveryResponse.ok || !recoveryResult.localId) {
+          throw new Error("EXISTING_PASSWORD_MISMATCH");
+        }
+        localId = recoveryResult.localId;
+        repairedExistingAccount = true;
+      } else {
         throw new Error(result.error?.message || "CREATE_FAILED");
       }
 
-      createdToken = result.idToken ?? "";
       try {
-        await setDoc(doc(db, "users", result.localId), {
-          id: result.localId,
+        await setDoc(doc(db, "users", localId), {
+          id: localId,
           email: normalized,
           role: "viewer",
           active: true,
@@ -252,9 +273,9 @@ function AdminUserPanel({ auth, db, onClose }: {
           mustChangePassword: true,
           createdAt: serverTimestamp(),
           createdBy: auth.currentUser?.uid ?? "admin",
-        });
+        }, { merge: true });
       } catch (profileError) {
-        if (createdToken) {
+        if (!repairedExistingAccount && createdToken) {
           await fetch(
             `https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${encodeURIComponent(apiKey)}`,
             {
@@ -268,15 +289,17 @@ function AdminUserPanel({ auth, db, onClose }: {
       }
 
       setCreateMessage(
-        `Account created for ${normalized}. Share the temporary password privately; the user must replace it after signing in.`,
+        repairedExistingAccount
+          ? `Existing sign-in account repaired for ${normalized}. It is now active as a Viewer.`
+          : `Account created for ${normalized}. Share the temporary password privately; the user must replace it after signing in.`,
       );
       setInviteEmail("");
       setTemporaryPassword("");
       await load();
     } catch (error) {
       setCreateError(
-        error instanceof Error && error.message === "EMAIL_EXISTS"
-          ? "An authentication account already exists for this email address."
+        error instanceof Error && error.message === "EXISTING_PASSWORD_MISMATCH"
+          ? "This sign-in account already exists, but the password entered does not match. Enter its current password to repair the User Management record."
           : firebaseMessage(error, "The account could not be created. Try again or contact the system administrator."),
       );
     } finally {
@@ -323,8 +346,8 @@ function AdminUserPanel({ auth, db, onClose }: {
 
         <div className="admin-create-account">
           <div>
-            <h3>Create password account</h3>
-            <p>Use this when company email security blocks the passwordless sign-in link.</p>
+            <h3>Create or repair password account</h3>
+            <p>Create a new user, or enter an existing account&apos;s current password to restore it to User Management.</p>
           </div>
           <form onSubmit={createPasswordAccount}>
             <label>
@@ -350,7 +373,7 @@ function AdminUserPanel({ auth, db, onClose }: {
               />
             </label>
             <button className="primary-button" type="submit" disabled={busy === "create-account"}>
-              {busy === "create-account" ? "Creating account…" : "Create viewer account"}
+              {busy === "create-account" ? "Saving account…" : "Create / repair viewer"}
             </button>
           </form>
           {createMessage && <div className="auth-message success">{createMessage}</div>}
