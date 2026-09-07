@@ -65,6 +65,23 @@ const MANAGED_ROLES: Array<{ value: ManagedRole; label: string }> = [
   { value: "admin", label: "Admin" },
 ];
 
+function managedUser(id: string, data: Partial<ManagedUser>, fallbackEmail = "") {
+  return {
+    id,
+    email: data.email ?? (fallbackEmail || "Email not recorded"),
+    role: data.role && MANAGED_ROLES.some((role) => role.value === data.role) ? data.role : "viewer",
+    active: data.active === true,
+  } satisfies ManagedUser;
+}
+
+function mergeManagedUsers(groupUsers: ManagedUser[], currentUser: ManagedUser | null) {
+  const accounts = new Map(groupUsers.map((account) => [account.id, account]));
+  if (currentUser) accounts.set(currentUser.id, currentUser);
+  return Array.from(accounts.values())
+    .filter((account) => account.active)
+    .sort((a, b) => a.email.localeCompare(b.email));
+}
+
 export const AuthProfileContext = createContext<Profile | null>(null);
 export function useAuthProfile() {
   return useContext(AuthProfileContext);
@@ -107,49 +124,51 @@ function AdminUserPanel({ auth, db, onClose }: {
   const [managementError, setManagementError] = useState("");
 
   const load = async () => {
-    const [requestSnapshot, userSnapshot] = await Promise.all([
+    const signedInUser = auth.currentUser;
+    const [requestSnapshot, userSnapshot, currentUserSnapshot] = await Promise.all([
       getDocs(query(collection(db, "accessRequests"), where("status", "==", "pending"))),
       getDocs(query(collection(db, "users"), where("groupId", "==", "berinda-group"))),
+      signedInUser ? getDoc(doc(db, "users", signedInUser.uid)) : Promise.resolve(null),
     ]);
     setRequests(requestSnapshot.docs.map((item) => ({
       id: item.id,
       ...(item.data() as Omit<AccessRequest, "id">),
     })));
-    setUsers(userSnapshot.docs.map((item) => {
-      const data = item.data() as Partial<ManagedUser>;
-      return {
-        id: item.id,
-        email: data.email ?? "Email not recorded",
-        role: data.role && MANAGED_ROLES.some((role) => role.value === data.role) ? data.role : "viewer",
-        active: data.active === true,
-      };
-    }).filter((account) => account.active).sort((a, b) => a.email.localeCompare(b.email)));
+    const currentUser = currentUserSnapshot?.exists()
+      ? managedUser(currentUserSnapshot.id, currentUserSnapshot.data() as Partial<ManagedUser>, signedInUser?.email ?? "")
+      : null;
+    setUsers(mergeManagedUsers(
+      userSnapshot.docs.map((item) => managedUser(item.id, item.data() as Partial<ManagedUser>)),
+      currentUser,
+    ));
   };
 
   useEffect(() => {
     let cancelled = false;
+    const signedInUser = auth.currentUser;
     Promise.all([
       getDocs(query(collection(db, "accessRequests"), where("status", "==", "pending"))),
       getDocs(query(collection(db, "users"), where("groupId", "==", "berinda-group"))),
-    ]).then(([requestSnapshot, userSnapshot]) => {
+      signedInUser ? getDoc(doc(db, "users", signedInUser.uid)) : Promise.resolve(null),
+    ]).then(([requestSnapshot, userSnapshot, currentUserSnapshot]) => {
       if (!cancelled) {
         setRequests(requestSnapshot.docs.map((item) => ({
           id: item.id,
           ...(item.data() as Omit<AccessRequest, "id">),
         })));
-        setUsers(userSnapshot.docs.map((item) => {
-          const data = item.data() as Partial<ManagedUser>;
-          return {
-            id: item.id,
-            email: data.email ?? "Email not recorded",
-            role: data.role && MANAGED_ROLES.some((role) => role.value === data.role) ? data.role : "viewer",
-            active: data.active === true,
-          };
-        }).filter((account) => account.active).sort((a, b) => a.email.localeCompare(b.email)));
+        const currentUser = currentUserSnapshot?.exists()
+          ? managedUser(currentUserSnapshot.id, currentUserSnapshot.data() as Partial<ManagedUser>, signedInUser?.email ?? "")
+          : null;
+        setUsers(mergeManagedUsers(
+          userSnapshot.docs.map((item) => managedUser(item.id, item.data() as Partial<ManagedUser>)),
+          currentUser,
+        ));
       }
+    }).catch(() => {
+      if (!cancelled) setManagementError("Active users could not be loaded. Try again.");
     });
     return () => { cancelled = true; };
-  }, [db]);
+  }, [auth, db]);
 
   async function approve(request: AccessRequest) {
     setBusy(request.id);
