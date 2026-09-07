@@ -50,6 +50,21 @@ type AccessRequest = {
   requestedAt?: { seconds?: number };
 };
 
+type ManagedRole = NonNullable<Profile["role"]>;
+
+type ManagedUser = {
+  id: string;
+  email: string;
+  role: ManagedRole;
+  active: boolean;
+};
+
+const MANAGED_ROLES: Array<{ value: ManagedRole; label: string }> = [
+  { value: "viewer", label: "Viewer" },
+  { value: "editor", label: "Editor" },
+  { value: "admin", label: "Admin" },
+];
+
 export const AuthProfileContext = createContext<Profile | null>(null);
 export function useAuthProfile() {
   return useContext(AuthProfileContext);
@@ -82,28 +97,55 @@ function AdminUserPanel({ auth, db, onClose }: {
   onClose: () => void;
 }) {
   const [requests, setRequests] = useState<AccessRequest[]>([]);
+  const [users, setUsers] = useState<ManagedUser[]>([]);
   const [busy, setBusy] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [temporaryPassword, setTemporaryPassword] = useState("");
   const [createMessage, setCreateMessage] = useState("");
   const [createError, setCreateError] = useState("");
+  const [managementMessage, setManagementMessage] = useState("");
+  const [managementError, setManagementError] = useState("");
 
   const load = async () => {
-    const snapshot = await getDocs(query(collection(db, "accessRequests"), where("status", "==", "pending")));
-    setRequests(snapshot.docs.map((item) => ({
+    const [requestSnapshot, userSnapshot] = await Promise.all([
+      getDocs(query(collection(db, "accessRequests"), where("status", "==", "pending"))),
+      getDocs(query(collection(db, "users"), where("groupId", "==", "berinda-group"))),
+    ]);
+    setRequests(requestSnapshot.docs.map((item) => ({
       id: item.id,
       ...(item.data() as Omit<AccessRequest, "id">),
     })));
+    setUsers(userSnapshot.docs.map((item) => {
+      const data = item.data() as Partial<ManagedUser>;
+      return {
+        id: item.id,
+        email: data.email ?? "Email not recorded",
+        role: data.role && MANAGED_ROLES.some((role) => role.value === data.role) ? data.role : "viewer",
+        active: data.active === true,
+      };
+    }).filter((account) => account.active).sort((a, b) => a.email.localeCompare(b.email)));
   };
 
   useEffect(() => {
     let cancelled = false;
-    getDocs(query(collection(db, "accessRequests"), where("status", "==", "pending"))).then((snapshot) => {
+    Promise.all([
+      getDocs(query(collection(db, "accessRequests"), where("status", "==", "pending"))),
+      getDocs(query(collection(db, "users"), where("groupId", "==", "berinda-group"))),
+    ]).then(([requestSnapshot, userSnapshot]) => {
       if (!cancelled) {
-        setRequests(snapshot.docs.map((item) => ({
+        setRequests(requestSnapshot.docs.map((item) => ({
           id: item.id,
           ...(item.data() as Omit<AccessRequest, "id">),
         })));
+        setUsers(userSnapshot.docs.map((item) => {
+          const data = item.data() as Partial<ManagedUser>;
+          return {
+            id: item.id,
+            email: data.email ?? "Email not recorded",
+            role: data.role && MANAGED_ROLES.some((role) => role.value === data.role) ? data.role : "viewer",
+            active: data.active === true,
+          };
+        }).filter((account) => account.active).sort((a, b) => a.email.localeCompare(b.email)));
       }
     });
     return () => { cancelled = true; };
@@ -211,12 +253,39 @@ function AdminUserPanel({ auth, db, onClose }: {
       );
       setInviteEmail("");
       setTemporaryPassword("");
+      await load();
     } catch (error) {
       setCreateError(
         error instanceof Error && error.message === "EMAIL_EXISTS"
           ? "An authentication account already exists for this email address."
           : firebaseMessage(error, "The account could not be created. Try again or contact the system administrator."),
       );
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function changeRole(account: ManagedUser, nextRole: ManagedRole) {
+    setManagementMessage("");
+    setManagementError("");
+    if (account.id === auth.currentUser?.uid) {
+      setManagementError("You cannot change your own administrator role here.");
+      return;
+    }
+
+    setBusy(`role-${account.id}`);
+    try {
+      await updateDoc(doc(db, "users", account.id), {
+        role: nextRole,
+        updatedAt: serverTimestamp(),
+        updatedBy: auth.currentUser?.uid ?? "admin",
+      });
+      setUsers((current) => current.map((item) => (
+        item.id === account.id ? { ...item, role: nextRole } : item
+      )));
+      setManagementMessage(`${account.email} is now ${nextRole === "admin" ? "an Admin" : `an ${nextRole === "editor" ? "Editor" : "Viewer"}`}.`);
+    } catch {
+      setManagementError("The role could not be updated. Try again.");
     } finally {
       setBusy("");
     }
@@ -268,6 +337,42 @@ function AdminUserPanel({ auth, db, onClose }: {
           {createMessage && <div className="auth-message success">{createMessage}</div>}
           {createError && <div className="auth-message error">{createError}</div>}
         </div>
+
+        <div className="admin-pending-head">
+          <h3>Active users</h3>
+          <p>Choose the access level each person needs. Your own administrator role is protected.</p>
+        </div>
+        {managementMessage && <div className="auth-message success">{managementMessage}</div>}
+        {managementError && <div className="auth-message error">{managementError}</div>}
+        {users.length === 0 ? (
+          <div className="auth-message">No active users found.</div>
+        ) : (
+          <div className="admin-user-list">
+            {users.map((account) => {
+              const isCurrentUser = account.id === auth.currentUser?.uid;
+              return (
+                <div className="admin-user-row" key={account.id}>
+                  <div>
+                    <strong>{account.email}</strong>
+                    <small>{isCurrentUser ? "Your account" : "Active account"}</small>
+                  </div>
+                  <label>
+                    <select
+                      value={account.role}
+                      disabled={isCurrentUser || busy === `role-${account.id}`}
+                      onChange={(event) => void changeRole(account, event.target.value as ManagedRole)}
+                      aria-label={`Role for ${account.email}`}
+                    >
+                      {MANAGED_ROLES.map((role) => (
+                        <option key={role.value} value={role.value}>{role.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className="admin-pending-head">
           <h3>Pending email-link requests</h3>

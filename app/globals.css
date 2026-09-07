@@ -3544,6 +3544,47 @@ td {
 .admin-pending-head {
   margin-top: 26px;
 }
+.admin-user-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+.admin-user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px;
+  border: 1px solid #d9e1e7;
+  border-radius: 10px;
+  background: #fff;
+}
+.admin-user-row > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-user-row strong {
+  overflow-wrap: anywhere;
+}
+.admin-user-row small {
+  color: #77879a;
+}
+.admin-user-row select {
+  min-width: 128px;
+  padding: 9px 34px 9px 11px;
+  border: 1px solid #cbd7e2;
+  border-radius: 8px;
+  color: #183854;
+  background: #fff;
+  font: inherit;
+  font-weight: 700;
+}
+.admin-user-row select:disabled {
+  color: #607184;
+  background: #eef2f5;
+  cursor: not-allowed;
+}
 .admin-request-list {
   display: grid;
   gap: 10px;
@@ -3577,6 +3618,15 @@ td {
   .admin-request {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .admin-user-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-user-row select {
+    width: 100%;
   }
 
   .admin-request > div:last-child {
