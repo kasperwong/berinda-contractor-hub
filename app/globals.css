@@ -3538,6 +3538,14 @@ td {
   background: #fff;
   font: inherit;
 }
+.admin-create-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.admin-create-actions button {
+  white-space: nowrap;
+}
 .admin-create-account .auth-message {
   margin-top: 14px;
 }

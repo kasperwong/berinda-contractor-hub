@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import {
   isSignInWithEmailLink,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   sendSignInLinkToEmail,
   signInWithEmailAndPassword,
   signInWithEmailLink,
@@ -126,14 +127,14 @@ function AdminUserPanel({ auth, db, onClose }: {
   const load = async () => {
     const signedInUser = auth.currentUser;
     const [requestSnapshot, userSnapshot, currentUserSnapshot] = await Promise.all([
-      getDocs(query(collection(db, "accessRequests"), where("status", "==", "pending"))),
+      getDocs(query(collection(db, "accessRequests"), where("status", "==", "pending"))).catch(() => null),
       getDocs(query(collection(db, "users"), where("groupId", "==", "berinda-group"))),
       signedInUser ? getDoc(doc(db, "users", signedInUser.uid)) : Promise.resolve(null),
     ]);
-    setRequests(requestSnapshot.docs.map((item) => ({
+    setRequests(requestSnapshot?.docs.map((item) => ({
       id: item.id,
       ...(item.data() as Omit<AccessRequest, "id">),
-    })));
+    })) ?? []);
     const currentUser = currentUserSnapshot?.exists()
       ? managedUser(currentUserSnapshot.id, currentUserSnapshot.data() as Partial<ManagedUser>, signedInUser?.email ?? "")
       : null;
@@ -141,21 +142,22 @@ function AdminUserPanel({ auth, db, onClose }: {
       userSnapshot.docs.map((item) => managedUser(item.id, item.data() as Partial<ManagedUser>)),
       currentUser,
     ));
+    setManagementError("");
   };
 
   useEffect(() => {
     let cancelled = false;
     const signedInUser = auth.currentUser;
     Promise.all([
-      getDocs(query(collection(db, "accessRequests"), where("status", "==", "pending"))),
+      getDocs(query(collection(db, "accessRequests"), where("status", "==", "pending"))).catch(() => null),
       getDocs(query(collection(db, "users"), where("groupId", "==", "berinda-group"))),
       signedInUser ? getDoc(doc(db, "users", signedInUser.uid)) : Promise.resolve(null),
     ]).then(([requestSnapshot, userSnapshot, currentUserSnapshot]) => {
       if (!cancelled) {
-        setRequests(requestSnapshot.docs.map((item) => ({
+        setRequests(requestSnapshot?.docs.map((item) => ({
           id: item.id,
           ...(item.data() as Omit<AccessRequest, "id">),
-        })));
+        })) ?? []);
         const currentUser = currentUserSnapshot?.exists()
           ? managedUser(currentUserSnapshot.id, currentUserSnapshot.data() as Partial<ManagedUser>, signedInUser?.email ?? "")
           : null;
@@ -163,6 +165,7 @@ function AdminUserPanel({ auth, db, onClose }: {
           userSnapshot.docs.map((item) => managedUser(item.id, item.data() as Partial<ManagedUser>)),
           currentUser,
         ));
+        setManagementError("");
       }
     }).catch(() => {
       if (!cancelled) setManagementError("Active users could not be loaded. Try again.");
@@ -307,6 +310,26 @@ function AdminUserPanel({ auth, db, onClose }: {
     }
   }
 
+  async function resetPassword() {
+    setCreateMessage("");
+    setCreateError("");
+    const normalized = inviteEmail.trim().toLowerCase();
+    if (!normalized.includes("@")) {
+      setCreateError("Enter the user's company email address first.");
+      return;
+    }
+
+    setBusy("reset-password");
+    try {
+      await sendPasswordResetEmail(auth, normalized);
+      setCreateMessage(`Password reset email sent to ${normalized}.`);
+    } catch (error) {
+      setCreateError(firebaseMessage(error, "The password reset email could not be sent. Try again."));
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function changeRole(account: ManagedUser, nextRole: ManagedRole) {
     setManagementMessage("");
     setManagementError("");
@@ -372,9 +395,14 @@ function AdminUserPanel({ auth, db, onClose }: {
                 required
               />
             </label>
-            <button className="primary-button" type="submit" disabled={busy === "create-account"}>
-              {busy === "create-account" ? "Saving account…" : "Create / repair viewer"}
-            </button>
+            <div className="admin-create-actions">
+              <button className="secondary-button" type="button" disabled={Boolean(busy)} onClick={() => void resetPassword()}>
+                {busy === "reset-password" ? "Sending…" : "Reset password"}
+              </button>
+              <button className="primary-button" type="submit" disabled={Boolean(busy)}>
+                {busy === "create-account" ? "Saving account…" : "Create / repair viewer"}
+              </button>
+            </div>
           </form>
           {createMessage && <div className="auth-message success">{createMessage}</div>}
           {createError && <div className="auth-message error">{createError}</div>}
