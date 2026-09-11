@@ -51,3 +51,6 @@ next-env.d.ts
 /.recovery/
 /magic-string-*.tgz
 /.openai/*.tar.gz
+/_backup_*/
+/WorkPro_v*.zip
+*.bak

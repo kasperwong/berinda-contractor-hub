@@ -352,6 +352,26 @@ service cloud.firestore {
         allow create, update: if roleIs(['admin', 'editor', 'group_admin', 'company_admin']);
         allow delete: if roleIs(['admin', 'group_admin']);
       }
+
+      match /contractorDocuments/{documentId} {
+        allow read: if activeUser();
+        allow create: if roleIs(['admin', 'editor', 'group_admin', 'company_admin'])
+          && request.resource.data.contractorId is string
+          && request.resource.data.name is string
+          && request.resource.data.storagePath is string
+          && request.resource.data.size is int
+          && request.resource.data.size <= 25 * 1024 * 1024;
+        allow update: if roleIs(['admin', 'editor', 'group_admin', 'company_admin'])
+          && request.resource.data.contractorId == resource.data.contractorId
+          && request.resource.data.storagePath == resource.data.storagePath
+          && request.resource.data.size == resource.data.size
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name',
+            'updatedAt',
+            'updatedBy'
+          ]);
+        allow delete: if roleIs(['admin', 'editor', 'group_admin', 'company_admin']);
+      }
     }
 
     match /auditLogs/{logId} {

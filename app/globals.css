@@ -5616,7 +5616,7 @@ td {
 }
 .document-list article {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto auto;
+  grid-template-columns: 44px minmax(180px, 1fr) auto;
   align-items: center;
   gap: 14px;
   min-height: 76px;
@@ -5641,20 +5641,47 @@ td {
   color: #818c99;
   font-size: 10.5px;
 }
-.document-list b {
-  padding: 5px 8px;
-  border-radius: 99px;
-  font-size: 10px;
+.document-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
-.document-list b.current {
-  background: var(--teal-soft);
-  color: var(--teal);
+.document-actions button {
+  min-height: 38px;
 }
-.document-list b.restricted {
-  background: var(--gold-soft);
-  color: #96651d;
+.document-delete-button {
+  border: 1px solid #e6b9b5;
+  border-radius: 8px;
+  background: #fff;
+  color: #a43f36;
+  padding: 8px 13px;
+  font-weight: 700;
+  cursor: pointer;
 }
-.sharepoint-note {
+.document-delete-button:hover {
+  background: #fff2f1;
+}
+.document-actions button:disabled,
+.document-modal button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+.document-empty {
+  display: flex;
+  min-height: 150px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #7d8997;
+  text-align: center;
+}
+.document-empty strong {
+  color: #25364a;
+  font-size: 15px;
+}
+.document-access-note {
   display: flex;
   gap: 12px;
   margin: 18px;
@@ -5663,14 +5690,23 @@ td {
   background: #eef3f8;
   color: #5e7185;
 }
-.sharepoint-note p {
+.document-access-note p {
   margin: 0;
   font-size: 11px;
 }
-.sharepoint-note strong {
+.document-access-note strong {
   display: block;
   color: #334b63;
   font-size: 12px;
+}
+.document-modal {
+  max-width: 520px;
+}
+.document-file-picker small {
+  display: block;
+  margin-top: 6px;
+  color: #7d8997;
+  font-weight: 500;
 }
 .activity-list {
   padding: 4px 22px 14px;
@@ -5997,11 +6033,12 @@ td {
     text-align: left;
   }
   .document-list article {
-    grid-template-columns: 44px 1fr auto;
+    grid-template-columns: 44px minmax(0, 1fr);
     padding: 12px 0;
   }
-  .document-list article .secondary-button {
-    grid-column: 2 / 4;
+  .document-actions {
+    grid-column: 2 / -1;
+    justify-content: flex-start;
   }
   .activity-list article {
     grid-template-columns: 30px 1fr;

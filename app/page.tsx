@@ -6,10 +6,15 @@ import { AuthGate, useAuthProfile } from "./auth-gate";
 import { createProjectReferenceWorkbook } from "./project-reference-xlsx";
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
+  query as firestoreQuery,
   setDoc,
+  updateDoc,
+  where,
   writeBatch,
 } from "firebase/firestore";
 import { getFirebaseClient } from "@/lib/firebase/client";
@@ -80,6 +85,19 @@ type ArchivedProjectImport = {
   archivedAt: string;
   archivedBy: string;
   batchIds: string[];
+};
+
+type ContractorDocument = {
+  id: string;
+  contractorId: string;
+  name: string;
+  storagePath: string;
+  contentType: string;
+  size: number;
+  uploadedAt: string;
+  uploadedBy: string;
+  updatedAt: string;
+  updatedBy: string;
 };
 
 type ContractorImportRow = {
@@ -811,13 +829,15 @@ function ContractorHubApp() {
   const [groupValidationYears, setGroupValidationYears] = useState(3);
   const firestoreHydrated = useRef(false);
   const skipNextAutomaticSave = useRef(false);
-  const { db } = getFirebaseClient();
+  const { auth, db } = getFirebaseClient();
   const contractorStorageHydrated = useRef(false);
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("berinda-contractor-rows");
       if (saved) {
         const parsed = JSON.parse(saved);
+        // Hydrate the legacy browser cache before Firestore responds.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (Array.isArray(parsed) && parsed.length) setContractorRows(parsed);
       }
     } catch {
@@ -1091,6 +1111,32 @@ function ContractorHubApp() {
   const [activeContractor, setActiveContractor] = useState(
     initialContractors[0],
   );
+  useEffect(() => {
+    const documentsQuery = firestoreQuery(
+      collection(db, "appState", "berinda-group", "contractorDocuments"),
+      where("contractorId", "==", activeContractor.id),
+    );
+    return onSnapshot(
+      documentsQuery,
+      (snapshot) => {
+        setContractorDocuments(
+          snapshot.docs
+            .map(
+              (item) =>
+                ({ id: item.id, ...item.data() }) as ContractorDocument,
+            )
+            .sort((first, second) =>
+              second.uploadedAt.localeCompare(first.uploadedAt),
+            ),
+        );
+        setDocumentsLoading(false);
+      },
+      () => {
+        setContractorDocuments([]);
+        setDocumentsLoading(false);
+      },
+    );
+  }, [activeContractor.id, db]);
   const [selectedContractors, setSelectedContractors] = useState<string[]>([
     initialContractors[0].id,
   ]);
@@ -1108,6 +1154,8 @@ function ContractorHubApp() {
     | "settings"
   >("overview");
   useEffect(() => {
+    // Guard routes when the signed-in user's role changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (activeSection === "settings" && !isAdmin) setActiveSection("overview");
     if (activeSection === "groupProjects") setActiveSection("overview");
   }, [activeSection, isAdmin]);
@@ -1158,6 +1206,19 @@ function ContractorHubApp() {
     "overview" | "preq" | "projects" | "documents" | "activity"
   >("overview");
   const [uploadedFile, setUploadedFile] = useState("");
+  const [contractorDocuments, setContractorDocuments] = useState<
+    ContractorDocument[]
+  >([]);
+  const [documentsLoading, setDocumentsLoading] = useState(true);
+  const [documentActionBusy, setDocumentActionBusy] = useState("");
+  const [showDocumentUpload, setShowDocumentUpload] = useState(false);
+  const [documentUploadFile, setDocumentUploadFile] = useState<File | null>(
+    null,
+  );
+  const [documentUploadName, setDocumentUploadName] = useState("");
+  const [renamingDocument, setRenamingDocument] =
+    useState<ContractorDocument | null>(null);
+  const [renameDocumentName, setRenameDocumentName] = useState("");
   const [projectQuery, setProjectQuery] = useState("");
   const [contractorImportRows, setContractorImportRows] = useState<
     ContractorImportRow[]
@@ -1712,10 +1773,14 @@ function ContractorHubApp() {
   })();
 
   useEffect(() => {
+    // Reset pagination when the filter set changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1);
   }, [query, statusFilter, tradeFilter, locationFilter, columnFilters]);
 
   useEffect(() => {
+    // Keep the selected page within the recalculated result range.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage((page) => Math.min(Math.max(1, page), totalContractorPages));
   }, [totalContractorPages]);
   const selectedRequestContractors = contractorRows.filter((contractor) =>
@@ -2262,6 +2327,199 @@ function ContractorHubApp() {
   function notify(message: string) {
     setToast(message);
     window.setTimeout(() => setToast(""), 3200);
+  }
+
+  function formatDocumentSize(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function formatDocumentDate(value: string) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? "Date unavailable"
+      : date.toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+  }
+
+  async function documentApi(
+    documentRecord: Pick<ContractorDocument, "contractorId" | "id">,
+    init?: RequestInit,
+  ) {
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) throw new Error("Authentication required");
+    return fetch(
+      `/api/contractor-documents/${encodeURIComponent(documentRecord.contractorId)}/${encodeURIComponent(documentRecord.id)}`,
+      {
+        ...init,
+        headers: {
+          ...init?.headers,
+          authorization: `Bearer ${token}`,
+        },
+      },
+    );
+  }
+
+  async function uploadContractorDocument(event: React.FormEvent) {
+    event.preventDefault();
+    if (!canEdit || !documentUploadFile) return;
+    const name = documentUploadName.trim();
+    if (!name) {
+      notify("Enter a document name.");
+      return;
+    }
+    if (documentUploadFile.size > 25 * 1024 * 1024) {
+      notify("Document must be 25 MB or smaller.");
+      return;
+    }
+
+    const metadataRef = doc(
+      collection(db, "appState", "berinda-group", "contractorDocuments"),
+    );
+    const path = `contractor-documents/${activeContractor.id}/${metadataRef.id}/file`;
+    const now = new Date().toISOString();
+    const actor = auth.currentUser?.email ?? "Authenticated editor";
+    setDocumentActionBusy("upload");
+    try {
+      const uploadResponse = await documentApi(
+        { contractorId: activeContractor.id, id: metadataRef.id },
+        {
+          method: "POST",
+          headers: {
+            "content-type":
+              documentUploadFile.type || "application/octet-stream",
+          },
+          body: documentUploadFile,
+        },
+      );
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed (${uploadResponse.status})`);
+      }
+      await setDoc(metadataRef, {
+        contractorId: activeContractor.id,
+        name,
+        storagePath: path,
+        contentType:
+          documentUploadFile.type || "application/octet-stream",
+        size: documentUploadFile.size,
+        uploadedAt: now,
+        uploadedBy: actor,
+        updatedAt: now,
+        updatedBy: actor,
+      });
+      setDocumentUploadFile(null);
+      setDocumentUploadName("");
+      setShowDocumentUpload(false);
+      notify(`${name} uploaded.`);
+    } catch {
+      await documentApi(
+        { contractorId: activeContractor.id, id: metadataRef.id },
+        { method: "DELETE" },
+      ).catch(() => undefined);
+      notify("The document could not be uploaded. Please try again.");
+    } finally {
+      setDocumentActionBusy("");
+    }
+  }
+
+  async function openContractorDocument(
+    documentRecord: ContractorDocument,
+    download: boolean,
+  ) {
+    const previewWindow = download ? null : window.open("", "_blank");
+    if (previewWindow) previewWindow.opener = null;
+    setDocumentActionBusy(`${download ? "download" : "view"}-${documentRecord.id}`);
+    try {
+      const response = await documentApi(documentRecord);
+      if (!response.ok) throw new Error(`Open failed (${response.status})`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      if (download) {
+        const anchor = window.document.createElement("a");
+        anchor.href = url;
+        anchor.download = documentRecord.name;
+        anchor.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        notify(`${documentRecord.name} downloaded.`);
+      } else if (previewWindow) {
+        previewWindow.location.href = url;
+        window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } else {
+        URL.revokeObjectURL(url);
+        notify("Allow pop-ups to view this document.");
+      }
+    } catch {
+      previewWindow?.close();
+      notify("The document could not be opened. Please try again.");
+    } finally {
+      setDocumentActionBusy("");
+    }
+  }
+
+  async function renameContractorDocument(event: React.FormEvent) {
+    event.preventDefault();
+    if (!canEdit || !renamingDocument) return;
+    const name = renameDocumentName.trim();
+    if (!name) {
+      notify("Enter a document name.");
+      return;
+    }
+    setDocumentActionBusy(`rename-${renamingDocument.id}`);
+    try {
+      await updateDoc(
+        doc(
+          db,
+          "appState",
+          "berinda-group",
+          "contractorDocuments",
+          renamingDocument.id,
+        ),
+        {
+          name,
+          updatedAt: new Date().toISOString(),
+          updatedBy: auth.currentUser?.email ?? "Authenticated editor",
+        },
+      );
+      setRenamingDocument(null);
+      setRenameDocumentName("");
+      notify(`Document renamed to ${name}.`);
+    } catch {
+      notify("The document could not be renamed. Please try again.");
+    } finally {
+      setDocumentActionBusy("");
+    }
+  }
+
+  async function deleteContractorDocument(documentRecord: ContractorDocument) {
+    if (
+      !canEdit ||
+      !window.confirm(`Delete “${documentRecord.name}”? This cannot be undone.`)
+    )
+      return;
+    setDocumentActionBusy(`delete-${documentRecord.id}`);
+    try {
+      const response = await documentApi(documentRecord, { method: "DELETE" });
+      if (!response.ok && response.status !== 404)
+        throw new Error(`Delete failed (${response.status})`);
+      await deleteDoc(
+        doc(
+          db,
+          "appState",
+          "berinda-group",
+          "contractorDocuments",
+          documentRecord.id,
+        ),
+      );
+      notify(`${documentRecord.name} deleted.`);
+    } catch {
+      notify("The document could not be deleted. Please try again.");
+    } finally {
+      setDocumentActionBusy("");
+    }
   }
 
   function downloadFile(fileName: string, content: string, type: string) {
@@ -4242,7 +4500,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.44
+              Version 0.45
             </button>
           </div>
         </div>
@@ -5400,8 +5658,8 @@ function ContractorHubApp() {
                     <div>
                       <h3>Control full documents</h3>
                       <p>
-                        Keep detailed documents protected in SharePoint.
-                        Database users request access when needed.
+                        Keep detailed documents securely in each contractor
+                        profile for approved users.
                       </p>
                     </div>
                   </section>
@@ -5736,7 +5994,8 @@ function ContractorHubApp() {
                             <h4>Use the Contractor Project Extractor</h4>
                             <p>
                               Open the dedicated extractor, upload the
-                              contractor's PDF, Word or Excel project list, then
+                              contractor&apos;s PDF, Word or Excel project list,
+                              then
                               download the system-ready file it generates.
                             </p>
                             <a
@@ -7126,7 +7385,7 @@ function ContractorHubApp() {
                     <h2>Group companies and contractor validation</h2>
                     <p>
                       Maintain the names of companies within the group and
-                      control each contractor's validation period.
+                      control each contractor&apos;s validation period.
                     </p>
                   </div>
                   <button
@@ -7229,7 +7488,7 @@ function ContractorHubApp() {
                     <p className="eyebrow">ONE SETTING FOR ALL CONTRACTORS</p>
                     <h3>Contractor validation period</h3>
                     <p>
-                      This single period is counted from each contractor's
+                      This single period is counted from each contractor&apos;s
                       approval date and applies to every existing and new
                       contractor.
                     </p>
@@ -7478,7 +7737,7 @@ function ContractorHubApp() {
                     "projects",
                     `Projects (${activeContractor.projects.length})`,
                   ],
-                  ["documents", "Documents (5)"],
+                  ["documents", `Documents (${contractorDocuments.length})`],
                   ["activity", "Activity"],
                 ] as const
               ).map(([tab, label]) => (
@@ -7862,91 +8121,99 @@ function ContractorHubApp() {
                   <section className="profile-card documents-card">
                     <div className="card-heading">
                       <div>
-                        <p className="eyebrow">SHAREPOINT REFERENCES</p>
+                        <p className="eyebrow">DOCUMENT LIBRARY</p>
                         <h3>Contractor documents</h3>
                       </div>
-                      <button
-                        className="primary-button"
-                        onClick={() => {
-                          setShowProfile(false);
-                          setShowUpload(true);
-                        }}
-                      >
-                        ⇧ Upload document
-                      </button>
+                      {canEdit && (
+                        <button
+                          className="primary-button"
+                          onClick={() => setShowDocumentUpload(true)}
+                        >
+                          ⇧ Upload document
+                        </button>
+                      )}
                     </div>
                     <div className="document-list">
-                      {[
-                        [
-                          "Pre-Qualification Form 2026.pdf",
-                          "Pre-Q form",
-                          "18 Mar 2026",
-                          "Verified",
-                        ],
-                        [
-                          "CIDB Registration Certificate.pdf",
-                          "Registration",
-                          "30 Jun 2027",
-                          "Current",
-                        ],
-                        [
-                          "Completed and Ongoing Projects.pdf",
-                          "Project list",
-                          "12 Mar 2026",
-                          "Verified",
-                        ],
-                        [
-                          "Audited Financial Statements 2025.pdf",
-                          "Financial",
-                          "31 Dec 2025",
-                          "Restricted",
-                        ],
-                        [
-                          "Quality and Safety Policy.pdf",
-                          "Quality",
-                          "6 Mar 2026",
-                          "Current",
-                        ],
-                      ].map(([file, type, date, status]) => (
-                        <article key={file}>
-                          <span className="file-icon">PDF</span>
+                      {documentsLoading ? (
+                        <div className="document-empty">
+                          Loading documents…
+                        </div>
+                      ) : contractorDocuments.length ? (
+                        contractorDocuments.map((documentRecord) => (
+                        <article key={documentRecord.id}>
+                          <span className="file-icon">
+                            {documentRecord.name.split(".").pop()?.slice(0, 4) ||
+                              "FILE"}
+                          </span>
                           <div>
-                            <strong>{file}</strong>
+                            <strong>{documentRecord.name}</strong>
                             <p>
-                              {type} · Updated {date}
+                              {formatDocumentSize(documentRecord.size)} · Uploaded{" "}
+                              {formatDocumentDate(documentRecord.uploadedAt)}
                             </p>
                           </div>
-                          <b
-                            className={
-                              status === "Restricted" ? "restricted" : "current"
-                            }
-                          >
-                            {status}
-                          </b>
-                          <button
-                            className="secondary-button"
-                            onClick={() =>
-                              notify(
-                                status === "Restricted"
-                                  ? `Access request submitted for ${file}.`
-                                  : `${file} is ready to open after SharePoint is connected.`,
-                              )
-                            }
-                          >
-                            Request / Open
-                          </button>
+                          <div className="document-actions">
+                            <button
+                              className="secondary-button"
+                              disabled={Boolean(documentActionBusy)}
+                              onClick={() =>
+                                void openContractorDocument(documentRecord, false)
+                              }
+                            >
+                              View
+                            </button>
+                            <button
+                              className="secondary-button"
+                              disabled={Boolean(documentActionBusy)}
+                              onClick={() =>
+                                void openContractorDocument(documentRecord, true)
+                              }
+                            >
+                              Download
+                            </button>
+                            {canEdit && (
+                              <>
+                                <button
+                                  className="secondary-button"
+                                  disabled={Boolean(documentActionBusy)}
+                                  onClick={() => {
+                                    setRenamingDocument(documentRecord);
+                                    setRenameDocumentName(documentRecord.name);
+                                  }}
+                                >
+                                  Rename
+                                </button>
+                                <button
+                                  className="document-delete-button"
+                                  disabled={Boolean(documentActionBusy)}
+                                  onClick={() =>
+                                    void deleteContractorDocument(documentRecord)
+                                  }
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </article>
-                      ))}
+                        ))
+                      ) : (
+                        <div className="document-empty">
+                          <strong>No documents uploaded</strong>
+                          <span>
+                            {canEdit
+                              ? "Upload the first document for this contractor."
+                              : "An Editor or Admin can add documents here."}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    <div className="sharepoint-note">
-                      <span>♢</span>
+                    <div className="document-access-note">
+                      <span>✓</span>
                       <p>
-                        <strong>
-                          Documents remain protected in SharePoint
-                        </strong>
-                        Opening or downloading a restricted file requires
-                        SharePoint permission, even when its reference appears
-                        here.
+                        <strong>Available to approved users</strong>
+                        Viewers can open or download files. Editors and Admins
+                        can also upload, rename, and delete them.
                       </p>
                     </div>
                   </section>
@@ -9898,8 +10165,8 @@ function ContractorHubApp() {
             <div className="privacy-strip">
               <span>♢</span>
               <p>
-                <strong>Private processing</strong>In production, files remain
-                in your group SharePoint and only approved users can open them.
+                <strong>Private processing</strong>Uploaded files remain in the
+                contractor profile and only approved users can open them.
               </p>
             </div>
             <div className="modal-actions">
@@ -9928,6 +10195,149 @@ function ContractorHubApp() {
         </div>
       )}
 
+      {showDocumentUpload && canEdit && (
+        <div
+          className="modal-backdrop nested-modal"
+          role="presentation"
+          onMouseDown={() => {
+            if (documentActionBusy) return;
+            setShowDocumentUpload(false);
+            setDocumentUploadFile(null);
+            setDocumentUploadName("");
+          }}
+        >
+          <form
+            className="modal form-modal document-modal"
+            onSubmit={(event) => void uploadContractorDocument(event)}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="modal-close"
+              disabled={Boolean(documentActionBusy)}
+              onClick={() => {
+                setShowDocumentUpload(false);
+                setDocumentUploadFile(null);
+                setDocumentUploadName("");
+              }}
+              aria-label="Close document upload"
+            >
+              ×
+            </button>
+            <p className="eyebrow">ADD DOCUMENT</p>
+            <h2>Upload contractor document</h2>
+            <p>
+              Add a file for {activeContractor.name}. The document will be
+              visible to approved users.
+            </p>
+            <label className="document-file-picker">
+              Document file
+              <input
+                type="file"
+                required
+                disabled={Boolean(documentActionBusy)}
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  setDocumentUploadFile(file);
+                  setDocumentUploadName(file?.name ?? "");
+                }}
+              />
+              <small>Maximum file size: 25 MB</small>
+            </label>
+            <label>
+              Display name
+              <input
+                value={documentUploadName}
+                onChange={(event) => setDocumentUploadName(event.target.value)}
+                placeholder="Document name"
+                required
+                disabled={Boolean(documentActionBusy)}
+              />
+            </label>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={Boolean(documentActionBusy)}
+                onClick={() => {
+                  setShowDocumentUpload(false);
+                  setDocumentUploadFile(null);
+                  setDocumentUploadName("");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={!documentUploadFile || Boolean(documentActionBusy)}
+              >
+                {documentActionBusy === "upload"
+                  ? "Uploading…"
+                  : "Upload document"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {renamingDocument && canEdit && (
+        <div
+          className="modal-backdrop nested-modal"
+          role="presentation"
+          onMouseDown={() => {
+            if (!documentActionBusy) setRenamingDocument(null);
+          }}
+        >
+          <form
+            className="modal form-modal document-modal"
+            onSubmit={(event) => void renameContractorDocument(event)}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="modal-close"
+              disabled={Boolean(documentActionBusy)}
+              onClick={() => setRenamingDocument(null)}
+              aria-label="Close document rename"
+            >
+              ×
+            </button>
+            <p className="eyebrow">EDIT DOCUMENT</p>
+            <h2>Rename document</h2>
+            <label>
+              Display name
+              <input
+                value={renameDocumentName}
+                onChange={(event) => setRenameDocumentName(event.target.value)}
+                autoFocus
+                required
+                disabled={Boolean(documentActionBusy)}
+              />
+            </label>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={Boolean(documentActionBusy)}
+                onClick={() => setRenamingDocument(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={Boolean(documentActionBusy)}
+              >
+                {documentActionBusy.startsWith("rename-")
+                  ? "Saving…"
+                  : "Save name"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {showChangelog && (
         <div
           className="modal-backdrop"
@@ -9949,8 +10359,16 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.44</h2>
+            <h2 id="changelog-title">Version 0.45</h2>
             <div className="changelog-list">
+              <article>
+                <strong>Contractor document library</strong>
+                <p>
+                  Editors and Admins can upload, rename and delete contractor
+                  documents. Viewers can securely open or download every
+                  uploaded file.
+                </p>
+              </article>
               <article>
                 <strong>Latest update</strong>
                 <p>

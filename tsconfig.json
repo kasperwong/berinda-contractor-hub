@@ -30,5 +30,13 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "worker", "db", "tmp"]
+  "exclude": [
+    "node_modules",
+    "worker",
+    "db",
+    "tmp",
+    "_backup_*",
+    ".magic-string-fix",
+    "examples"
+  ]
 }

@@ -4,12 +4,11 @@ import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getAuth, type Auth } from "firebase/auth";
 
-type FirebaseClient = { app: FirebaseApp; db: Firestore; auth: Auth };
-
-function required(name: string, value: string | undefined): string {
-  if (!value) throw new Error(`Missing Firebase configuration: ${name}`);
-  return value;
-}
+type FirebaseClient = {
+  app: FirebaseApp;
+  db: Firestore;
+  auth: Auth;
+};
 
 export function getFirebaseClient(): FirebaseClient {
   const app = getApps().length
@@ -22,5 +21,9 @@ export function getFirebaseClient(): FirebaseClient {
         messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? "1077059405196",
       });
 
-  return { app, db: getFirestore(app), auth: getAuth(app) };
+  return {
+    app,
+    db: getFirestore(app),
+    auth: getAuth(app),
+  };
 }
