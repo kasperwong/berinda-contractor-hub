@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.46.0] - 2026-09-11
+
+### Fixed
+
+- Versioned production assets so browsers cannot retain the removed SharePoint document mockup after deployment.
+
 ## [0.45.0] - 2026-09-11
 
 ### Added

@@ -4500,7 +4500,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.45
+              Version 0.46
             </button>
           </div>
         </div>
@@ -10359,8 +10359,15 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.45</h2>
+            <h2 id="changelog-title">Version 0.46</h2>
             <div className="changelog-list">
+              <article>
+                <strong>Document library cache refresh</strong>
+                <p>
+                  Browsers now load a versioned application bundle so the old
+                  SharePoint sample list cannot remain after an update.
+                </p>
+              </article>
               <article>
                 <strong>Contractor document library</strong>
                 <p>

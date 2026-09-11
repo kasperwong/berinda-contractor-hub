@@ -44,6 +44,9 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    // Vinext chunk names are stable across content changes. Version the asset
+    // directory so browsers cannot reuse a previous release's JavaScript.
+    build: { assetsDir: "assets-v0460" },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
