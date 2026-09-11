@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.47.0] - 2026-09-11
+
+### Fixed
+
+- Published the document library through the Firebase App Hosting production pipeline.
+- Stored uploaded document data in Firestore so upload, view, download, rename, and delete work on the Firebase-hosted app.
+
 ## [0.46.0] - 2026-09-11
 
 ### Fixed

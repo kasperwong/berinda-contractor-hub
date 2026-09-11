@@ -360,7 +360,11 @@ service cloud.firestore {
           && request.resource.data.name is string
           && request.resource.data.storagePath is string
           && request.resource.data.size is int
-          && request.resource.data.size <= 25 * 1024 * 1024;
+          && request.resource.data.size > 0
+          && request.resource.data.size <= 25 * 1024 * 1024
+          && request.resource.data.chunkCount is int
+          && request.resource.data.chunkCount > 0
+          && request.resource.data.chunkCount <= 50;
         allow update: if roleIs(['admin', 'editor', 'group_admin', 'company_admin'])
           && request.resource.data.contractorId == resource.data.contractorId
           && request.resource.data.storagePath == resource.data.storagePath
@@ -371,6 +375,18 @@ service cloud.firestore {
             'updatedBy'
           ]);
         allow delete: if roleIs(['admin', 'editor', 'group_admin', 'company_admin']);
+
+        match /chunks/{chunkId} {
+          allow read: if activeUser();
+          allow create: if roleIs(['admin', 'editor', 'group_admin', 'company_admin'])
+            && request.resource.data.index is int
+            && request.resource.data.index >= 0
+            && request.resource.data.index < 50
+            && request.resource.data.data is string
+            && request.resource.data.data.size() <= 900000;
+          allow update: if false;
+          allow delete: if roleIs(['admin', 'editor', 'group_admin', 'company_admin']);
+        }
       }
     }
 

@@ -46,7 +46,7 @@ export default defineConfig(async () => {
   return {
     // Vinext chunk names are stable across content changes. Version the asset
     // directory so browsers cannot reuse a previous release's JavaScript.
-    build: { assetsDir: "assets-v0460" },
+    build: { assetsDir: "assets-v0470" },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,

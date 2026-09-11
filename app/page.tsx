@@ -94,6 +94,7 @@ type ContractorDocument = {
   storagePath: string;
   contentType: string;
   size: number;
+  chunkCount: number;
   uploadedAt: string;
   uploadedBy: string;
   updatedAt: string;
@@ -2346,22 +2347,42 @@ function ContractorHubApp() {
         });
   }
 
-  async function documentApi(
-    documentRecord: Pick<ContractorDocument, "contractorId" | "id">,
-    init?: RequestInit,
-  ) {
-    const token = await auth.currentUser?.getIdToken();
-    if (!token) throw new Error("Authentication required");
-    return fetch(
-      `/api/contractor-documents/${encodeURIComponent(documentRecord.contractorId)}/${encodeURIComponent(documentRecord.id)}`,
-      {
-        ...init,
-        headers: {
-          ...init?.headers,
-          authorization: `Bearer ${token}`,
-        },
-      },
+  const documentChunkSize = 600 * 1024;
+
+  function encodeDocumentChunk(bytes: Uint8Array) {
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 32768) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
+    }
+    return window.btoa(binary);
+  }
+
+  function decodeDocumentChunk(value: string) {
+    const binary = window.atob(value);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return bytes;
+  }
+
+  async function deleteDocumentChunks(documentId: string) {
+    const chunksRef = collection(
+      db,
+      "appState",
+      "berinda-group",
+      "contractorDocuments",
+      documentId,
+      "chunks",
     );
+    const snapshot = await getDocs(chunksRef);
+    for (let offset = 0; offset < snapshot.docs.length; offset += 400) {
+      const batch = writeBatch(db);
+      snapshot.docs.slice(offset, offset + 400).forEach((chunk) => {
+        batch.delete(chunk.ref);
+      });
+      await batch.commit();
+    }
   }
 
   async function uploadContractorDocument(event: React.FormEvent) {
@@ -2376,28 +2397,39 @@ function ContractorHubApp() {
       notify("Document must be 25 MB or smaller.");
       return;
     }
+    if (!documentUploadFile.size) {
+      notify("The document is empty.");
+      return;
+    }
 
     const metadataRef = doc(
       collection(db, "appState", "berinda-group", "contractorDocuments"),
     );
-    const path = `contractor-documents/${activeContractor.id}/${metadataRef.id}/file`;
+    const path = `firestore-chunks/${activeContractor.id}/${metadataRef.id}`;
     const now = new Date().toISOString();
     const actor = auth.currentUser?.email ?? "Authenticated editor";
     setDocumentActionBusy("upload");
     try {
-      const uploadResponse = await documentApi(
-        { contractorId: activeContractor.id, id: metadataRef.id },
-        {
-          method: "POST",
-          headers: {
-            "content-type":
-              documentUploadFile.type || "application/octet-stream",
-          },
-          body: documentUploadFile,
-        },
+      const fileBytes = new Uint8Array(await documentUploadFile.arrayBuffer());
+      const chunks = Array.from(
+        { length: Math.ceil(fileBytes.length / documentChunkSize) },
+        (_, index) =>
+          fileBytes.subarray(
+            index * documentChunkSize,
+            Math.min((index + 1) * documentChunkSize, fileBytes.length),
+          ),
       );
-      if (!uploadResponse.ok) {
-        throw new Error(`Upload failed (${uploadResponse.status})`);
+      const chunksRef = collection(metadataRef, "chunks");
+      for (let offset = 0; offset < chunks.length; offset += 8) {
+        const batch = writeBatch(db);
+        chunks.slice(offset, offset + 8).forEach((chunk, localIndex) => {
+          const index = offset + localIndex;
+          batch.set(doc(chunksRef, String(index).padStart(4, "0")), {
+            index,
+            data: encodeDocumentChunk(chunk),
+          });
+        });
+        await batch.commit();
       }
       await setDoc(metadataRef, {
         contractorId: activeContractor.id,
@@ -2406,6 +2438,7 @@ function ContractorHubApp() {
         contentType:
           documentUploadFile.type || "application/octet-stream",
         size: documentUploadFile.size,
+        chunkCount: chunks.length,
         uploadedAt: now,
         uploadedBy: actor,
         updatedAt: now,
@@ -2416,10 +2449,7 @@ function ContractorHubApp() {
       setShowDocumentUpload(false);
       notify(`${name} uploaded.`);
     } catch {
-      await documentApi(
-        { contractorId: activeContractor.id, id: metadataRef.id },
-        { method: "DELETE" },
-      ).catch(() => undefined);
+      await deleteDocumentChunks(metadataRef.id).catch(() => undefined);
       notify("The document could not be uploaded. Please try again.");
     } finally {
       setDocumentActionBusy("");
@@ -2434,9 +2464,29 @@ function ContractorHubApp() {
     if (previewWindow) previewWindow.opener = null;
     setDocumentActionBusy(`${download ? "download" : "view"}-${documentRecord.id}`);
     try {
-      const response = await documentApi(documentRecord);
-      if (!response.ok) throw new Error(`Open failed (${response.status})`);
-      const blob = await response.blob();
+      const snapshot = await getDocs(
+        collection(
+          db,
+          "appState",
+          "berinda-group",
+          "contractorDocuments",
+          documentRecord.id,
+          "chunks",
+        ),
+      );
+      const chunks = snapshot.docs
+        .map((chunk) => chunk.data() as { index: number; data: string })
+        .sort((left, right) => left.index - right.index);
+      if (!chunks.length || chunks.length !== documentRecord.chunkCount) {
+        throw new Error("Document data is incomplete");
+      }
+      const buffers = chunks.map(({ data }) => {
+        const bytes = decodeDocumentChunk(data);
+        const copy = new Uint8Array(bytes.length);
+        copy.set(bytes);
+        return copy.buffer;
+      });
+      const blob = new Blob(buffers, { type: documentRecord.contentType });
       const url = URL.createObjectURL(blob);
       if (download) {
         const anchor = window.document.createElement("a");
@@ -2502,9 +2552,7 @@ function ContractorHubApp() {
       return;
     setDocumentActionBusy(`delete-${documentRecord.id}`);
     try {
-      const response = await documentApi(documentRecord, { method: "DELETE" });
-      if (!response.ok && response.status !== 404)
-        throw new Error(`Delete failed (${response.status})`);
+      await deleteDocumentChunks(documentRecord.id);
       await deleteDoc(
         doc(
           db,
@@ -4500,7 +4548,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.46
+              Version 0.47
             </button>
           </div>
         </div>
@@ -10359,7 +10407,7 @@ function ContractorHubApp() {
               ×
             </button>
             <p className="eyebrow">RELEASE NOTES</p>
-            <h2 id="changelog-title">Version 0.46</h2>
+            <h2 id="changelog-title">Version 0.47</h2>
             <div className="changelog-list">
               <article>
                 <strong>Document library cache refresh</strong>
