@@ -18,6 +18,23 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import {
+  ArrowRight,
+  Buildings,
+  CalendarBlank,
+  FileText,
+  FolderOpen,
+  GearFine,
+  HardHat,
+  MagnifyingGlass,
+  MapPin,
+  PaintRoller,
+  RoadHorizon,
+  SquaresFour,
+  Star,
+  Truck,
+  Wrench,
+} from "@phosphor-icons/react";
 
 const CONTRACTORS_PER_PAGE = 10;
 
@@ -422,6 +439,16 @@ function contractorExpiryDate(contractor: Contractor) {
 function contractorValidity(contractor: Contractor) {
   const expiry = contractorExpiryDate(contractor);
   return expiry && expiry.getTime() < Date.now() ? "Expired" : "Valid";
+}
+
+function contractorSearchStatus(contractor: Contractor) {
+  const expiry = contractorExpiryDate(contractor);
+  if (!expiry) return "Valid";
+  const daysRemaining =
+    (expiry.getTime() - Date.now()) / (24 * 60 * 60 * 1000);
+  if (daysRemaining < 0) return "Expired";
+  if (daysRemaining <= 90) return "Expiring";
+  return "Valid";
 }
 
 function formatValidationDate(contractor: Contractor) {
@@ -1084,6 +1111,9 @@ function ContractorHubApp() {
   const [statusFilter, setStatusFilter] = useState("All status");
   const [tradeFilter, setTradeFilter] = useState("All trades");
   const [locationFilter, setLocationFilter] = useState("All locations");
+  const [mobileBrowseAll, setMobileBrowseAll] = useState(false);
+  const [recentlyViewedContractorIds, setRecentlyViewedContractorIds] =
+    useState<string[]>([]);
   const [columnFilters, setColumnFilters] = useState<{
     name: string;
     trade?: string;
@@ -1154,6 +1184,31 @@ function ContractorHubApp() {
     | "reports"
     | "settings"
   >("overview");
+  useEffect(() => {
+    if (!window.matchMedia("(max-width: 620px)").matches) return;
+    // Mobile opens directly into contractor discovery.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActiveSection((current) =>
+      current === "overview" ? "contractors" : current,
+    );
+  }, []);
+  useEffect(() => {
+    const stored = window.localStorage.getItem(
+      "berinda-mobile-recent-contractors",
+    );
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setRecentlyViewedContractorIds(
+          parsed.filter((item): item is string => typeof item === "string"),
+        );
+      }
+    } catch {
+      window.localStorage.removeItem("berinda-mobile-recent-contractors");
+    }
+  }, []);
   useEffect(() => {
     // Guard routes when the signed-in user's role changes.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1627,7 +1682,7 @@ function ContractorHubApp() {
         contractor.officePhone.includes(term);
       const matchesStatus =
         statusFilter === "All status" ||
-        contractorValidity(contractor) === statusFilter;
+        contractorSearchStatus(contractor) === statusFilter;
       const matchesTrade =
         tradeFilter === "All trades" ||
         contractorTrades(contractor).includes(tradeFilter);
@@ -1868,6 +1923,28 @@ function ContractorHubApp() {
       contractorRows.flatMap((contractor) => contractorTrades(contractor)),
     ),
   ).sort();
+  const mobileTradeCounts = availableTrades
+    .map((trade) => ({
+      trade,
+      count: contractorRows.filter((contractor) =>
+        contractorTrades(contractor).includes(trade),
+      ).length,
+    }))
+    .filter((item) => item.count > 0)
+    .sort(
+      (first, second) =>
+        second.count - first.count || first.trade.localeCompare(second.trade),
+    );
+  const recentlyViewedContractors = recentlyViewedContractorIds
+    .map((id) => contractorRows.find((contractor) => contractor.id === id))
+    .filter((contractor): contractor is Contractor => Boolean(contractor))
+    .slice(0, 3);
+  const mobileSearchHasFilters =
+    mobileBrowseAll ||
+    Boolean(query.trim()) ||
+    tradeFilter !== "All trades" ||
+    statusFilter !== "All status" ||
+    locationFilter !== "All locations";
   const availableLocations = Array.from(
     new Set(contractorRows.map((contractor) => contractor.location)),
   ).sort();
@@ -4536,6 +4613,45 @@ function ContractorHubApp() {
     );
   }
 
+  function mobileTradeIcon(trade: string) {
+    const normalized = trade.toLowerCase();
+    if (normalized.includes("piling") || normalized.includes("foundation"))
+      return <HardHat size={24} weight="duotone" />;
+    if (normalized.includes("building"))
+      return <Buildings size={24} weight="duotone" />;
+    if (normalized.includes("civil"))
+      return <RoadHorizon size={24} weight="duotone" />;
+    if (normalized.includes("m&e") || normalized.includes("mechanical"))
+      return <GearFine size={24} weight="duotone" />;
+    if (normalized.includes("infrastructure"))
+      return <Wrench size={24} weight="duotone" />;
+    if (normalized.includes("finishing"))
+      return <PaintRoller size={24} weight="duotone" />;
+    if (normalized.includes("supply") || normalized.includes("service"))
+      return <Truck size={24} weight="duotone" />;
+    return <SquaresFour size={24} weight="duotone" />;
+  }
+
+  function openMobileContractor(
+    contractor: Contractor,
+    tab: typeof profileTab = "overview",
+  ) {
+    setActiveContractor(contractor);
+    setProfileTab(tab);
+    setShowProfile(true);
+    setRecentlyViewedContractorIds((current) => {
+      const next = [
+        contractor.id,
+        ...current.filter((id) => id !== contractor.id),
+      ].slice(0, 3);
+      window.localStorage.setItem(
+        "berinda-mobile-recent-contractors",
+        JSON.stringify(next),
+      );
+      return next;
+    });
+  }
+
   return (
     <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
@@ -4703,7 +4819,211 @@ function ContractorHubApp() {
 
         {activeSection === "contractors" ? (
           <>
-            <section className="workspace-card">
+            <section className="mobile-contractor-search" aria-label="Find contractors">
+              <header className="mobile-search-header">
+                <div className="mobile-brand-mark" aria-hidden="true">B</div>
+                <div>
+                  <strong>BERINDA</strong>
+                  <span>Contractor Hub</span>
+                </div>
+                <button
+                  type="button"
+                  className="mobile-user-avatar"
+                  aria-label="Signed-in user"
+                >
+                  {(authProfile?.displayName || authProfile?.email || "User")
+                    .split(/\s+/)
+                    .map((part) => part[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase()}
+                </button>
+              </header>
+
+              <div className="mobile-search-body">
+                <div className="mobile-search-intro">
+                  <h2>
+                    {tradeFilter === "All trades"
+                      ? "What contractor do you need?"
+                      : tradeFilter}
+                  </h2>
+                  {tradeFilter !== "All trades" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTradeFilter("All trades");
+                        setStatusFilter("All status");
+                        setLocationFilter("All locations");
+                        setMobileBrowseAll(false);
+                      }}
+                    >
+                      View all trades
+                    </button>
+                  )}
+                </div>
+                <label className="mobile-primary-search">
+                  <MagnifyingGlass size={21} weight="bold" aria-hidden="true" />
+                  <input
+                    value={query}
+                    onChange={(event) => {
+                      setMobileBrowseAll(false);
+                      setQuery(event.target.value);
+                    }}
+                    placeholder="Search contractor name, trade or location"
+                    aria-label="Search contractor name, trade or location"
+                  />
+                  {query && (
+                    <button type="button" onClick={() => setQuery("")}>
+                      Clear
+                    </button>
+                  )}
+                </label>
+
+                {!mobileSearchHasFilters ? (
+                  <>
+                    <div className="mobile-section-heading">
+                      <h3>Choose a trade</h3>
+                      <p>Trades shown from current contractor records</p>
+                    </div>
+                    <div className="mobile-trade-grid">
+                      {mobileTradeCounts.map(({ trade, count }) => (
+                        <button
+                          type="button"
+                          key={trade}
+                          onClick={() => {
+                            setMobileBrowseAll(false);
+                            setTradeFilter(trade);
+                          }}
+                          aria-label={`${trade}, ${count} contractor${count === 1 ? "" : "s"}`}
+                        >
+                          <span className="mobile-trade-icon" aria-hidden="true">
+                            {mobileTradeIcon(trade)}
+                          </span>
+                          <strong>{trade}</strong>
+                          <b>{count}</b>
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className="mobile-all-trades"
+                        onClick={() => {
+                          setTradeFilter("All trades");
+                          setMobileBrowseAll(true);
+                        }}
+                        aria-label={`All trades, ${contractorRows.length} contractors`}
+                      >
+                        <span className="mobile-trade-icon" aria-hidden="true">
+                          <SquaresFour size={24} weight="duotone" />
+                        </span>
+                        <strong>All trades</strong>
+                        <b>{contractorRows.length}</b>
+                      </button>
+                    </div>
+
+                    {recentlyViewedContractors.length > 0 && (
+                      <section className="mobile-recent-contractors">
+                        <div className="mobile-section-heading">
+                          <h3>Recently viewed</h3>
+                          <p>Contractor names follow the latest editor records</p>
+                        </div>
+                        <div>
+                          {recentlyViewedContractors.map((contractor) => (
+                            <button
+                              type="button"
+                              key={contractor.id}
+                              onClick={() => openMobileContractor(contractor)}
+                            >
+                              <Buildings size={21} weight="duotone" aria-hidden="true" />
+                              <span>{contractor.name}</span>
+                              <ArrowRight size={18} weight="bold" aria-hidden="true" />
+                            </button>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="mobile-status-filters" aria-label="Contractor status filters">
+                      {["All status", "Valid", "Expiring", "Expired"].map(
+                        (status) => (
+                          <button
+                            type="button"
+                            key={status}
+                            className={statusFilter === status ? "active" : ""}
+                            onClick={() => setStatusFilter(status)}
+                          >
+                            {status === "All status" ? "All" : status}
+                          </button>
+                        ),
+                      )}
+                    </div>
+                    <div className="mobile-results-heading">
+                      <strong>
+                        {filtered.length} contractor{filtered.length === 1 ? "" : "s"} found
+                      </strong>
+                      <span>Names and trades update from editor records</span>
+                    </div>
+                    <div className="mobile-contractor-results">
+                      {sortedContractors.map((contractor) => {
+                        const mobileStatus = contractorSearchStatus(contractor);
+                        return (
+                          <button
+                            type="button"
+                            key={contractor.id}
+                            className="mobile-contractor-card"
+                            onClick={() => openMobileContractor(contractor)}
+                          >
+                            <span className="mobile-card-topline">
+                              <strong>{contractor.name}</strong>
+                              <b className={mobileStatus.toLowerCase()}>
+                                {mobileStatus}
+                              </b>
+                            </span>
+                            <span className="mobile-card-trade">
+                              <Buildings size={16} weight="duotone" aria-hidden="true" />
+                              {contractorTrades(contractor).join(" · ")}
+                            </span>
+                            <span className="mobile-card-meta">
+                              <em>CIDB {contractor.grade}</em>
+                              <span>
+                                <Star size={15} weight="fill" aria-hidden="true" />
+                                Score {contractor.score}
+                              </span>
+                            </span>
+                            <span className="mobile-card-details">
+                              <span>
+                                <MapPin size={15} weight="duotone" aria-hidden="true" />
+                                {contractor.location || "Location not provided"}
+                              </span>
+                              <span>
+                                <CalendarBlank size={15} weight="duotone" aria-hidden="true" />
+                                Valid until {formatValidationDate(contractor)}
+                              </span>
+                            </span>
+                            <ArrowRight
+                              className="mobile-card-arrow"
+                              size={19}
+                              weight="bold"
+                              aria-hidden="true"
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {filtered.length === 0 && (
+                      <div className="mobile-search-empty">
+                        <MagnifyingGlass size={28} weight="duotone" aria-hidden="true" />
+                        <strong>No contractors found</strong>
+                        <span>Try a different name, trade, or status.</span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </section>
+
+            <section className="workspace-card desktop-contractor-directory">
               <div className="workspace-heading">
                 <div>
                   <h2>Find qualified contractors</h2>
@@ -7577,6 +7897,47 @@ function ContractorHubApp() {
         )}
       </main>
 
+      <nav className="mobile-bottom-navigation" aria-label="Mobile navigation">
+        <button
+          type="button"
+          className={activeSection === "contractors" && !showProfile ? "active" : ""}
+          onClick={() => {
+            setShowProfile(false);
+            setActiveSection("contractors");
+          }}
+        >
+          <MagnifyingGlass size={23} weight="bold" aria-hidden="true" />
+          <span>Search</span>
+        </button>
+        <button
+          type="button"
+          className={showProfile && profileTab === "projects" ? "active" : ""}
+          onClick={() => openMobileContractor(activeContractor, "projects")}
+        >
+          <FolderOpen size={23} weight="duotone" aria-hidden="true" />
+          <span>Projects</span>
+        </button>
+        <button
+          type="button"
+          className={showProfile && profileTab === "documents" ? "active" : ""}
+          onClick={() => openMobileContractor(activeContractor, "documents")}
+        >
+          <FileText size={23} weight="duotone" aria-hidden="true" />
+          <span>Documents</span>
+        </button>
+        <button
+          type="button"
+          className={activeSection !== "contractors" && !showProfile ? "active" : ""}
+          onClick={() => {
+            setShowProfile(false);
+            setActiveSection("overview");
+          }}
+        >
+          <SquaresFour size={23} weight="duotone" aria-hidden="true" />
+          <span>More</span>
+        </button>
+      </nav>
+
       {activeSection === "contractors" && (
         <div className="selection-bar">
           <div>
@@ -7744,7 +8105,7 @@ function ContractorHubApp() {
               </div>
               <div>
                 <small>VALID UNTIL</small>
-                <strong>{activeContractor.expiry}</strong>
+                <strong>{formatValidationDate(activeContractor)}</strong>
               </div>
               <div>
                 <small>CIDB GRADE</small>
@@ -8248,10 +8609,13 @@ function ContractorHubApp() {
                       ) : (
                         <div className="document-empty">
                           <strong>No documents uploaded</strong>
-                          <span>
+                          <span className="desktop-only-copy">
                             {canEdit
                               ? "Upload the first document for this contractor."
                               : "An Editor or Admin can add documents here."}
+                          </span>
+                          <span className="mobile-only-copy">
+                            No documents are available for this contractor.
                           </span>
                         </div>
                       )}
@@ -8259,9 +8623,9 @@ function ContractorHubApp() {
                     <div className="document-access-note">
                       <span>✓</span>
                       <p>
-                        <strong>Available to approved users</strong>
-                        Viewers can open or download files. Editors and Admins
-                        can also upload, rename, and delete them.
+                        <strong>Read-only mobile access</strong>
+                        Available files can be viewed here. Uploads and record
+                        changes remain in the editor workspace.
                       </p>
                     </div>
                   </section>
@@ -10546,6 +10910,21 @@ function ContractorHubApp() {
 }
 
 export default function Home() {
+  const [localMobilePreview, setLocalMobilePreview] = useState(false);
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    const previewEnabled = new URLSearchParams(window.location.search).has(
+      "mobilePreview",
+    );
+    if (previewEnabled) {
+      // Local-only visual QA route; production always retains AuthGate.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLocalMobilePreview(true);
+    }
+  }, []);
+
+  if (localMobilePreview) return <ContractorHubApp />;
+
   return (
     <AuthGate>
       <ContractorHubApp />
