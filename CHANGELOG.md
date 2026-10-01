@@ -8,6 +8,7 @@
 - Automatic 10-criterion experience assessment using project recency, scope similarity, proposed contract value, and Group-company history.
 - Downloadable Contractor Experience Evaluation report with evaluation inputs and supporting project detail.
 - Visible Project evaluation navigation entry on desktop, tablet, and mobile layouts.
+- Readable multi-contractor evaluation table with preserved column widths, sticky criteria columns, and contained horizontal scrolling.
 
 ## [0.47.0] - 2026-09-11
 

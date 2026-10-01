@@ -6852,6 +6852,7 @@ td {
   gap: 7px;
 }
 .evaluation-contractor-picker {
+  width: 100%;
   min-width: 0;
   margin: 0;
   border: 0;
@@ -6894,6 +6895,7 @@ td {
   gap: 2px;
   max-height: 148px;
   margin-top: 6px;
+  overflow-x: hidden;
   overflow-y: auto;
   border: 1px solid #d4dde6;
   border-radius: 9px;
@@ -6902,6 +6904,8 @@ td {
 }
 .evaluation-contractor-options label {
   display: flex;
+  width: 100%;
+  min-width: 0;
   min-height: 44px;
   align-items: center;
   gap: 9px;
@@ -6913,13 +6917,17 @@ td {
   background: #edf7f5;
 }
 .evaluation-contractor-options input {
-  width: 17px;
+  width: 17px !important;
+  min-width: 17px;
+  height: 17px;
   min-height: 17px;
   flex: 0 0 auto;
+  padding: 0;
   accent-color: #11887c;
 }
 .evaluation-contractor-options span {
   display: grid;
+  width: 100%;
   min-width: 0;
 }
 .evaluation-contractor-options strong,
@@ -7097,25 +7105,72 @@ td {
 }
 .criteria-table-wrap {
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
 }
 .criteria-table {
-  min-width: 920px;
+  table-layout: auto;
 }
 .criteria-table th:first-child {
-  width: 48px;
+  position: sticky;
+  z-index: 3;
+  left: 0;
+  width: 56px;
+  min-width: 56px;
+  background: #f6f8fa;
 }
 .criteria-table th:nth-child(2) {
-  width: 220px;
+  position: sticky;
+  z-index: 3;
+  left: 56px;
+  width: 250px;
+  min-width: 250px;
+  background: #f6f8fa;
 }
 .criteria-table th:nth-child(3) {
-  width: 300px;
+  width: 310px;
+  min-width: 310px;
 }
 .criteria-table th:nth-child(n + 4) {
-  min-width: 150px;
+  width: 180px;
+  min-width: 180px;
+  white-space: normal;
+}
+.criteria-table td:first-child {
+  position: sticky;
+  z-index: 2;
+  left: 0;
+  min-width: 56px;
+  background: #fff;
+}
+.criteria-table td:nth-child(2) {
+  position: sticky;
+  z-index: 2;
+  left: 56px;
+  min-width: 250px;
+  border-right: 1px solid #cfd9df;
+  background: #fff;
+}
+.criteria-table tr:hover td:first-child,
+.criteria-table tr:hover td:nth-child(2) {
+  background: #f7fbfa;
 }
 .criteria-table td:nth-child(n + 4) strong {
   color: #087d71;
   font-variant-numeric: tabular-nums;
+}
+.criteria-scroll-hint {
+  margin: 0;
+  border-bottom: 1px solid var(--line);
+  background: #f2fbf9;
+  padding: 10px 22px;
+  color: #376b66;
+  font-size: 11px;
+  font-weight: 650;
+}
+.criteria-table-wrap:focus-visible {
+  outline: 3px solid rgba(20, 145, 132, 0.28);
+  outline-offset: -3px;
 }
 .evaluation-table {
   width: 100%;

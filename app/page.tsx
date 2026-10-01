@@ -6883,8 +6883,22 @@ function ContractorHubApp() {
                       </div>
                       <b>{evaluationSelectedContractors.length} contractors</b>
                     </header>
-                    <div className="evaluation-table-wrap criteria-table-wrap">
-                      <table className="evaluation-table criteria-table">
+                    <p className="criteria-scroll-hint">
+                      Scroll horizontally to compare all selected contractors.
+                      The number and evaluation criteria columns stay visible.
+                    </p>
+                    <div
+                      className="evaluation-table-wrap criteria-table-wrap"
+                      role="region"
+                      aria-label="Contractor experience evaluation comparison"
+                      tabIndex={0}
+                    >
+                      <table
+                        className="evaluation-table criteria-table"
+                        style={{
+                          minWidth: `${620 + evaluationCriteriaResults.length * 180}px`,
+                        }}
+                      >
                         <thead>
                           <tr>
                             <th>No.</th>
