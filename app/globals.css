@@ -6993,6 +6993,51 @@ td {
 .evaluation-keyword-entry {
   grid-template-columns: minmax(0, 1fr) auto;
 }
+.evaluation-similarity-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px);
+}
+.evaluation-similarity-controls > label {
+  display: grid;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 750;
+}
+.evaluation-similarity-controls select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid #d4dde6;
+  border-radius: 9px;
+  background: #fff;
+  padding: 0 13px;
+  color: var(--ink);
+  font: inherit;
+}
+.evaluation-match-field-grid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.evaluation-match-field {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-width: 0;
+  border: 1px solid #dbe4e8;
+  border-radius: 10px;
+  background: #f9fbfc;
+  padding: 14px;
+}
+.evaluation-match-field > label {
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 800;
+}
+.evaluation-match-field .evaluation-keyword-chips {
+  grid-column: auto;
+}
 .evaluation-keyword-chips {
   grid-column: 1 / -1;
   display: flex;
@@ -7348,6 +7393,12 @@ td {
     grid-template-columns: 1fr;
   }
   .evaluation-keyword-entry {
+    grid-template-columns: 1fr;
+  }
+  .evaluation-similarity-controls {
+    grid-template-columns: 1fr;
+  }
+  .evaluation-match-field-grid {
     grid-template-columns: 1fr;
   }
   .evaluation-setup-fields {

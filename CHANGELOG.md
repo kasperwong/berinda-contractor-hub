@@ -9,6 +9,7 @@
 - Downloadable Contractor Experience Evaluation report with evaluation inputs and supporting project detail.
 - Visible Project evaluation navigation entry on desktop, tablet, and mobile layouts.
 - Readable multi-contractor evaluation table with preserved column widths, sticky criteria columns, and contained horizontal scrolling.
+- Similar-project evaluation by project scope, building type, or both, with the selected basis recorded in the exported report.
 
 ## [0.47.0] - 2026-09-11
 

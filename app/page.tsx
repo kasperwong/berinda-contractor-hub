@@ -1081,6 +1081,13 @@ function ContractorHubApp() {
   const [evaluationYearTo, setEvaluationYearTo] = useState("");
   const [evaluationKeywordInput, setEvaluationKeywordInput] = useState("");
   const [evaluationKeywords, setEvaluationKeywords] = useState<string[]>([]);
+  const [evaluationBuildingTypeInput, setEvaluationBuildingTypeInput] =
+    useState("");
+  const [evaluationBuildingTypeKeywords, setEvaluationBuildingTypeKeywords] =
+    useState<string[]>([]);
+  const [evaluationSimilarityBasis, setEvaluationSimilarityBasis] = useState<
+    "scope" | "buildingType" | "both"
+  >("both");
   const [evaluationSort, setEvaluationSort] = useState<{
     key:
       | "selected"
@@ -1421,15 +1428,24 @@ function ContractorHubApp() {
     return Number(String(source ?? "").match(/(?:19|20)\d{2}/)?.[0]) || 0;
   }
 
-  function projectMatchesEvaluationScope(
+  function projectMatchesScopeKeyword(
     project: Project & { groupCompany?: string },
-    scope: string,
+    keyword: string,
   ) {
-    const searchable = [project.name, project.scope, project.projectType]
+    const searchable = [project.name, project.scope]
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
-    return searchable.includes(scope.toLowerCase());
+    return searchable.includes(keyword.toLowerCase());
+  }
+
+  function projectMatchesBuildingTypeKeyword(
+    project: Project,
+    keyword: string,
+  ) {
+    return (project.projectType ?? "")
+      .toLowerCase()
+      .includes(keyword.toLowerCase());
   }
 
   function addEvaluationKeywords() {
@@ -1447,6 +1463,23 @@ function ContractorHubApp() {
       ),
     );
     setEvaluationKeywordInput("");
+  }
+
+  function addEvaluationBuildingTypeKeywords() {
+    const additions = evaluationBuildingTypeInput
+      .split(",")
+      .map((keyword) => keyword.trim())
+      .filter(Boolean);
+    if (!additions.length) return;
+    setEvaluationBuildingTypeKeywords((current) =>
+      [...current, ...additions].filter(
+        (keyword, index, values) =>
+          values.findIndex(
+            (candidate) => candidate.toLowerCase() === keyword.toLowerCase(),
+          ) === index,
+      ),
+    );
+    setEvaluationBuildingTypeInput("");
   }
 
   function toggleEvaluationContractor(contractorId: string) {
@@ -1522,6 +1555,40 @@ function ContractorHubApp() {
   const evaluationProposedValueNumber = Number(evaluationProposedValue) || 0;
   const evaluationComparableMinimum = evaluationProposedValueNumber * 0.5;
   const evaluationComparableMaximum = evaluationProposedValueNumber * 1.5;
+  const evaluationSimilarityBasisLabel =
+    evaluationSimilarityBasis === "scope"
+      ? "Project scope"
+      : evaluationSimilarityBasis === "buildingType"
+        ? "Building type"
+        : "Project scope + building type";
+  const evaluationSimilarityConfigured =
+    evaluationSimilarityBasis === "scope"
+      ? evaluationKeywords.length > 0
+      : evaluationSimilarityBasis === "buildingType"
+        ? evaluationBuildingTypeKeywords.length > 0
+        : evaluationKeywords.length > 0 &&
+          evaluationBuildingTypeKeywords.length > 0;
+  const evaluationSimilaritySummary =
+    evaluationSimilarityBasis === "scope"
+      ? evaluationKeywords.join(", ")
+      : evaluationSimilarityBasis === "buildingType"
+        ? evaluationBuildingTypeKeywords.join(", ")
+        : `Scope: ${evaluationKeywords.join(", ") || "not provided"} · Building type: ${evaluationBuildingTypeKeywords.join(", ") || "not provided"}`;
+
+  function projectMatchesEvaluationSelection(
+    project: Project & { groupCompany?: string },
+  ) {
+    const scopeMatches = evaluationKeywords.some((keyword) =>
+      projectMatchesScopeKeyword(project, keyword),
+    );
+    const buildingTypeMatches = evaluationBuildingTypeKeywords.some(
+      (keyword) => projectMatchesBuildingTypeKeyword(project, keyword),
+    );
+    if (evaluationSimilarityBasis === "scope") return scopeMatches;
+    if (evaluationSimilarityBasis === "buildingType")
+      return buildingTypeMatches;
+    return scopeMatches && buildingTypeMatches;
+  }
   const evaluationCriteria = [
     {
       no: 1,
@@ -1537,7 +1604,7 @@ function ContractorHubApp() {
     {
       no: 3,
       criterion: "Similar Project Experience",
-      basis: "Projects matching at least one selected project-scope keyword.",
+      basis: `Projects matching at least one keyword by ${evaluationSimilarityBasisLabel.toLowerCase()}.`,
     },
     {
       no: 4,
@@ -1584,12 +1651,8 @@ function ContractorHubApp() {
       const recent = projects.filter(
         (project) => project.evaluationYear >= evaluationRecentCutoffYear,
       );
-      const similar = evaluationKeywords.length
-        ? projects.filter((project) =>
-            evaluationKeywords.some((keyword) =>
-              projectMatchesEvaluationScope(project, keyword),
-            ),
-          )
+      const similar = evaluationSimilarityConfigured
+        ? projects.filter(projectMatchesEvaluationSelection)
         : [];
       const recentSimilar = similar.filter(
         (project) => project.evaluationYear >= evaluationRecentCutoffYear,
@@ -1612,16 +1675,18 @@ function ContractorHubApp() {
         values: [
           String(projects.length),
           String(recent.length),
-          evaluationKeywords.length ? String(similar.length) : "Scope required",
-          evaluationKeywords.length
+          evaluationSimilarityConfigured
+            ? String(similar.length)
+            : "Keyword required",
+          evaluationSimilarityConfigured
             ? String(recentSimilar.length)
-            : "Scope required",
-          evaluationKeywords.length && evaluationProposedValueNumber
+            : "Keyword required",
+          evaluationSimilarityConfigured && evaluationProposedValueNumber
             ? String(comparable.length)
-            : "Scope/value required",
-          evaluationKeywords.length && evaluationProposedValueNumber
+            : "Keyword/value required",
+          evaluationSimilarityConfigured && evaluationProposedValueNumber
             ? String(recentComparable.length)
-            : "Scope/value required",
+            : "Keyword/value required",
           reportMoney(highest(projects)),
           reportMoney(highest(recent)),
           String(groupProjects.length),
@@ -1630,29 +1695,20 @@ function ContractorHubApp() {
       };
     },
   );
-  const evaluationMatches = evaluationKeywords.length
-    ? evaluationRecords.filter((project) =>
-        evaluationKeywords.some((keyword) =>
-          projectMatchesEvaluationScope(project, keyword),
-        ),
-      )
+  const evaluationMatches = evaluationSimilarityConfigured
+    ? evaluationRecords.filter(projectMatchesEvaluationSelection)
     : evaluationRecords;
-  const evaluationOverallScopeMatches = evaluationKeywords.length
-    ? evaluationAllRecords.filter((project) =>
-        evaluationKeywords.some((scope) =>
-          projectMatchesEvaluationScope(project, scope),
-        ),
-      )
+  const evaluationOverallScopeMatches = evaluationSimilarityConfigured
+    ? evaluationAllRecords.filter(projectMatchesEvaluationSelection)
     : evaluationAllRecords;
-  const evaluationKeywordRows = (
-    evaluationKeywords.length ? evaluationKeywords : ["All projects"]
-  ).map((keyword) => {
-    const projects =
-      keyword === "All projects"
-        ? evaluationRecords
-        : evaluationRecords.filter((project) =>
-            projectMatchesEvaluationScope(project, keyword),
-          );
+  const evaluationKeywordRows = [
+    evaluationSimilarityConfigured
+      ? evaluationSimilaritySummary
+      : "All projects",
+  ].map((keyword) => {
+    const projects = evaluationSimilarityConfigured
+      ? evaluationRecords.filter(projectMatchesEvaluationSelection)
+      : evaluationRecords;
     const completed = projects.filter(
       (project) => project.status === "Completed",
     );
@@ -1668,15 +1724,14 @@ function ContractorHubApp() {
       ongoingValue: ongoing.reduce((sum, project) => sum + project.value, 0),
     };
   });
-  const evaluationAllTimeScopeRows = (
-    evaluationKeywords.length ? evaluationKeywords : ["All projects"]
-  ).map((scope) => {
-    const projects =
-      scope === "All projects"
-        ? evaluationAllRecords
-        : evaluationAllRecords.filter((project) =>
-            projectMatchesEvaluationScope(project, scope),
-          );
+  const evaluationAllTimeScopeRows = [
+    evaluationSimilarityConfigured
+      ? evaluationSimilaritySummary
+      : "All projects",
+  ].map((scope) => {
+    const projects = evaluationSimilarityConfigured
+      ? evaluationAllRecords.filter(projectMatchesEvaluationSelection)
+      : evaluationAllRecords;
     const completed = projects.filter(
       (project) => project.status === "Completed",
     );
@@ -3101,10 +3156,13 @@ function ContractorHubApp() {
       ]),
     );
     const evaluationInputs = reportTable(
-      ["Selected contractors", "Similar project scope", "Proposed contract value", "Recent period"],
+      ["Selected contractors", "Similarity basis", "Similarity keywords", "Proposed contract value", "Recent period"],
       [[
         evaluationSelectedContractors.map((contractor) => contractor.name).join(", ") || "None",
-        evaluationKeywords.join(", ") || "Not provided",
+        evaluationSimilarityBasisLabel,
+        evaluationSimilarityConfigured
+          ? evaluationSimilaritySummary
+          : "Not fully provided",
         evaluationProposedValueNumber ? reportMoney(evaluationProposedValueNumber) : "Not provided",
         `${evaluationRecentCutoffYear}–${evaluationCurrentYear}`,
       ]],
@@ -3135,7 +3193,7 @@ function ContractorHubApp() {
     );
     const scopeSummary = reportTable(
       [
-        "Scope",
+        "Similarity keyword",
         "Period",
         "Completed projects",
         "Completed total cost (RM)",
@@ -3183,16 +3241,16 @@ function ContractorHubApp() {
           }),
         ]),
       );
-    const selectedScopeSummary = evaluationKeywords.length
+    const selectedScopeSummary = evaluationSimilarityConfigured
       ? reportTable(
           [
-            "Selected scopes",
+            "Similarity keywords",
             "All-year projects",
             "All-year contract sum (RM)",
           ],
           [
             [
-              evaluationKeywords.join(", "),
+              evaluationSimilaritySummary,
               evaluationOverallScopeMatches.length,
               evaluationOverallScopeMatches
                 .reduce((sum, project) => sum + project.value, 0)
@@ -3219,7 +3277,7 @@ function ContractorHubApp() {
     const selectionNote = evaluationSelectedRecords.length
       ? `<p>${evaluationSelectedRecords.length} manually selected project${evaluationSelectedRecords.length === 1 ? "" : "s"} included in the detail tables.</p>`
       : "<p>No manual project selection was made; all projects are included in the detail tables.</p>";
-    return `<div class="section"><h2>Evaluation inputs</h2>${evaluationInputs}</div><div class="section"><h2>Contractor experience evaluation</h2>${criteriaSummary}</div><div class="section"><h2>Overall project experience — ${escapeHtml(evaluationOverallYearLabel)}</h2>${overallSummary}${selectedScopeSummary}</div><div class="section"><h2>All-time and selected-period scope summary</h2>${scopeSummary}</div><div class="section"><h2>Projects selected for this report</h2>${selectionNote}</div><div class="section"><h2>All projects</h2>${projectDetails(reportProjects)}</div><div class="section"><h2>Completed projects</h2>${projectDetails(reportCompletedProjects)}</div><div class="section"><h2>Ongoing projects</h2>${projectDetails(reportOngoingProjects)}</div><div class="section"><h2>Projects within the group</h2>${projectDetails(reportGroupProjects)}</div>`;
+    return `<div class="section"><h2>Evaluation inputs</h2>${evaluationInputs}</div><div class="section"><h2>Contractor experience evaluation</h2>${criteriaSummary}</div><div class="section"><h2>Overall project experience — ${escapeHtml(evaluationOverallYearLabel)}</h2>${overallSummary}${selectedScopeSummary}</div><div class="section"><h2>All-time and selected-period similarity summary</h2>${scopeSummary}</div><div class="section"><h2>Projects selected for this report</h2>${selectionNote}</div><div class="section"><h2>All projects</h2>${projectDetails(reportProjects)}</div><div class="section"><h2>Completed projects</h2>${projectDetails(reportCompletedProjects)}</div><div class="section"><h2>Ongoing projects</h2>${projectDetails(reportOngoingProjects)}</div><div class="section"><h2>Projects within the group</h2>${projectDetails(reportGroupProjects)}</div>`;
   }
 
   function exportEvaluationReport() {
@@ -6853,6 +6911,9 @@ function ContractorHubApp() {
                         setEvaluationYearTo("");
                         setEvaluationKeywordInput("");
                         setEvaluationKeywords([]);
+                        setEvaluationBuildingTypeInput("");
+                        setEvaluationBuildingTypeKeywords([]);
+                        setEvaluationSimilarityBasis("both");
                         setEvaluationColumnFilters({
                           scope: "",
                           name: "",
@@ -6876,9 +6937,8 @@ function ContractorHubApp() {
                         <p className="eyebrow">EVALUATION OUTPUT</p>
                         <h3>Contractor experience evaluation</h3>
                         <small>
-                          Similar experience uses the scope keywords below. The
-                          recent period is {evaluationRecentCutoffYear}–
-                          {evaluationCurrentYear}.
+                          Similar experience matches by {evaluationSimilarityBasisLabel.toLowerCase()}.
+                          The recent period is {evaluationRecentCutoffYear}–{evaluationCurrentYear}.
                         </small>
                       </div>
                       <b>{evaluationSelectedContractors.length} contractors</b>
@@ -6936,51 +6996,126 @@ function ContractorHubApp() {
 
                   <div className="evaluation-keywords">
                     <div>
-                      <h3>Project scopes</h3>
+                      <h3>Similar project matching</h3>
                       <p>
-                        Add one or more scopes, separated by commas. For
-                        example: reservoir, water reticulation.
+                        Choose what to compare, then add one or more keywords
+                        separated by commas.
                       </p>
                     </div>
-                    <div className="evaluation-keyword-entry">
-                      <input
-                        value={evaluationKeywordInput}
-                        placeholder="reservoir, water reticulation"
-                        onChange={(event) =>
-                          setEvaluationKeywordInput(event.target.value)
-                        }
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            addEvaluationKeywords();
-                          }
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="primary-button"
-                        onClick={addEvaluationKeywords}
-                      >
-                        Add scope
-                      </button>
-                    </div>
-                    <div className="evaluation-keyword-chips">
-                      {evaluationKeywords.map((keyword) => (
-                        <button
-                          type="button"
-                          key={keyword}
-                          onClick={() =>
-                            setEvaluationKeywords((current) =>
-                              current.filter((item) => item !== keyword),
+                    <div className="evaluation-similarity-controls">
+                      <label>
+                        Compare similar projects by
+                        <select
+                          value={evaluationSimilarityBasis}
+                          onChange={(event) =>
+                            setEvaluationSimilarityBasis(
+                              event.target.value as
+                                | "scope"
+                                | "buildingType"
+                                | "both",
                             )
                           }
-                          title="Remove scope"
                         >
-                          {keyword} <span>×</span>
-                        </button>
-                      ))}
-                      {!evaluationKeywords.length && (
-                        <span>All project scopes are included.</span>
+                          <option value="scope">Project scope</option>
+                          <option value="buildingType">Building type</option>
+                          <option value="both">Scope + building type</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="evaluation-match-field-grid">
+                      {evaluationSimilarityBasis !== "buildingType" && (
+                        <div className="evaluation-match-field">
+                          <label>Project scope keywords</label>
+                          <div className="evaluation-keyword-entry">
+                            <input
+                              aria-label="Project scope keywords"
+                              value={evaluationKeywordInput}
+                              placeholder="piling, water reticulation"
+                              onChange={(event) =>
+                                setEvaluationKeywordInput(event.target.value)
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  addEvaluationKeywords();
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className="primary-button"
+                              onClick={addEvaluationKeywords}
+                            >
+                              Add scope
+                            </button>
+                          </div>
+                          <div className="evaluation-keyword-chips">
+                            {evaluationKeywords.map((keyword) => (
+                              <button
+                                type="button"
+                                key={keyword}
+                                onClick={() =>
+                                  setEvaluationKeywords((current) =>
+                                    current.filter((item) => item !== keyword),
+                                  )
+                                }
+                                title="Remove scope keyword"
+                              >
+                                {keyword} <span>×</span>
+                              </button>
+                            ))}
+                            {!evaluationKeywords.length && (
+                              <span>Add at least one scope keyword.</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {evaluationSimilarityBasis !== "scope" && (
+                        <div className="evaluation-match-field">
+                          <label>Building type keywords</label>
+                          <div className="evaluation-keyword-entry">
+                            <input
+                              aria-label="Building type keywords"
+                              value={evaluationBuildingTypeInput}
+                              placeholder="residential, commercial, industrial"
+                              onChange={(event) =>
+                                setEvaluationBuildingTypeInput(event.target.value)
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  addEvaluationBuildingTypeKeywords();
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className="primary-button"
+                              onClick={addEvaluationBuildingTypeKeywords}
+                            >
+                              Add type
+                            </button>
+                          </div>
+                          <div className="evaluation-keyword-chips">
+                            {evaluationBuildingTypeKeywords.map((keyword) => (
+                              <button
+                                type="button"
+                                key={keyword}
+                                onClick={() =>
+                                  setEvaluationBuildingTypeKeywords((current) =>
+                                    current.filter((item) => item !== keyword),
+                                  )
+                                }
+                                title="Remove building type keyword"
+                              >
+                                {keyword} <span>×</span>
+                              </button>
+                            ))}
+                            {!evaluationBuildingTypeKeywords.length && (
+                              <span>Add at least one building type.</span>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -7029,17 +7164,17 @@ function ContractorHubApp() {
                       <strong>{evaluationOverallGroup.length}</strong>
                       <span>Projects related to group companies</span>
                     </article>
-                    {evaluationKeywords.length > 0 && (
+                    {evaluationSimilarityConfigured && (
                       <>
                         <article className="scope-highlight-card">
-                          <small>SELECTED SCOPE PROJECTS</small>
+                          <small>MATCHING SIMILAR PROJECTS</small>
                           <strong>
                             {evaluationOverallScopeMatches.length}
                           </strong>
-                          <span>{evaluationKeywords.join(", ")}</span>
+                          <span>{evaluationSimilaritySummary}</span>
                         </article>
                         <article className="scope-highlight-card">
-                          <small>SELECTED SCOPE CONTRACT SUM</small>
+                          <small>MATCHING CONTRACT SUM</small>
                           <strong className="evaluation-total-value">
                             {money(
                               evaluationOverallScopeMatches.reduce(
@@ -7048,7 +7183,7 @@ function ContractorHubApp() {
                               ),
                             )}
                           </strong>
-                          <span>All years for selected scopes</span>
+                          <span>All years · {evaluationSimilarityBasisLabel}</span>
                         </article>
                       </>
                     )}
@@ -7060,7 +7195,7 @@ function ContractorHubApp() {
                         <p className="eyebrow">PERIOD SUMMARY</p>
                         <h3>All-time and selected-period comparison</h3>
                         <small>
-                          Each scope shows an all-time result and, when a year
+                          Each keyword shows an all-time result and, when a year
                           range is selected, a separate result for that period.
                         </small>
                       </div>
@@ -7070,7 +7205,7 @@ function ContractorHubApp() {
                       <table className="evaluation-table evaluation-keyword-table">
                         <thead>
                           <tr>
-                            <th>Scope</th>
+                            <th>Similarity keyword</th>
                             <th>Period</th>
                             <th>Completed projects</th>
                             <th>Completed total cost (RM)</th>
