@@ -3722,9 +3722,6 @@ td {
 .top-actions > .primary-button {
   display: none;
 }
-.sidebar nav .nav-item:nth-child(4) {
-  display: none;
-}
 .optional-contractor-fields {
   margin-top: 14px;
   border-top: 1px solid var(--line);
@@ -5898,9 +5895,6 @@ td {
     border-radius: 50%;
     font-size: 9px;
     background: #31537b;
-  }
-  .sidebar nav .nav-item:nth-child(4) {
-    display: none;
   }
   main {
     width: 100%;
