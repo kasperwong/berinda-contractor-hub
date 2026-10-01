@@ -837,6 +837,14 @@ const money = (value: number) =>
     maximumFractionDigits: 1,
   }).format(value);
 
+const reportMoney = (value: number) =>
+  new Intl.NumberFormat("en-MY", {
+    style: "currency",
+    currency: "MYR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+
 function ContractorHubApp() {
   const authProfile = useAuthProfile();
   const isAdmin = authProfile?.role === "admin";
@@ -1063,7 +1071,12 @@ function ContractorHubApp() {
   const [projectReferenceFields, setProjectReferenceFields] = useState<
     ProjectExportField[]
   >(["name", "scope", "client", "location", "value", "status"]);
-  const [evaluationContractorId, setEvaluationContractorId] = useState("all");
+  const [evaluationContractorIds, setEvaluationContractorIds] = useState<
+    string[]
+  >([initialContractors[0].id]);
+  const [evaluationContractorSearch, setEvaluationContractorSearch] =
+    useState("");
+  const [evaluationProposedValue, setEvaluationProposedValue] = useState("");
   const [evaluationYearFrom, setEvaluationYearFrom] = useState("");
   const [evaluationYearTo, setEvaluationYearTo] = useState("");
   const [evaluationKeywordInput, setEvaluationKeywordInput] = useState("");
@@ -1436,12 +1449,28 @@ function ContractorHubApp() {
     setEvaluationKeywordInput("");
   }
 
-  const evaluationAllRecords = contractorRows
-    .filter(
-      (contractor) =>
-        evaluationContractorId === "all" ||
-        contractor.id === evaluationContractorId,
-    )
+  function toggleEvaluationContractor(contractorId: string) {
+    setEvaluationContractorIds((current) =>
+      current.includes(contractorId)
+        ? current.filter((id) => id !== contractorId)
+        : [...current, contractorId],
+    );
+    setSelectedEvaluationProjects([]);
+  }
+
+  const evaluationContractorCandidates = contractorRows.filter((contractor) => {
+    const term = evaluationContractorSearch.trim().toLowerCase();
+    return (
+      !term ||
+      contractor.name.toLowerCase().includes(term) ||
+      contractor.trade.toLowerCase().includes(term)
+    );
+  });
+  const evaluationSelectedContractors = contractorRows.filter((contractor) =>
+    evaluationContractorIds.includes(contractor.id),
+  );
+
+  const evaluationAllRecords = evaluationSelectedContractors
     .flatMap((contractor) =>
       reportProjectsFor(contractor).map((project) => ({
         ...project,
@@ -1488,6 +1517,119 @@ function ContractorHubApp() {
     : evaluationYearTo
       ? `Up to ${evaluationYearTo}`
       : "All available years";
+  const evaluationCurrentYear = new Date().getFullYear();
+  const evaluationRecentCutoffYear = evaluationCurrentYear - 10;
+  const evaluationProposedValueNumber = Number(evaluationProposedValue) || 0;
+  const evaluationComparableMinimum = evaluationProposedValueNumber * 0.5;
+  const evaluationComparableMaximum = evaluationProposedValueNumber * 1.5;
+  const evaluationCriteria = [
+    {
+      no: 1,
+      criterion: "Overall Project Experience",
+      basis:
+        "Total projects completed or currently undertaken in the available company record.",
+    },
+    {
+      no: 2,
+      criterion: "Recent Project Experience",
+      basis: `Projects completed or currently undertaken from ${evaluationRecentCutoffYear} onward.`,
+    },
+    {
+      no: 3,
+      criterion: "Similar Project Experience",
+      basis: "Projects matching at least one selected project-scope keyword.",
+    },
+    {
+      no: 4,
+      criterion: "Recent Similar Project Experience",
+      basis: `Similar projects from ${evaluationRecentCutoffYear} onward.`,
+    },
+    {
+      no: 5,
+      criterion: "Similar Projects of Comparable Contract Value",
+      basis: "Similar projects valued within ±50% of the proposed contract value.",
+    },
+    {
+      no: 6,
+      criterion: "Recent Similar Projects of Comparable Contract Value",
+      basis: `Comparable similar projects from ${evaluationRecentCutoffYear} onward.`,
+    },
+    {
+      no: 7,
+      criterion: "Highest Contract Value Undertaken",
+      basis: "Highest single contract value in the available company record.",
+    },
+    {
+      no: 8,
+      criterion: "Highest Contract Value – Past 10 Years",
+      basis: `Highest single contract value from ${evaluationRecentCutoffYear} onward.`,
+    },
+    {
+      no: 9,
+      criterion: "Experience with Group Companies",
+      basis: "Projects identified as undertaken for Group or related companies.",
+    },
+    {
+      no: 10,
+      criterion: "Highest Contract Value with Group Companies",
+      basis: "Highest single recorded contract value with a Group company.",
+    },
+  ];
+  const evaluationCriteriaResults = evaluationSelectedContractors.map(
+    (contractor) => {
+      const projects = reportProjectsFor(contractor).map((project) => ({
+        ...project,
+        evaluationYear: projectEvaluationYear(project),
+      }));
+      const recent = projects.filter(
+        (project) => project.evaluationYear >= evaluationRecentCutoffYear,
+      );
+      const similar = evaluationKeywords.length
+        ? projects.filter((project) =>
+            evaluationKeywords.some((keyword) =>
+              projectMatchesEvaluationScope(project, keyword),
+            ),
+          )
+        : [];
+      const recentSimilar = similar.filter(
+        (project) => project.evaluationYear >= evaluationRecentCutoffYear,
+      );
+      const comparable = evaluationProposedValueNumber
+        ? similar.filter(
+            (project) =>
+              project.value >= evaluationComparableMinimum &&
+              project.value <= evaluationComparableMaximum,
+          )
+        : [];
+      const recentComparable = comparable.filter(
+        (project) => project.evaluationYear >= evaluationRecentCutoffYear,
+      );
+      const groupProjects = projects.filter((project) => project.withinGroup);
+      const highest = (items: typeof projects) =>
+        items.reduce((value, project) => Math.max(value, project.value), 0);
+      return {
+        contractor,
+        values: [
+          String(projects.length),
+          String(recent.length),
+          evaluationKeywords.length ? String(similar.length) : "Scope required",
+          evaluationKeywords.length
+            ? String(recentSimilar.length)
+            : "Scope required",
+          evaluationKeywords.length && evaluationProposedValueNumber
+            ? String(comparable.length)
+            : "Scope/value required",
+          evaluationKeywords.length && evaluationProposedValueNumber
+            ? String(recentComparable.length)
+            : "Scope/value required",
+          reportMoney(highest(projects)),
+          reportMoney(highest(recent)),
+          String(groupProjects.length),
+          reportMoney(highest(groupProjects)),
+        ],
+      };
+    },
+  );
   const evaluationMatches = evaluationKeywords.length
     ? evaluationRecords.filter((project) =>
         evaluationKeywords.some((keyword) =>
@@ -2944,6 +3086,29 @@ function ContractorHubApp() {
   }
 
   function evaluationReportContent() {
+    const criteriaSummary = reportTable(
+      [
+        "No.",
+        "Evaluation criteria",
+        "Assessment basis",
+        ...evaluationCriteriaResults.map((result) => result.contractor.name),
+      ],
+      evaluationCriteria.map((item, index) => [
+        item.no,
+        item.criterion,
+        item.basis,
+        ...evaluationCriteriaResults.map((result) => result.values[index]),
+      ]),
+    );
+    const evaluationInputs = reportTable(
+      ["Selected contractors", "Similar project scope", "Proposed contract value", "Recent period"],
+      [[
+        evaluationSelectedContractors.map((contractor) => contractor.name).join(", ") || "None",
+        evaluationKeywords.join(", ") || "Not provided",
+        evaluationProposedValueNumber ? reportMoney(evaluationProposedValueNumber) : "Not provided",
+        `${evaluationRecentCutoffYear}–${evaluationCurrentYear}`,
+      ]],
+    );
     const overallSummary = reportTable(
       [
         "All completed projects",
@@ -3054,20 +3219,21 @@ function ContractorHubApp() {
     const selectionNote = evaluationSelectedRecords.length
       ? `<p>${evaluationSelectedRecords.length} manually selected project${evaluationSelectedRecords.length === 1 ? "" : "s"} included in the detail tables.</p>`
       : "<p>No manual project selection was made; all projects are included in the detail tables.</p>";
-    return `<div class="section"><h2>Overall project experience — ${escapeHtml(evaluationOverallYearLabel)}</h2>${overallSummary}${selectedScopeSummary}</div><div class="section"><h2>All-time and selected-period scope summary</h2>${scopeSummary}</div><div class="section"><h2>Projects selected for this report</h2>${selectionNote}</div><div class="section"><h2>All projects</h2>${projectDetails(reportProjects)}</div><div class="section"><h2>Completed projects</h2>${projectDetails(reportCompletedProjects)}</div><div class="section"><h2>Ongoing projects</h2>${projectDetails(reportOngoingProjects)}</div><div class="section"><h2>Projects within the group</h2>${projectDetails(reportGroupProjects)}</div>`;
+    return `<div class="section"><h2>Evaluation inputs</h2>${evaluationInputs}</div><div class="section"><h2>Contractor experience evaluation</h2>${criteriaSummary}</div><div class="section"><h2>Overall project experience — ${escapeHtml(evaluationOverallYearLabel)}</h2>${overallSummary}${selectedScopeSummary}</div><div class="section"><h2>All-time and selected-period scope summary</h2>${scopeSummary}</div><div class="section"><h2>Projects selected for this report</h2>${selectionNote}</div><div class="section"><h2>All projects</h2>${projectDetails(reportProjects)}</div><div class="section"><h2>Completed projects</h2>${projectDetails(reportCompletedProjects)}</div><div class="section"><h2>Ongoing projects</h2>${projectDetails(reportOngoingProjects)}</div><div class="section"><h2>Projects within the group</h2>${projectDetails(reportGroupProjects)}</div>`;
   }
 
   function exportEvaluationReport() {
-    const contractorLabel =
-      evaluationContractorId === "all"
-        ? "All contractors"
-        : (contractorRows.find(
-            (contractor) => contractor.id === evaluationContractorId,
-          )?.name ?? "Selected contractor");
+    if (!evaluationSelectedContractors.length) {
+      notify("Select at least one contractor before generating the report.");
+      return;
+    }
+    const contractorLabel = evaluationSelectedContractors
+      .map((contractor) => contractor.name)
+      .join(", ");
     downloadFile(
-      "project-evaluation-report.doc",
+      "contractor-experience-evaluation.doc",
       reportDocument(
-        "Project Evaluation Report",
+        "Contractor Experience Evaluation",
         `${contractorLabel} · ${evaluationRangeLabel}`,
         evaluationReportContent(),
       ),
@@ -5714,7 +5880,8 @@ function ContractorHubApp() {
                                   className="project-link project-count evaluation"
                                   onClick={(event) => {
                                     event.stopPropagation();
-                                    setEvaluationContractorId(contractor.id);
+                                    setEvaluationContractorIds([contractor.id]);
+                                    setSelectedEvaluationProjects([]);
                                     setActiveSection("projectEvaluation");
                                   }}
                                 >
@@ -6570,61 +6737,118 @@ function ContractorHubApp() {
                     type="button"
                     className="primary-button"
                     onClick={exportEvaluationReport}
+                    disabled={!evaluationSelectedContractors.length}
                   >
-                    {evaluationSelectedRecords.length
-                      ? `Export selected (${evaluationSelectedRecords.length})`
-                      : "Export all projects"}
+                    Generate evaluation report
                   </button>
                 </div>
                 <section className="evaluation-workspace">
                   <div className="evaluation-controls">
-                    <label>
-                      Contractor
-                      <select
-                        value={evaluationContractorId}
+                    <fieldset className="evaluation-contractor-picker">
+                      <legend>Contractors</legend>
+                      <div className="evaluation-picker-heading">
+                        <strong>
+                          {evaluationSelectedContractors.length} selected
+                        </strong>
+                        <span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEvaluationContractorIds(
+                                contractorRows.map((contractor) => contractor.id),
+                              )
+                            }
+                          >
+                            Select all
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEvaluationContractorIds([])}
+                          >
+                            Clear
+                          </button>
+                        </span>
+                      </div>
+                      <input
+                        aria-label="Search contractors for evaluation"
+                        placeholder="Search name or trade"
+                        value={evaluationContractorSearch}
                         onChange={(event) =>
-                          setEvaluationContractorId(event.target.value)
+                          setEvaluationContractorSearch(event.target.value)
                         }
-                      >
-                        <option value="all">All contractors</option>
-                        {contractorRows.map((contractor) => (
-                          <option key={contractor.id} value={contractor.id}>
-                            {contractor.name}
-                          </option>
+                      />
+                      <div className="evaluation-contractor-options">
+                        {evaluationContractorCandidates.map((contractor) => (
+                          <label key={contractor.id}>
+                            <input
+                              type="checkbox"
+                              checked={evaluationContractorIds.includes(
+                                contractor.id,
+                              )}
+                              onChange={() =>
+                                toggleEvaluationContractor(contractor.id)
+                              }
+                            />
+                            <span>
+                              <strong>{contractor.name}</strong>
+                              <small>{contractor.trade}</small>
+                            </span>
+                          </label>
                         ))}
-                      </select>
-                    </label>
-                    <label>
-                      From year
-                      <input
-                        type="number"
-                        min="1900"
-                        max="2100"
-                        placeholder="e.g. 2022"
-                        value={evaluationYearFrom}
-                        onChange={(event) =>
-                          setEvaluationYearFrom(event.target.value)
-                        }
-                      />
-                    </label>
-                    <label>
-                      To year
-                      <input
-                        type="number"
-                        min="1900"
-                        max="2100"
-                        placeholder="e.g. 2026"
-                        value={evaluationYearTo}
-                        onChange={(event) =>
-                          setEvaluationYearTo(event.target.value)
-                        }
-                      />
-                    </label>
+                        {!evaluationContractorCandidates.length && (
+                          <small>No contractors match this search.</small>
+                        )}
+                      </div>
+                    </fieldset>
+                    <div className="evaluation-setup-fields">
+                      <label>
+                        Proposed contract value (RM)
+                        <input
+                          type="number"
+                          min="0"
+                          step="1000"
+                          placeholder="e.g. 2000000"
+                          value={evaluationProposedValue}
+                          onChange={(event) =>
+                            setEvaluationProposedValue(event.target.value)
+                          }
+                        />
+                        <small>Comparable range: ±50% of this value.</small>
+                      </label>
+                      <label>
+                        From year
+                        <input
+                          type="number"
+                          min="1900"
+                          max="2100"
+                          placeholder="e.g. 2022"
+                          value={evaluationYearFrom}
+                          onChange={(event) =>
+                            setEvaluationYearFrom(event.target.value)
+                          }
+                        />
+                      </label>
+                      <label>
+                        To year
+                        <input
+                          type="number"
+                          min="1900"
+                          max="2100"
+                          placeholder="e.g. 2026"
+                          value={evaluationYearTo}
+                          onChange={(event) =>
+                            setEvaluationYearTo(event.target.value)
+                          }
+                        />
+                      </label>
+                    </div>
                     <button
                       type="button"
                       className="secondary-button evaluation-clear"
                       onClick={() => {
-                        setEvaluationContractorId("all");
+                        setEvaluationContractorIds([initialContractors[0].id]);
+                        setEvaluationContractorSearch("");
+                        setEvaluationProposedValue("");
                         setEvaluationYearFrom("");
                         setEvaluationYearTo("");
                         setEvaluationKeywordInput("");
@@ -6645,6 +6869,56 @@ function ContractorHubApp() {
                       Clear filters
                     </button>
                   </div>
+
+                  <section className="evaluation-section criteria-section">
+                    <header>
+                      <div>
+                        <p className="eyebrow">EVALUATION OUTPUT</p>
+                        <h3>Contractor experience evaluation</h3>
+                        <small>
+                          Similar experience uses the scope keywords below. The
+                          recent period is {evaluationRecentCutoffYear}–
+                          {evaluationCurrentYear}.
+                        </small>
+                      </div>
+                      <b>{evaluationSelectedContractors.length} contractors</b>
+                    </header>
+                    <div className="evaluation-table-wrap criteria-table-wrap">
+                      <table className="evaluation-table criteria-table">
+                        <thead>
+                          <tr>
+                            <th>No.</th>
+                            <th>Evaluation criteria</th>
+                            <th>Assessment basis</th>
+                            {evaluationCriteriaResults.map((result) => (
+                              <th key={result.contractor.id}>
+                                {result.contractor.name}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {evaluationCriteria.map((criterion, index) => (
+                            <tr key={criterion.no}>
+                              <td>{criterion.no}</td>
+                              <td><strong>{criterion.criterion}</strong></td>
+                              <td>{criterion.basis}</td>
+                              {evaluationCriteriaResults.map((result) => (
+                                <td key={result.contractor.id}>
+                                  <strong>{result.values[index]}</strong>
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                          {!evaluationCriteriaResults.length && (
+                            <tr>
+                              <td colSpan={3}>Select at least one contractor.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
 
                   <div className="evaluation-keywords">
                     <div>
@@ -6704,12 +6978,11 @@ function ContractorHubApp() {
                       <small>{evaluationOverallYearLabel}</small>
                     </div>
                     <span>
-                      {evaluationContractorId === "all"
-                        ? "All contractors"
-                        : contractorRows.find(
-                            (contractor) =>
-                              contractor.id === evaluationContractorId,
-                          )?.name}
+                      {evaluationSelectedContractors.length
+                        ? evaluationSelectedContractors
+                            .map((contractor) => contractor.name)
+                            .join(", ")
+                        : "No contractors selected"}
                     </span>
                   </div>
                   <div className="evaluation-metrics overall-metrics">

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Multi-contractor selection and side-by-side Contractor Experience Evaluation.
+- Automatic 10-criterion experience assessment using project recency, scope similarity, proposed contract value, and Group-company history.
+- Downloadable Contractor Experience Evaluation report with evaluation inputs and supporting project detail.
+
 ## [0.47.0] - 2026-09-11
 
 ### Fixed
