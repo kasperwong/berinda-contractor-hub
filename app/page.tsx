@@ -37,6 +37,12 @@ import {
 } from "@phosphor-icons/react";
 
 const CONTRACTORS_PER_PAGE = 10;
+const WORKPRO_ORIGIN = "https://berinda-project-management.web.app";
+
+type ContractorSelectionRequest = {
+  requestId: string;
+  returnOrigin: string;
+};
 
 type Project = {
   id: string;
@@ -877,6 +883,9 @@ function ContractorHubApp() {
   const authProfile = useAuthProfile();
   const isAdmin = authProfile?.role === "admin";
   const canEdit = isAdmin || authProfile?.role === "editor";
+  const [selectionRequest, setSelectionRequest] =
+    useState<ContractorSelectionRequest | null>(null);
+  const openedContractorId = useRef("");
   const [contractorRows, setContractorRows] = useState(initialContractors);
   const [archivedContractors, setArchivedContractors] = useState<
     Array<Contractor & { archivedAt: string }>
@@ -895,6 +904,25 @@ function ContractorHubApp() {
   const skipNextAutomaticSave = useRef(false);
   const { auth, db } = getFirebaseClient();
   const contractorStorageHydrated = useRef(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const returnOrigin = params.get("returnOrigin") ?? "";
+    const allowedLocalOrigin =
+      process.env.NODE_ENV === "development" &&
+      ["http://127.0.0.1:8765", "http://localhost:8765"].includes(returnOrigin);
+    if (
+      params.get("selectFor") === "workpro-checklist" &&
+      params.get("requestId") &&
+      (returnOrigin === WORKPRO_ORIGIN || allowedLocalOrigin)
+    ) {
+      // Query-string selection mode is intentionally activated after hydration.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectionRequest({
+        requestId: params.get("requestId") ?? "",
+        returnOrigin,
+      });
+    }
+  }, []);
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("berinda-contractor-rows");
@@ -1309,6 +1337,21 @@ function ContractorHubApp() {
   const [profileTab, setProfileTab] = useState<
     "overview" | "preq" | "projects" | "documents" | "activity"
   >("overview");
+  useEffect(() => {
+    const contractorId = new URLSearchParams(window.location.search).get(
+      "contractor",
+    );
+    if (!contractorId || openedContractorId.current === contractorId) return;
+    const contractor = contractorRows.find((item) => item.id === contractorId);
+    if (!contractor) return;
+    openedContractorId.current = contractorId;
+    // A query-string deep link intentionally synchronizes the visible profile.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActiveContractor(contractor);
+    setActiveSection("contractors");
+    setProfileTab("overview");
+    setShowProfile(true);
+  }, [contractorRows]);
   const [uploadedFile, setUploadedFile] = useState("");
   const [contractorDocuments, setContractorDocuments] = useState<
     ContractorDocument[]
@@ -4904,8 +4947,38 @@ function ContractorHubApp() {
     });
   }
 
+  function sendContractorToWorkPro(contractor: Contractor) {
+    if (!selectionRequest) return;
+    const message = {
+      type: "berinda.contractor.selected",
+      requestId: selectionRequest.requestId,
+      contractor: {
+        id: contractor.id,
+        name: contractor.name,
+        trade: contractor.trade,
+        grade: contractor.grade,
+        location: contractor.location,
+        score: contractor.score,
+        status: contractor.status,
+        preqDate: contractor.preqDate,
+      },
+    };
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage(message, selectionRequest.returnOrigin);
+      window.close();
+      return;
+    }
+    notify("Return to WorkPro and reopen Contractor Hub from the Tenderer card.");
+  }
+
   return (
     <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+      {selectionRequest && (
+        <div className="contractor-selection-banner" role="status">
+          <Buildings size={20} weight="duotone" aria-hidden="true" />
+          <span><strong>Select for WorkPro</strong> Open a contractor, then choose Use in WorkPro.</span>
+        </div>
+      )}
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">B</div>
@@ -4916,7 +4989,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.47
+              Version 0.49
             </button>
           </div>
         </div>
@@ -8542,6 +8615,14 @@ function ContractorHubApp() {
                 >
                   Edit profile
                 </button>
+                {selectionRequest && (
+                  <button
+                    className="primary-button contractor-use-button"
+                    onClick={() => sendContractorToWorkPro(activeContractor)}
+                  >
+                    Use in WorkPro
+                  </button>
+                )}
                 <button
                   className="profile-close"
                   onClick={() => setShowProfile(false)}

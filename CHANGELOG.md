@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.49.0] - 2026-10-03
+
+### Added
+
+- Added a read-only contractor directory endpoint for the WorkPro Checklist picker.
+- Added BPM Firebase token verification and approved BPM profile validation before any directory record is returned.
+
+### Security
+
+- Returns only contractor ID, name, trade, CIDB grade, location, Pre-Q score/date, and status.
+- Keeps normal Contractor Hub pages and all private contractor details behind the existing Contractor Hub authentication gate.
+
+## [0.48.0] - 2026-10-03
+
+### Added
+
+- Added an authenticated WorkPro selection mode that returns a bounded contractor identity, CIDB, location, Pre-Q, score, and status snapshot to the opening Checklist Tenderer card.
+- Added direct `?contractor=` profile links so a linked Tenderer can reopen its authoritative Contractor Hub profile.
+
+### Security
+
+- Restricted selection responses to the exact WorkPro production origin, with localhost accepted only during local development.
+
 ## Unreleased
 
 ### Added

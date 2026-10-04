@@ -7753,3 +7753,30 @@ td {
     flex-direction: column;
   }
 }
+.contractor-selection-banner {
+  position: fixed;
+  z-index: 1200;
+  top: 14px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(calc(100% - 28px), 560px);
+  transform: translateX(-50%);
+  border: 1px solid #9db7e8;
+  border-radius: 14px;
+  background: #eef4ff;
+  box-shadow: 0 10px 32px rgba(17, 36, 72, 0.18);
+  color: #17305f;
+  padding: 11px 14px;
+  font-size: 12px;
+}
+
+.contractor-selection-banner span,
+.contractor-selection-banner strong {
+  display: block;
+}
+
+.contractor-use-button {
+  white-space: nowrap;
+}
