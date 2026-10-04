@@ -1514,11 +1514,9 @@ function ContractorHubApp() {
     project: Project,
     keyword: string,
   ) {
-    const storedBuildingType = (project.projectType ?? "")
-      .split("|")[0]
-      .trim()
-      .toLowerCase();
-    return storedBuildingType === keyword.trim().toLowerCase();
+    return (project.projectType ?? "")
+      .toLowerCase()
+      .includes(keyword.trim().toLowerCase());
   }
 
   function addEvaluationKeywords() {
@@ -1539,10 +1537,13 @@ function ContractorHubApp() {
   }
 
   function addEvaluationBuildingTypeKeywords() {
-    const buildingType = evaluationBuildingTypeInput.trim();
-    if (!buildingType) return;
+    const additions = evaluationBuildingTypeInput
+      .split(",")
+      .map((keyword) => keyword.trim())
+      .filter(Boolean);
+    if (!additions.length) return;
     setEvaluationBuildingTypeKeywords((current) =>
-      [...current, buildingType].filter(
+      [...current, ...additions].filter(
         (keyword, index, values) =>
           values.findIndex(
             (candidate) => candidate.toLowerCase() === keyword.toLowerCase(),
@@ -6922,6 +6923,19 @@ function ContractorHubApp() {
                           </button>
                           <button
                             type="button"
+                            disabled={!evaluationContractorCandidates.length}
+                            onClick={() =>
+                              setEvaluationContractorIds(
+                                evaluationContractorCandidates.map(
+                                  (contractor) => contractor.id,
+                                ),
+                              )
+                            }
+                          >
+                            Select filtered
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => setEvaluationContractorIds([])}
                           >
                             Clear
@@ -7099,8 +7113,8 @@ function ContractorHubApp() {
                     <div>
                       <h3>Similar project matching</h3>
                       <p>
-                        Choose what to compare. Scope uses keywords; building
-                        types follow the approved project list.
+                        Choose what to compare, then add one or more keywords
+                        separated by commas.
                       </p>
                     </div>
                     <div className="evaluation-similarity-controls">
@@ -7173,35 +7187,28 @@ function ContractorHubApp() {
                       )}
                       {evaluationSimilarityBasis !== "scope" && (
                         <div className="evaluation-match-field">
-                          <label>Building types</label>
+                          <label>Building type keywords</label>
                           <div className="evaluation-keyword-entry">
-                            <select
-                              aria-label="Building type"
+                            <input
+                              aria-label="Building type keywords"
                               value={evaluationBuildingTypeInput}
+                              placeholder="apartment, retail, warehouse"
                               onChange={(event) =>
                                 setEvaluationBuildingTypeInput(event.target.value)
                               }
-                            >
-                              <option value="">Select building type</option>
-                              {APPROVED_BUILDING_TYPES.map((buildingType) => (
-                                <option
-                                  key={buildingType}
-                                  value={buildingType}
-                                  disabled={evaluationBuildingTypeKeywords.includes(
-                                    buildingType,
-                                  )}
-                                >
-                                  {buildingType}
-                                </option>
-                              ))}
-                            </select>
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  addEvaluationBuildingTypeKeywords();
+                                }
+                              }}
+                            />
                             <button
                               type="button"
                               className="primary-button"
                               onClick={addEvaluationBuildingTypeKeywords}
-                              disabled={!evaluationBuildingTypeInput}
                             >
-                              Add type
+                              Add keyword
                             </button>
                           </div>
                           <div className="evaluation-keyword-chips">
