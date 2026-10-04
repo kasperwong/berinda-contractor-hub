@@ -206,6 +206,34 @@ type ProjectExportField =
   | "status"
   | "progress";
 
+const APPROVED_BUILDING_TYPES = [
+  "High-Rise Residential / Hotel Apartment",
+  "High-Rise Residential / Service Apartment",
+  "High-Rise Residential / Affordable Housing",
+  "High-Rise Residential / Condominium",
+  "High-Rise Residential / Apartment",
+  "Landed Residential / Terrace House",
+  "Landed Residential / Semi-D",
+  "Landed Residential / Bungalow",
+  "Landed Residential / Cluster House",
+  "Landed Residential / Townhouse",
+  "Commercial / Shop Office",
+  "Commercial / Shopping Mall",
+  "Commercial / Retail",
+  "Commercial / Office",
+  "Commercial / Mixed Commercial",
+  "Hotel / Hospitality",
+  "Industrial / Warehouse",
+  "Industrial / Factory",
+  "Institutional / School",
+  "Institutional / University",
+  "Institutional / Hospital",
+  "Institutional / Government Building",
+  "Institutional / Community Facility",
+  "Infrastructure / Utilities",
+  "Infrastructure / Bridge",
+] as const;
+
 const CONTRACTOR_EXPORT_FIELDS: Array<{
   key: ContractorExportField;
   label: string;
@@ -1443,9 +1471,11 @@ function ContractorHubApp() {
     project: Project,
     keyword: string,
   ) {
-    return (project.projectType ?? "")
-      .toLowerCase()
-      .includes(keyword.toLowerCase());
+    const storedBuildingType = (project.projectType ?? "")
+      .split("|")[0]
+      .trim()
+      .toLowerCase();
+    return storedBuildingType === keyword.trim().toLowerCase();
   }
 
   function addEvaluationKeywords() {
@@ -1466,13 +1496,10 @@ function ContractorHubApp() {
   }
 
   function addEvaluationBuildingTypeKeywords() {
-    const additions = evaluationBuildingTypeInput
-      .split(",")
-      .map((keyword) => keyword.trim())
-      .filter(Boolean);
-    if (!additions.length) return;
+    const buildingType = evaluationBuildingTypeInput.trim();
+    if (!buildingType) return;
     setEvaluationBuildingTypeKeywords((current) =>
-      [...current, ...additions].filter(
+      [...current, buildingType].filter(
         (keyword, index, values) =>
           values.findIndex(
             (candidate) => candidate.toLowerCase() === keyword.toLowerCase(),
@@ -4236,6 +4263,7 @@ function ContractorHubApp() {
       id: `project-${Date.now()}`,
       name: String(form.get("name")),
       scope: String(form.get("scope")),
+      projectType: String(form.get("projectType")),
       client: String(form.get("client")),
       location: String(form.get("location")),
       value: Number(form.get("value")),
@@ -6998,8 +7026,8 @@ function ContractorHubApp() {
                     <div>
                       <h3>Similar project matching</h3>
                       <p>
-                        Choose what to compare, then add one or more keywords
-                        separated by commas.
+                        Choose what to compare. Scope uses keywords; building
+                        types follow the approved project list.
                       </p>
                     </div>
                     <div className="evaluation-similarity-controls">
@@ -7072,26 +7100,33 @@ function ContractorHubApp() {
                       )}
                       {evaluationSimilarityBasis !== "scope" && (
                         <div className="evaluation-match-field">
-                          <label>Building type keywords</label>
+                          <label>Building types</label>
                           <div className="evaluation-keyword-entry">
-                            <input
-                              aria-label="Building type keywords"
+                            <select
+                              aria-label="Building type"
                               value={evaluationBuildingTypeInput}
-                              placeholder="residential, commercial, industrial"
                               onChange={(event) =>
                                 setEvaluationBuildingTypeInput(event.target.value)
                               }
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault();
-                                  addEvaluationBuildingTypeKeywords();
-                                }
-                              }}
-                            />
+                            >
+                              <option value="">Select building type</option>
+                              {APPROVED_BUILDING_TYPES.map((buildingType) => (
+                                <option
+                                  key={buildingType}
+                                  value={buildingType}
+                                  disabled={evaluationBuildingTypeKeywords.includes(
+                                    buildingType,
+                                  )}
+                                >
+                                  {buildingType}
+                                </option>
+                              ))}
+                            </select>
                             <button
                               type="button"
                               className="primary-button"
                               onClick={addEvaluationBuildingTypeKeywords}
+                              disabled={!evaluationBuildingTypeInput}
                             >
                               Add type
                             </button>
@@ -10153,10 +10188,25 @@ function ContractorHubApp() {
               </label>
               <label>
                 Building type
-                <input
+                <select
                   name="projectType"
                   defaultValue={editingProject.projectType ?? ""}
-                />
+                >
+                  <option value="">Select building type</option>
+                  {editingProject.projectType &&
+                    !APPROVED_BUILDING_TYPES.includes(
+                      editingProject.projectType as (typeof APPROVED_BUILDING_TYPES)[number],
+                    ) && (
+                      <option value={editingProject.projectType}>
+                        {editingProject.projectType} (existing value)
+                      </option>
+                    )}
+                  {APPROVED_BUILDING_TYPES.map((buildingType) => (
+                    <option key={buildingType} value={buildingType}>
+                      {buildingType}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label>
                 Developer
@@ -10632,6 +10682,19 @@ function ContractorHubApp() {
               <label className="wide">
                 Scope
                 <textarea name="scope" required rows={3} />
+              </label>
+              <label>
+                Building type
+                <select name="projectType" required defaultValue="">
+                  <option value="" disabled>
+                    Select building type
+                  </option>
+                  {APPROVED_BUILDING_TYPES.map((buildingType) => (
+                    <option key={buildingType} value={buildingType}>
+                      {buildingType}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label>
                 Client

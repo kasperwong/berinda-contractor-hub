@@ -10,6 +10,7 @@
 - Visible Project evaluation navigation entry on desktop, tablet, and mobile layouts.
 - Readable multi-contractor evaluation table with preserved column widths, sticky criteria columns, and contained horizontal scrolling.
 - Similar-project evaluation by project scope, building type, or both, with the selected basis recorded in the exported report.
+- Approved building-type selection in project forms and Contractor Experience Evaluation, using the standard building-type list instead of free-form text.
 
 ## [0.47.0] - 2026-09-11
 
