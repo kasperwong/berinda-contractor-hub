@@ -36,6 +36,7 @@
 - Approved building-type selection in project forms, plus free-text building keywords for Contractor Experience Evaluation.
 - Select-filtered action that selects only contractors matching the current evaluation search.
 - Clickable evaluation results with a project breakdown showing every project counted for the selected contractor and criterion.
+- Owner-controlled recent-experience period using one “past years to consider” input, calculated automatically from the current year.
 
 ## [0.47.0] - 2026-09-11
 

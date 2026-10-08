@@ -6948,6 +6948,9 @@ td {
 .evaluation-setup-fields label:first-child {
   grid-column: 1 / -1;
 }
+.evaluation-setup-fields .evaluation-years-field {
+  grid-column: 1 / -1;
+}
 .evaluation-controls label {
   color: var(--ink);
   font-size: 12px;

@@ -1146,8 +1146,8 @@ function ContractorHubApp() {
   const [evaluationContractorSearch, setEvaluationContractorSearch] =
     useState("");
   const [evaluationProposedValue, setEvaluationProposedValue] = useState("");
-  const [evaluationYearFrom, setEvaluationYearFrom] = useState("");
-  const [evaluationYearTo, setEvaluationYearTo] = useState("");
+  const [evaluationYearsToConsider, setEvaluationYearsToConsider] =
+    useState("10");
   const [evaluationKeywordInput, setEvaluationKeywordInput] = useState("");
   const [evaluationKeywords, setEvaluationKeywords] = useState<string[]>([]);
   const [evaluationBuildingTypeInput, setEvaluationBuildingTypeInput] =
@@ -1588,6 +1588,14 @@ function ContractorHubApp() {
   const evaluationSelectedContractors = contractorRows.filter((contractor) =>
     evaluationContractorIds.includes(contractor.id),
   );
+  const evaluationCurrentYear = new Date().getFullYear();
+  const evaluationYearsToConsiderNumber = Math.min(
+    100,
+    Math.max(1, Math.floor(Number(evaluationYearsToConsider) || 10)),
+  );
+  const evaluationRecentCutoffYear =
+    evaluationCurrentYear - evaluationYearsToConsiderNumber;
+  const evaluationRangeLabel = `Past ${evaluationYearsToConsiderNumber} year${evaluationYearsToConsiderNumber === 1 ? "" : "s"} (${evaluationRecentCutoffYear}–${evaluationCurrentYear})`;
 
   const evaluationAllRecords = evaluationSelectedContractors
     .flatMap((contractor) =>
@@ -1598,14 +1606,11 @@ function ContractorHubApp() {
         evaluationYear: projectEvaluationYear(project),
       })),
     );
-  const evaluationRecords = evaluationAllRecords.filter((project) => {
-    const from = Number(evaluationYearFrom) || 0;
-    const to = Number(evaluationYearTo) || Number.POSITIVE_INFINITY;
-    return (
-      (!evaluationYearFrom && !evaluationYearTo) ||
-      (project.evaluationYear >= from && project.evaluationYear <= to)
-    );
-  });
+  const evaluationRecords = evaluationAllRecords.filter(
+    (project) =>
+      project.evaluationYear >= evaluationRecentCutoffYear &&
+      project.evaluationYear <= evaluationCurrentYear,
+  );
   const evaluationOverallCompleted = evaluationAllRecords.filter(
     (project) => project.status === "Completed",
   );
@@ -1629,15 +1634,6 @@ function ContractorHubApp() {
   const evaluationOverallYearLabel = evaluationYears.length
     ? `Records from ${Math.min(...evaluationYears)} to ${Math.max(...evaluationYears)}`
     : "Project years not provided";
-  const evaluationRangeLabel = evaluationYearFrom
-    ? evaluationYearTo
-      ? `From ${evaluationYearFrom} to ${evaluationYearTo}`
-      : `From ${evaluationYearFrom} onward`
-    : evaluationYearTo
-      ? `Up to ${evaluationYearTo}`
-      : "All available years";
-  const evaluationCurrentYear = new Date().getFullYear();
-  const evaluationRecentCutoffYear = evaluationCurrentYear - 10;
   const evaluationProposedValueNumber = Number(evaluationProposedValue) || 0;
   const evaluationComparableMinimum = evaluationProposedValueNumber * 0.5;
   const evaluationComparableMaximum = evaluationProposedValueNumber * 1.5;
@@ -1685,7 +1681,7 @@ function ContractorHubApp() {
     {
       no: 2,
       criterion: "Recent Project Experience",
-      basis: `Projects completed or currently undertaken from ${evaluationRecentCutoffYear} onward.`,
+      basis: `Projects completed or currently undertaken in the past ${evaluationYearsToConsiderNumber} year${evaluationYearsToConsiderNumber === 1 ? "" : "s"}, from ${evaluationRecentCutoffYear} onward.`,
     },
     {
       no: 3,
@@ -1695,7 +1691,7 @@ function ContractorHubApp() {
     {
       no: 4,
       criterion: "Recent Similar Project Experience",
-      basis: `Similar projects from ${evaluationRecentCutoffYear} onward.`,
+      basis: `Similar projects in the past ${evaluationYearsToConsiderNumber} year${evaluationYearsToConsiderNumber === 1 ? "" : "s"}, from ${evaluationRecentCutoffYear} onward.`,
     },
     {
       no: 5,
@@ -1705,7 +1701,7 @@ function ContractorHubApp() {
     {
       no: 6,
       criterion: "Recent Similar Projects of Comparable Contract Value",
-      basis: `Comparable similar projects from ${evaluationRecentCutoffYear} onward.`,
+      basis: `Comparable similar projects in the past ${evaluationYearsToConsiderNumber} year${evaluationYearsToConsiderNumber === 1 ? "" : "s"}, from ${evaluationRecentCutoffYear} onward.`,
     },
     {
       no: 7,
@@ -1714,8 +1710,8 @@ function ContractorHubApp() {
     },
     {
       no: 8,
-      criterion: "Highest Contract Value – Past 10 Years",
-      basis: `Highest single contract value from ${evaluationRecentCutoffYear} onward.`,
+      criterion: `Highest Contract Value – Past ${evaluationYearsToConsiderNumber} Year${evaluationYearsToConsiderNumber === 1 ? "" : "s"}`,
+      basis: `Highest single contract value in the past ${evaluationYearsToConsiderNumber} year${evaluationYearsToConsiderNumber === 1 ? "" : "s"}, from ${evaluationRecentCutoffYear} onward.`,
     },
     {
       no: 9,
@@ -1850,16 +1846,13 @@ function ContractorHubApp() {
       ongoingValue: ongoing.reduce((sum, project) => sum + project.value, 0),
     };
   });
-  const evaluationPeriodRows =
-    evaluationYearFrom || evaluationYearTo
-      ? [
-          ...evaluationAllTimeScopeRows,
-          ...evaluationKeywordRows.map((row) => ({
-            ...row,
-            period: evaluationRangeLabel,
-          })),
-        ]
-      : evaluationAllTimeScopeRows;
+  const evaluationPeriodRows = [
+    ...evaluationAllTimeScopeRows,
+    ...evaluationKeywordRows.map((row) => ({
+      ...row,
+      period: evaluationRangeLabel,
+    })),
+  ];
   const evaluationCompletedProjects = evaluationMatches.filter(
     (project) => project.status === "Completed" && !project.withinGroup,
   );
@@ -3379,7 +3372,7 @@ function ContractorHubApp() {
     const selectionNote = evaluationSelectedRecords.length
       ? `<p>${evaluationSelectedRecords.length} manually selected project${evaluationSelectedRecords.length === 1 ? "" : "s"} included in the detail tables.</p>`
       : "<p>No manual project selection was made; all projects are included in the detail tables.</p>";
-    return `<div class="section"><h2>Evaluation inputs</h2>${evaluationInputs}</div><div class="section"><h2>Contractor experience evaluation</h2>${criteriaSummary}</div><div class="section"><h2>Overall project experience — ${escapeHtml(evaluationOverallYearLabel)}</h2>${overallSummary}${selectedScopeSummary}</div><div class="section"><h2>All-time and selected-period similarity summary</h2>${scopeSummary}</div><div class="section"><h2>Projects selected for this report</h2>${selectionNote}</div><div class="section"><h2>All projects</h2>${projectDetails(reportProjects)}</div><div class="section"><h2>Completed projects</h2>${projectDetails(reportCompletedProjects)}</div><div class="section"><h2>Ongoing projects</h2>${projectDetails(reportOngoingProjects)}</div><div class="section"><h2>Projects within the group</h2>${projectDetails(reportGroupProjects)}</div>`;
+    return `<div class="section"><h2>Evaluation inputs</h2>${evaluationInputs}</div><div class="section"><h2>Contractor experience evaluation</h2>${criteriaSummary}</div><div class="section"><h2>Overall project experience — ${escapeHtml(evaluationOverallYearLabel)}</h2>${overallSummary}${selectedScopeSummary}</div><div class="section"><h2>All-time and recent-period similarity summary</h2>${scopeSummary}</div><div class="section"><h2>Projects selected for this report</h2>${selectionNote}</div><div class="section"><h2>All projects</h2>${projectDetails(reportProjects)}</div><div class="section"><h2>Completed projects</h2>${projectDetails(reportCompletedProjects)}</div><div class="section"><h2>Ongoing projects</h2>${projectDetails(reportOngoingProjects)}</div><div class="section"><h2>Projects within the group</h2>${projectDetails(reportGroupProjects)}</div>`;
   }
 
   function exportEvaluationReport() {
@@ -7019,31 +7012,23 @@ function ContractorHubApp() {
                         />
                         <small>Comparable range: ±50% of this value.</small>
                       </label>
-                      <label>
-                        From year
+                      <label className="evaluation-years-field">
+                        Past years to consider
                         <input
                           type="number"
-                          min="1900"
-                          max="2100"
-                          placeholder="e.g. 2022"
-                          value={evaluationYearFrom}
+                          min="1"
+                          max="100"
+                          step="1"
+                          value={evaluationYearsToConsider}
                           onChange={(event) =>
-                            setEvaluationYearFrom(event.target.value)
+                            setEvaluationYearsToConsider(event.target.value)
                           }
                         />
-                      </label>
-                      <label>
-                        To year
-                        <input
-                          type="number"
-                          min="1900"
-                          max="2100"
-                          placeholder="e.g. 2026"
-                          value={evaluationYearTo}
-                          onChange={(event) =>
-                            setEvaluationYearTo(event.target.value)
-                          }
-                        />
+                        <small>
+                          Current range: {evaluationRecentCutoffYear}–
+                          {evaluationCurrentYear}. The ending year updates
+                          automatically.
+                        </small>
                       </label>
                     </div>
                     <button
@@ -7053,8 +7038,7 @@ function ContractorHubApp() {
                         setEvaluationContractorIds([initialContractors[0].id]);
                         setEvaluationContractorSearch("");
                         setEvaluationProposedValue("");
-                        setEvaluationYearFrom("");
-                        setEvaluationYearTo("");
+                        setEvaluationYearsToConsider("10");
                         setEvaluationKeywordInput("");
                         setEvaluationKeywords([]);
                         setEvaluationBuildingTypeInput("");
@@ -7084,7 +7068,7 @@ function ContractorHubApp() {
                         <h3>Contractor experience evaluation</h3>
                         <small>
                           Similar experience matches by {evaluationSimilarityBasisLabel.toLowerCase()}.
-                          The recent period is {evaluationRecentCutoffYear}–{evaluationCurrentYear}.
+                          The recent period is the past {evaluationYearsToConsiderNumber} year{evaluationYearsToConsiderNumber === 1 ? "" : "s"}: {evaluationRecentCutoffYear}–{evaluationCurrentYear}.
                         </small>
                       </div>
                       <b>{evaluationSelectedContractors.length} contractors</b>
@@ -7363,10 +7347,10 @@ function ContractorHubApp() {
                     <header>
                       <div>
                         <p className="eyebrow">PERIOD SUMMARY</p>
-                        <h3>All-time and selected-period comparison</h3>
+                        <h3>All-time and recent-period comparison</h3>
                         <small>
-                          Each keyword shows an all-time result and, when a year
-                          range is selected, a separate result for that period.
+                          Each keyword shows an all-time result and a separate
+                          result for the owner-defined recent period.
                         </small>
                       </div>
                       <b>{evaluationMatches.length} matching projects</b>
