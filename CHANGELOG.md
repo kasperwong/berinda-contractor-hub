@@ -35,6 +35,7 @@
 - Similar-project evaluation by project scope, building type, or both, with the selected basis recorded in the exported report.
 - Approved building-type selection in project forms, plus free-text building keywords for Contractor Experience Evaluation.
 - Select-filtered action that selects only contractors matching the current evaluation search.
+- Clickable evaluation results with a project breakdown showing every project counted for the selected contractor and criterion.
 
 ## [0.47.0] - 2026-09-11
 

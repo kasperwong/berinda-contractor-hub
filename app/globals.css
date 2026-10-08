@@ -7204,6 +7204,114 @@ td {
   color: #087d71;
   font-variant-numeric: tabular-nums;
 }
+.criteria-value-button {
+  min-height: 44px;
+  margin: -8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  padding: 8px;
+  color: #087d71;
+  font: inherit;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.criteria-value-button:hover {
+  background: var(--teal-soft);
+  text-decoration-style: solid;
+}
+.criteria-value-button:focus-visible {
+  outline: 3px solid rgba(20, 145, 132, 0.3);
+  outline-offset: 1px;
+}
+.evaluation-breakdown-modal {
+  width: min(820px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: hidden;
+}
+.evaluation-breakdown-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 10px 0 16px;
+}
+.evaluation-breakdown-summary strong {
+  flex-basis: 100%;
+  color: var(--ink);
+  font-size: 12px;
+}
+.evaluation-breakdown-summary span {
+  color: #4f6377;
+  font-size: 11px;
+}
+.evaluation-breakdown-list {
+  display: grid;
+  gap: 10px;
+  max-height: min(56vh, 560px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.evaluation-breakdown-list article {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #f9fbfc;
+  padding: 13px 14px;
+}
+.evaluation-breakdown-list article > div:first-child {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.evaluation-breakdown-list article > div:first-child > strong {
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.evaluation-breakdown-list article > p {
+  margin: 7px 0 11px;
+  color: #617184;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.evaluation-breakdown-list dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.evaluation-breakdown-list dt {
+  color: #7a8795;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.evaluation-breakdown-list dd {
+  margin: 3px 0 0;
+  color: #26394d;
+  font-size: 10px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.evaluation-breakdown-empty {
+  border: 1px dashed #cbd7df;
+  border-radius: 9px;
+  padding: 28px 18px;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+@media (max-width: 700px) {
+  .evaluation-breakdown-list dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .criteria-scroll-hint {
   margin: 0;
   border-bottom: 1px solid var(--line);

@@ -61,6 +61,19 @@ type Project = {
   sourcePage?: number;
 };
 
+type EvaluationBreakdownProject = Project & {
+  evaluationYear: number;
+  withinGroup?: boolean;
+  groupCompany?: string;
+};
+
+type EvaluationBreakdown = {
+  contractorName: string;
+  criterion: string;
+  value: string;
+  projects: EvaluationBreakdownProject[];
+};
+
 type GroupCompanyProject = {
   id: string;
   name: string;
@@ -1141,6 +1154,8 @@ function ContractorHubApp() {
     useState("");
   const [evaluationBuildingTypeKeywords, setEvaluationBuildingTypeKeywords] =
     useState<string[]>([]);
+  const [evaluationBreakdown, setEvaluationBreakdown] =
+    useState<EvaluationBreakdown | null>(null);
   const [evaluationSimilarityBasis, setEvaluationSimilarityBasis] = useState<
     "scope" | "buildingType" | "both"
   >("both");
@@ -1741,6 +1756,10 @@ function ContractorHubApp() {
       const groupProjects = projects.filter((project) => project.withinGroup);
       const highest = (items: typeof projects) =>
         items.reduce((value, project) => Math.max(value, project.value), 0);
+      const highestProjects = (items: typeof projects) => {
+        const highestValue = highest(items);
+        return items.filter((project) => project.value === highestValue);
+      };
       return {
         contractor,
         values: [
@@ -1762,6 +1781,18 @@ function ContractorHubApp() {
           reportMoney(highest(recent)),
           String(groupProjects.length),
           reportMoney(highest(groupProjects)),
+        ],
+        projectsByCriterion: [
+          projects,
+          recent,
+          similar,
+          recentSimilar,
+          comparable,
+          recentComparable,
+          highestProjects(projects),
+          highestProjects(recent),
+          groupProjects,
+          highestProjects(groupProjects),
         ],
       };
     },
@@ -7094,7 +7125,31 @@ function ContractorHubApp() {
                               <td>{criterion.basis}</td>
                               {evaluationCriteriaResults.map((result) => (
                                 <td key={result.contractor.id}>
-                                  <strong>{result.values[index]}</strong>
+                                  {result.values[index].includes("required") ? (
+                                    <strong>{result.values[index]}</strong>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="criteria-value-button"
+                                      aria-label={`Show projects counted for ${criterion.criterion}, ${result.contractor.name}: ${result.values[index]}`}
+                                      onClick={() =>
+                                        setEvaluationBreakdown({
+                                          contractorName:
+                                            result.contractor.name,
+                                          criterion: criterion.criterion,
+                                          value: result.values[index],
+                                          projects: [
+                                            ...result.projectsByCriterion[index],
+                                          ].sort(
+                                            (first, second) =>
+                                              second.value - first.value,
+                                          ),
+                                        })
+                                      }
+                                    >
+                                      {result.values[index]}
+                                    </button>
+                                  )}
                                 </td>
                               ))}
                             </tr>
@@ -10225,6 +10280,88 @@ function ContractorHubApp() {
                   Done
                 </button>
               </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {evaluationBreakdown && (
+        <div
+          className="modal-backdrop nested-modal"
+          role="presentation"
+          onMouseDown={() => setEvaluationBreakdown(null)}
+        >
+          <section
+            className="modal evaluation-breakdown-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="evaluation-breakdown-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => setEvaluationBreakdown(null)}
+              aria-label="Close project breakdown"
+            >
+              ×
+            </button>
+            <p className="eyebrow">COUNTED PROJECTS</p>
+            <h2 id="evaluation-breakdown-title">
+              {evaluationBreakdown.criterion}
+            </h2>
+            <p className="evaluation-breakdown-summary">
+              <strong>{evaluationBreakdown.contractorName}</strong>
+              <span>Reported result: {evaluationBreakdown.value}</span>
+              <span>
+                {evaluationBreakdown.projects.length} project
+                {evaluationBreakdown.projects.length === 1 ? "" : "s"} counted
+              </span>
+            </p>
+            <div className="evaluation-breakdown-list">
+              {evaluationBreakdown.projects.map((project) => (
+                <article key={project.id}>
+                  <div>
+                    <strong>{project.name}</strong>
+                    <span className={`table-project-status ${project.status.toLowerCase()}`}>
+                      {project.status}
+                    </span>
+                  </div>
+                  <p>{project.scope || "Scope not provided"}</p>
+                  <dl>
+                    <div>
+                      <dt>Building type</dt>
+                      <dd>{project.projectType || "Not provided"}</dd>
+                    </div>
+                    <div>
+                      <dt>Client</dt>
+                      <dd>{project.groupCompany || project.client || "Not provided"}</dd>
+                    </div>
+                    <div>
+                      <dt>Year</dt>
+                      <dd>{project.evaluationYear || "Not provided"}</dd>
+                    </div>
+                    <div>
+                      <dt>Contract value</dt>
+                      <dd>{money(project.value)}</dd>
+                    </div>
+                  </dl>
+                </article>
+              ))}
+              {!evaluationBreakdown.projects.length && (
+                <div className="evaluation-breakdown-empty">
+                  No projects were counted for this result.
+                </div>
+              )}
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => setEvaluationBreakdown(null)}
+              >
+                Done
+              </button>
             </div>
           </section>
         </div>
