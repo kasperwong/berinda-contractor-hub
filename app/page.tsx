@@ -3267,7 +3267,7 @@ function ContractorHubApp() {
     return `<table><thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
   }
   function reportDocument(title: string, subtitle: string, content: string) {
-    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@page{size:A4 landscape;margin:12mm}body{font-family:Arial,sans-serif;color:#183047;font-size:10px}h1{font-family:Georgia,serif;font-size:24px;margin:0 0 5px}p{color:#667789;margin:0 0 18px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cfd9df;padding:6px;vertical-align:top;text-align:left}th{background:#edf3f5;font-size:9px;text-transform:uppercase}td{line-height:1.4;white-space:pre-line}.section{margin-top:20px}.section h2{font-size:15px}.reference-project-table{table-layout:fixed;font-size:8.5px}.reference-project-table th{padding:6px 5px;line-height:1.1;overflow-wrap:anywhere}.reference-project-table td{padding:7px 5px;line-height:1.25;overflow-wrap:anywhere}.reference-projects-cell{font-size:9px}.reference-projects-cell ol{margin:0;padding-left:22px}.reference-projects-cell li{margin:0 0 12px;padding-left:4px}.reference-projects-cell li:last-child{margin-bottom:0}.reference-projects-cell li>strong{display:block;font-weight:400}.reference-project-details{margin-top:7px}.reference-project-details span{display:block;margin-top:1px}.reference-project-details b{font-weight:600}.no-reference-project{margin:0;color:#7a8794;font-style:italic}</style></head><body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)} · Generated ${new Date().toLocaleDateString("en-GB")}</p>${content}</body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@page{size:A4 landscape;margin:12mm}body{font-family:Arial,sans-serif;color:#183047;font-size:10px}h1{font-family:Georgia,serif;font-size:24px;margin:0 0 5px}p{color:#667789;margin:0 0 18px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cfd9df;padding:6px;vertical-align:top;text-align:left}th{background:#edf3f5;font-size:9px;text-transform:uppercase}td{line-height:1.4;white-space:pre-line}.section{margin-top:20px}.section h2{font-size:15px}.criterion-section{page-break-before:always}.criterion-section>h2{margin-bottom:4px}.criterion-basis{margin-bottom:12px}.company-project-group{margin:16px 0 22px}.company-project-group h3{margin:0 0 7px;color:#173451;font-size:12px}.company-project-group h3 span{margin-left:8px;color:#667789;font-size:9px;font-weight:400}.no-qualifying-projects{margin:10px 0;padding:10px;border:1px dashed #cfd9df;color:#667789;font-style:italic}.reference-project-table{table-layout:fixed;font-size:8.5px}.reference-project-table th{padding:6px 5px;line-height:1.1;overflow-wrap:anywhere}.reference-project-table td{padding:7px 5px;line-height:1.25;overflow-wrap:anywhere}.reference-projects-cell{font-size:9px}.reference-projects-cell ol{margin:0;padding-left:22px}.reference-projects-cell li{margin:0 0 12px;padding-left:4px}.reference-projects-cell li:last-child{margin-bottom:0}.reference-projects-cell li>strong{display:block;font-weight:400}.reference-project-details{margin-top:7px}.reference-project-details span{display:block;margin-top:1px}.reference-project-details b{font-weight:600}.no-reference-project{margin:0;color:#7a8794;font-style:italic}</style></head><body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)} · Generated ${new Date().toLocaleDateString("en-GB")}</p>${content}</body></html>`;
   }
   function printReport(title: string, subtitle: string, content: string) {
     const printWindow = window.open("", "_blank");
@@ -3401,22 +3401,36 @@ function ContractorHubApp() {
           ],
         )
       : "";
-    const reportProjects = evaluationSelectedRecords.length
-      ? evaluationSelectedRecords
-      : evaluationAllRecords;
-    const reportCompletedProjects = reportProjects.filter(
-      (project) => project.status === "Completed" && !project.withinGroup,
-    );
-    const reportOngoingProjects = reportProjects.filter(
-      (project) => project.status === "Ongoing" && !project.withinGroup,
-    );
-    const reportGroupProjects = reportProjects.filter(
-      (project) => project.withinGroup,
-    );
-    const selectionNote = evaluationSelectedRecords.length
-      ? `<p>${evaluationSelectedRecords.length} manually selected project${evaluationSelectedRecords.length === 1 ? "" : "s"} included in the detail tables.</p>`
-      : "<p>No manual project selection was made; all projects are included in the detail tables.</p>";
-    return `<div class="section"><h2>Evaluation inputs</h2>${evaluationInputs}</div><div class="section"><h2>Contractor experience evaluation</h2>${criteriaSummary}</div><div class="section"><h2>Overall project experience — ${escapeHtml(evaluationOverallYearLabel)}</h2>${overallSummary}${selectedScopeSummary}</div><div class="section"><h2>All-time and recent-period similarity summary</h2>${scopeSummary}</div><div class="section"><h2>Projects selected for this report</h2>${selectionNote}</div><div class="section"><h2>All projects</h2>${projectDetails(reportProjects)}</div><div class="section"><h2>Completed projects</h2>${projectDetails(reportCompletedProjects)}</div><div class="section"><h2>Ongoing projects</h2>${projectDetails(reportOngoingProjects)}</div><div class="section"><h2>Projects within the group</h2>${projectDetails(reportGroupProjects)}</div>`;
+    const restrictToManualSelection = selectedEvaluationProjects.length > 0;
+    const relatedProjectSections = evaluationCriteria
+      .slice(2)
+      .map((criterion, offset) => {
+        const criterionIndex = offset + 2;
+        const companyGroups = evaluationCriteriaResults
+          .map((result) => {
+            const relatedProjects = result.projectsByCriterion[criterionIndex]
+              .map((project) => ({
+                ...project,
+                contractorId: result.contractor.id,
+                contractorName: result.contractor.name,
+              }))
+              .filter(
+                (project) =>
+                  !restrictToManualSelection ||
+                  evaluationProjectIsSelected(project),
+              );
+            if (!relatedProjects.length) return "";
+            return `<div class="company-project-group"><h3>${escapeHtml(result.contractor.name)}<span>${relatedProjects.length} qualifying project${relatedProjects.length === 1 ? "" : "s"}</span></h3>${projectDetails(relatedProjects)}</div>`;
+          })
+          .filter(Boolean)
+          .join("");
+        return `<div class="section criterion-section"><h2>${criterion.no}. ${escapeHtml(criterion.criterion)}</h2><p class="criterion-basis">${escapeHtml(criterion.basis)}</p>${companyGroups || '<p class="no-qualifying-projects">No qualifying projects for the selected contractors.</p>'}</div>`;
+      })
+      .join("");
+    const selectionNote = restrictToManualSelection
+      ? `<p>Only the ${selectedEvaluationProjects.length} manually selected project${selectedEvaluationProjects.length === 1 ? "" : "s"} that also satisfy each requirement are shown below.</p>`
+      : "<p>Only projects that satisfy each evaluation requirement are shown below. Generic all-project listings are omitted.</p>";
+    return `<div class="section"><h2>Evaluation inputs</h2>${evaluationInputs}</div><div class="section"><h2>Contractor experience evaluation</h2>${criteriaSummary}</div><div class="section"><h2>Overall project experience — ${escapeHtml(evaluationOverallYearLabel)}</h2>${overallSummary}${selectedScopeSummary}</div><div class="section"><h2>All-time and recent-period similarity summary</h2>${scopeSummary}</div><div class="section"><h2>Related project details</h2>${selectionNote}</div>${relatedProjectSections}`;
   }
 
   function exportEvaluationReport() {

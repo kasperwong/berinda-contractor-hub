@@ -38,6 +38,7 @@
 - Clickable evaluation results with a project breakdown showing every project counted for the selected contractor and criterion.
 - Owner-controlled recent-experience period using one “past years to consider” input, calculated automatically from the current year.
 - Shareable Project Evaluation links that restore selected contractors, calculation inputs, matching keywords, and manually selected report projects for signed-in users.
+- Evaluation report project details limited to qualifying projects, grouped by contractor company in separate sections for each applicable requirement.
 
 ## [0.47.0] - 2026-09-11
 
