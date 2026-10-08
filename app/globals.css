@@ -1694,6 +1694,12 @@ td {
   color: var(--muted);
   font-size: 13px;
 }
+.evaluation-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
 .module-stat-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -6043,6 +6049,10 @@ td {
   .module-hero {
     align-items: flex-start;
     flex-direction: column;
+  }
+  .evaluation-hero-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
   .module-stat-grid {
     grid-template-columns: 1fr;

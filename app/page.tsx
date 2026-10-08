@@ -1284,6 +1284,50 @@ function ContractorHubApp() {
     );
   }, []);
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("evaluation") !== "shared") return;
+    const contractorIds = (params.get("contractors") ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .slice(0, 100);
+    const proposedValue = params.get("proposedValue") ?? "";
+    const years = Number(params.get("years"));
+    const basis = params.get("basis");
+    const scopeKeywords = params
+      .getAll("scope")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .slice(0, 30);
+    const buildingKeywords = params
+      .getAll("building")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .slice(0, 30);
+    const selectedProjects = (params.get("selectedProjects") ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .slice(0, 500);
+
+    // A shared evaluation link intentionally restores the saved filter state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActiveSection("projectEvaluation");
+    if (contractorIds.length) setEvaluationContractorIds(contractorIds);
+    setEvaluationContractorSearch(
+      (params.get("contractorSearch") ?? "").slice(0, 200),
+    );
+    if (/^\d+(?:\.\d+)?$/.test(proposedValue))
+      setEvaluationProposedValue(proposedValue);
+    if (Number.isInteger(years) && years >= 1 && years <= 100)
+      setEvaluationYearsToConsider(String(years));
+    if (basis === "scope" || basis === "buildingType" || basis === "both")
+      setEvaluationSimilarityBasis(basis);
+    setEvaluationKeywords(scopeKeywords);
+    setEvaluationBuildingTypeKeywords(buildingKeywords);
+    setSelectedEvaluationProjects(selectedProjects);
+  }, []);
+  useEffect(() => {
     const stored = window.localStorage.getItem(
       "berinda-mobile-recent-contractors",
     );
@@ -3392,6 +3436,37 @@ function ContractorHubApp() {
       ),
       "application/msword",
     );
+  }
+
+  async function shareEvaluation() {
+    if (!evaluationSelectedContractors.length) {
+      notify("Select at least one contractor before sharing the evaluation.");
+      return;
+    }
+    const params = new URLSearchParams();
+    params.set("evaluation", "shared");
+    params.set("contractors", evaluationContractorIds.join(","));
+    if (evaluationContractorSearch)
+      params.set("contractorSearch", evaluationContractorSearch);
+    if (evaluationProposedValue)
+      params.set("proposedValue", evaluationProposedValue);
+    params.set("years", String(evaluationYearsToConsiderNumber));
+    params.set("basis", evaluationSimilarityBasis);
+    evaluationKeywords.forEach((keyword) => params.append("scope", keyword));
+    evaluationBuildingTypeKeywords.forEach((keyword) =>
+      params.append("building", keyword),
+    );
+    if (selectedEvaluationProjects.length)
+      params.set("selectedProjects", selectedEvaluationProjects.join(","));
+    const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState(null, "", shareUrl);
+    try {
+      if (!navigator.clipboard) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(shareUrl);
+      notify("Share link copied. Signed-in users will see this evaluation.");
+    } catch {
+      window.prompt("Copy this evaluation link:", shareUrl);
+    }
   }
 
   function contractorListReportContent() {
@@ -6917,14 +6992,24 @@ function ContractorHubApp() {
                       year range and multiple project scopes.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={exportEvaluationReport}
-                    disabled={!evaluationSelectedContractors.length}
-                  >
-                    Generate evaluation report
-                  </button>
+                  <div className="evaluation-hero-actions">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={shareEvaluation}
+                      disabled={!evaluationSelectedContractors.length}
+                    >
+                      Share evaluation
+                    </button>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={exportEvaluationReport}
+                      disabled={!evaluationSelectedContractors.length}
+                    >
+                      Generate evaluation report
+                    </button>
+                  </div>
                 </div>
                 <section className="evaluation-workspace">
                   <div className="evaluation-controls">
