@@ -20,6 +20,9 @@ import {
 import { getFirebaseClient } from "@/lib/firebase/client";
 import {
   ArrowRight,
+  ArrowLeft,
+  Phone,
+  EnvelopeSimple,
   Buildings,
   CalendarBlank,
   FileText,
@@ -900,6 +903,8 @@ function ContractorHubApp() {
     useState<ContractorSelectionRequest | null>(null);
   const openedContractorId = useRef("");
   const [contractorRows, setContractorRows] = useState(initialContractors);
+  const [directoryStatus, setDirectoryStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [directoryRetry, setDirectoryRetry] = useState(0);
   const [archivedContractors, setArchivedContractors] = useState<
     Array<Contractor & { archivedAt: string }>
   >([]);
@@ -1019,14 +1024,17 @@ function ContractorHubApp() {
             setGroupValidationYears(data.groupValidationYears);
         }
         firestoreHydrated.current = true;
+        setDirectoryStatus("ready");
       })
       .catch(() => {
+        if (cancelled) return;
         firestoreHydrated.current = true;
+        setDirectoryStatus("error");
       });
     return () => {
       cancelled = true;
     };
-  }, [db]);
+  }, [db, directoryRetry]);
   useEffect(() => {
     if (!firestoreHydrated.current) return;
     if (skipNextAutomaticSave.current) {
@@ -1233,6 +1241,11 @@ function ContractorHubApp() {
   const [activeContractor, setActiveContractor] = useState(
     initialContractors[0],
   );
+  const [documentsError, setDocumentsError] = useState(false);
+  const [documentsRetry, setDocumentsRetry] = useState(0);
+  const [documentsSettledKey, setDocumentsSettledKey] = useState("");
+  const documentsRequestKey = `${activeContractor.id}:${documentsRetry}`;
+  const documentsLoading = documentsSettledKey !== documentsRequestKey;
   useEffect(() => {
     const documentsQuery = firestoreQuery(
       collection(db, "appState", "berinda-group", "contractorDocuments"),
@@ -1251,14 +1264,16 @@ function ContractorHubApp() {
               second.uploadedAt.localeCompare(first.uploadedAt),
             ),
         );
-        setDocumentsLoading(false);
+        setDocumentsError(false);
+        setDocumentsSettledKey(documentsRequestKey);
       },
       () => {
         setContractorDocuments([]);
-        setDocumentsLoading(false);
+        setDocumentsError(true);
+        setDocumentsSettledKey(documentsRequestKey);
       },
     );
-  }, [activeContractor.id, db]);
+  }, [activeContractor.id, db, documentsRequestKey]);
   const [selectedContractors, setSelectedContractors] = useState<string[]>([
     initialContractors[0].id,
   ]);
@@ -1375,6 +1390,21 @@ function ContractorHubApp() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [mobileContractorChosen, setMobileContractorChosen] = useState(false);
+  const [mobileProfileDetails, setMobileProfileDetails] = useState(false);
+  const mobileSearchScroll = useRef(0);
+  const mobileProfileRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!showProfile || !window.matchMedia("(max-width: 620px)").matches) return;
+    const trigger = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    mobileProfileRef.current?.querySelector<HTMLButtonElement>(".mobile-top-navigation button")?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      trigger?.focus({ preventScroll: true });
+    };
+  }, [showProfile]);
   const [showAddContractor, setShowAddContractor] = useState(false);
   const [showAddProject, setShowAddProject] = useState(false);
   const [showAssessmentForm, setShowAssessmentForm] = useState(false);
@@ -1410,12 +1440,12 @@ function ContractorHubApp() {
     setActiveSection("contractors");
     setProfileTab("overview");
     setShowProfile(true);
+    setMobileContractorChosen(true);
   }, [contractorRows]);
   const [uploadedFile, setUploadedFile] = useState("");
   const [contractorDocuments, setContractorDocuments] = useState<
     ContractorDocument[]
   >([]);
-  const [documentsLoading, setDocumentsLoading] = useState(true);
   const [documentActionBusy, setDocumentActionBusy] = useState("");
   const [showDocumentUpload, setShowDocumentUpload] = useState(false);
   const [documentUploadFile, setDocumentUploadFile] = useState<File | null>(
@@ -2397,6 +2427,9 @@ function ContractorHubApp() {
     liabilities: 0,
   };
   const activeContractorProjects = reportProjectsFor(activeContractor);
+  const activeCallNumber = [activeContractor.mobile, activeContractor.officePhone]
+    .find((number) => /^[+\d][\d\s()-]{5,}$/.test(number.trim()));
+  const activeEmailAvailable = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(activeContractor.email.trim());
   const completedProjects = activeContractorProjects.filter(
     (project) => project.status === "Completed",
   );
@@ -5045,20 +5078,79 @@ function ContractorHubApp() {
     contractor: Contractor,
     tab: typeof profileTab = "overview",
   ) {
+    if (!showProfile && activeSection === "contractors") mobileSearchScroll.current = window.scrollY;
+    setMobileContractorChosen(true);
+    setMobileProfileDetails(false);
     setActiveContractor(contractor);
     setProfileTab(tab);
     setShowProfile(true);
+    requestAnimationFrame(() => document.querySelector(".profile-body")?.scrollTo(0, 0));
     setRecentlyViewedContractorIds((current) => {
       const next = [
         contractor.id,
         ...current.filter((id) => id !== contractor.id),
       ].slice(0, 3);
-      window.localStorage.setItem(
-        "berinda-mobile-recent-contractors",
-        JSON.stringify(next),
-      );
+      try {
+        window.localStorage.setItem(
+          "berinda-mobile-recent-contractors",
+          JSON.stringify(next),
+        );
+      } catch { /* Recently viewed remains available for this session. */ }
       return next;
     });
+  }
+
+  function closeMobileProfile() {
+    setShowProfile(false);
+    setActiveSection("contractors");
+    requestAnimationFrame(() => window.scrollTo(0, mobileSearchScroll.current));
+  }
+
+  function clearMobileFilters() {
+    setQuery("");
+    setTradeFilter("All trades");
+    setStatusFilter("All status");
+    setLocationFilter("All locations");
+    setMobileBrowseAll(false);
+  }
+
+  function mobileBack() {
+    if (showProfile) {
+      if (profileTab !== "overview") {
+        setProfileTab("overview");
+        document.querySelector(".profile-body")?.scrollTo(0, 0);
+      }
+      else closeMobileProfile();
+    } else if (activeSection !== "contractors") {
+      setActiveSection("contractors");
+      window.scrollTo(0, 0);
+    } else {
+      clearMobileFilters();
+      window.scrollTo(0, 0);
+    }
+  }
+
+  function openMobileSection(tab: "projects" | "documents") {
+    if (mobileContractorChosen || showProfile) openMobileContractor(activeContractor, tab);
+    else {
+      setActiveSection("contractors");
+      window.scrollTo(0, 0);
+      notify(`Choose a contractor to view their ${tab}.`);
+    }
+  }
+
+  function mobileNavigation(profile = false) {
+    const canGoBack = profile || activeSection !== "contractors" || mobileSearchHasFilters;
+    return (
+      <nav className="mobile-top-navigation" aria-label={profile ? "Profile navigation" : "Page navigation"}>
+        <button type="button" onClick={mobileBack} disabled={!canGoBack} aria-label="Go back">
+          <ArrowLeft size={20} aria-hidden="true" /><span>Back</span>
+        </button>
+        <div><strong>{profile ? activeContractor.name : "Contractor Hub"}</strong>
+          <small>{profile ? "Contractor profile" : activeSection === "contractors" ? "Find contractors" : sectionTitles[activeSection]}</small></div>
+        {profile && <button type="button" onClick={closeMobileProfile}>Search</button>}
+      </nav>
+    );
   }
 
   function sendContractorToWorkPro(contractor: Contractor) {
@@ -5103,7 +5195,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.49
+              Version 0.50
             </button>
           </div>
         </div>
@@ -5256,6 +5348,7 @@ function ContractorHubApp() {
           )}
         </header>
 
+        {mobileNavigation()}
         {activeSection === "contractors" ? (
           <>
             <section className="mobile-contractor-search" aria-label="Find contractors">
@@ -5280,6 +5373,12 @@ function ContractorHubApp() {
               </header>
 
               <div className="mobile-search-body">
+                <div className={`mobile-directory-status ${directoryStatus}`} role="status" aria-live="polite">
+                  {directoryStatus === "loading" ? "Loading latest contractor records…" : directoryStatus === "ready" ? "Contractor records are up to date" : <>
+                    <span>Could not refresh contractor records.</span>
+                    <button type="button" onClick={() => { setDirectoryStatus("loading"); setDirectoryRetry((current) => current + 1); }}>Retry</button>
+                  </>}
+                </div>
                 <div className="mobile-search-intro">
                   <h2>
                     {tradeFilter === "All trades"
@@ -5390,6 +5489,7 @@ function ContractorHubApp() {
                             type="button"
                             key={status}
                             className={statusFilter === status ? "active" : ""}
+                            aria-pressed={statusFilter === status}
                             onClick={() => setStatusFilter(status)}
                           >
                             {status === "All status" ? "All" : status}
@@ -5455,6 +5555,7 @@ function ContractorHubApp() {
                         <MagnifyingGlass size={28} weight="duotone" aria-hidden="true" />
                         <strong>No contractors found</strong>
                         <span>Try a different name, trade, or status.</span>
+                        <button type="button" className="secondary-button" onClick={clearMobileFilters}>Clear filters</button>
                       </div>
                     )}
                   </>
@@ -8576,9 +8677,13 @@ function ContractorHubApp() {
         <button
           type="button"
           className={activeSection === "contractors" && !showProfile ? "active" : ""}
+          aria-current={activeSection === "contractors" && !showProfile ? "page" : undefined}
           onClick={() => {
-            setShowProfile(false);
-            setActiveSection("contractors");
+            if (showProfile) closeMobileProfile();
+            else {
+              setActiveSection("contractors");
+              window.scrollTo(0, 0);
+            }
           }}
         >
           <MagnifyingGlass size={23} weight="bold" aria-hidden="true" />
@@ -8587,7 +8692,9 @@ function ContractorHubApp() {
         <button
           type="button"
           className={showProfile && profileTab === "projects" ? "active" : ""}
-          onClick={() => openMobileContractor(activeContractor, "projects")}
+          onClick={() => openMobileSection("projects")}
+          aria-label={mobileContractorChosen ? `Projects for ${activeContractor.name}` : "Projects — choose a contractor"}
+          aria-current={showProfile && profileTab === "projects" ? "page" : undefined}
         >
           <FolderOpen size={23} weight="duotone" aria-hidden="true" />
           <span>Projects</span>
@@ -8595,7 +8702,9 @@ function ContractorHubApp() {
         <button
           type="button"
           className={showProfile && profileTab === "documents" ? "active" : ""}
-          onClick={() => openMobileContractor(activeContractor, "documents")}
+          onClick={() => openMobileSection("documents")}
+          aria-label={mobileContractorChosen ? `Documents for ${activeContractor.name}` : "Documents — choose a contractor"}
+          aria-current={showProfile && profileTab === "documents" ? "page" : undefined}
         >
           <FileText size={23} weight="duotone" aria-hidden="true" />
           <span>Documents</span>
@@ -8606,6 +8715,7 @@ function ContractorHubApp() {
           onClick={() => {
             setShowProfile(false);
             setActiveSection("overview");
+            window.scrollTo(0, 0);
           }}
         >
           <SquaresFour size={23} weight="duotone" aria-hidden="true" />
@@ -8729,11 +8839,28 @@ function ContractorHubApp() {
         >
           <section
             className="profile-screen"
+            ref={mobileProfileRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="profile-title"
             onMouseDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (!window.matchMedia("(max-width: 620px)").matches) return;
+              if (event.key === "Escape") {
+                event.preventDefault();
+                mobileBack();
+              }
+              if (event.key === "Tab") {
+                const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input, select, textarea, [tabindex="0"]'))
+                  .filter((element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden");
+                const first = controls[0];
+                const last = controls[controls.length - 1];
+                if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+                else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+              }
+            }}
           >
+            {mobileNavigation(true)}
             <header className="profile-header">
               <div className="profile-identity">
                 <span className="profile-logo">
@@ -8795,14 +8922,14 @@ function ContractorHubApp() {
                 <strong>{activeContractor.grade}</strong>
               </div>
               <div>
-                <small>VERIFIED PROJECTS</small>
-                <strong>{activeContractor.projects.length}</strong>
+                <small>PORTFOLIO PROJECTS</small>
+                <strong>{activeContractorProjects.length}</strong>
               </div>
               <div>
                 <small>COMBINED PROJECT VALUE</small>
                 <strong>
                   {money(
-                    activeContractor.projects.reduce(
+                    activeContractorProjects.reduce(
                       (total, project) => total + project.value,
                       0,
                     ),
@@ -8817,8 +8944,17 @@ function ContractorHubApp() {
               </div>
             </div>
 
+            <div className="mobile-contact-actions" aria-label="Contact contractor">
+              {activeCallNumber &&
+                <a href={`tel:${activeCallNumber.replace(/[^+\d]/g, "")}`}><Phone size={18} aria-hidden="true" />Call</a>}
+              {activeEmailAvailable &&
+                <a href={`mailto:${activeContractor.email}`}><EnvelopeSimple size={18} aria-hidden="true" />Email</a>}
+              {activeDetails.address && !/pending|not provided/i.test(activeDetails.address) &&
+                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeDetails.address)}`} target="_blank" rel="noopener noreferrer"><MapPin size={18} aria-hidden="true" />Maps</a>}
+              {!activeCallNumber && !activeEmailAvailable && <span>Phone and email not provided</span>}
+            </div>
             <nav
-              className="profile-tabs"
+              className={`profile-tabs ${mobileProfileDetails ? "mobile-details-open" : ""}`}
               aria-label="Contractor profile sections"
             >
               {(
@@ -8827,20 +8963,25 @@ function ContractorHubApp() {
                   ["preq", "Pre-Q assessment"],
                   [
                     "projects",
-                    `Projects (${activeContractor.projects.length})`,
+                    `Projects (${activeContractorProjects.length})`,
                   ],
-                  ["documents", `Documents (${contractorDocuments.length})`],
+                  ["documents", documentsLoading || documentsError ? "Documents" : `Documents (${contractorDocuments.length})`],
                   ["activity", "Activity"],
                 ] as const
               ).map(([tab, label]) => (
                 <button
                   key={tab}
-                  className={profileTab === tab ? "active" : ""}
-                  onClick={() => setProfileTab(tab)}
+                  className={`${profileTab === tab ? "active" : ""} profile-tab-${tab}`}
+                  aria-current={profileTab === tab ? "page" : undefined}
+                  onClick={() => {
+                    setProfileTab(tab);
+                    document.querySelector(".profile-body")?.scrollTo(0, 0);
+                  }}
                 >
                   {label}
                 </button>
               ))}
+              <button type="button" className="mobile-profile-more" aria-expanded={mobileProfileDetails} onClick={() => setMobileProfileDetails(!mobileProfileDetails)}>More</button>
             </nav>
 
             <div className="profile-body">
@@ -8939,7 +9080,7 @@ function ContractorHubApp() {
                     </div>
                     <button
                       className="secondary-button full-width"
-                      onClick={() => setProfileTab("preq")}
+                      onClick={() => { setMobileProfileDetails(true); setProfileTab("preq"); }}
                     >
                       View scoring breakdown
                     </button>
@@ -8996,7 +9137,7 @@ function ContractorHubApp() {
                       </div>
                     </div>
                     <div className="experience-list">
-                      {activeContractor.projects.slice(0, 3).map((project) => (
+                      {activeContractorProjects.slice(0, 3).map((project) => (
                         <article key={project.id}>
                           <span
                             className={
@@ -9141,7 +9282,7 @@ function ContractorHubApp() {
                       <small>
                         {filteredCompletedProjects.length +
                           filteredOngoingProjects.length}{" "}
-                        of {activeContractor.projects.length} projects shown
+                        of {activeContractorProjects.length} projects shown
                       </small>
                     </div>
                     <div className="profile-project-groups">
@@ -9227,8 +9368,12 @@ function ContractorHubApp() {
                     </div>
                     <div className="document-list">
                       {documentsLoading ? (
-                        <div className="document-empty">
-                          Loading documents…
+                        <div className="document-empty" role="status">Loading documents…</div>
+                      ) : documentsError ? (
+                        <div className="document-empty" role="alert">
+                          <strong>Documents could not be loaded</strong>
+                          <span>Check your connection and try again.</span>
+                          <button type="button" className="secondary-button" onClick={() => setDocumentsRetry((current) => current + 1)}>Retry</button>
                         </div>
                       ) : contractorDocuments.length ? (
                         contractorDocuments.map((documentRecord) => (

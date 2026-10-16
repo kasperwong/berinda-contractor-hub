@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.50.0] - 2026-10-16
+
+- Added phone navigation with Back and Search, preserved search state, and quick contractor contact actions.
+- Corrected portfolio totals, fixed narrow-screen form overflow, and improved profile tabs and document loading/retry feedback.
+- Verified the local production build, six integration tests, and phone/desktop layouts before the Firebase App Hosting rollout.
+
 ## [0.49.0] - 2026-10-03
 
 ### Added
@@ -24,6 +30,17 @@
 - Restricted selection responses to the exact WorkPro production origin, with localhost accepted only during local development.
 
 ## Unreleased
+
+### Phone experience — 2026-10-16
+
+- Added a sticky phone navigation bar with Back and Search actions; returning from a profile preserves search filters and the result position.
+- Made portfolio counts, combined value, recent experience and project-list totals use the same project source, including Group reference projects.
+- Added Call, Email and Maps actions for available contractor contact details.
+- Kept Overview, Projects and Documents visible together on phones, with assessment and activity under More.
+- Added contractor-selection prompts for bottom navigation, clear-filter recovery, refresh status and retry controls.
+- Added phone profile focus handling and background scroll locking.
+- Fixed narrow form grids and the hidden Excel input that caused horizontal overflow; removed creation/export entry cards from the phone overview.
+- Distinguished document-loading failures from an empty document library.
 
 ### Added
 

@@ -1,5 +1,19 @@
 # Design QA — Search-first mobile contractor view
 
+## HP navigation and contact update — 2026-10-16
+
+- Checked local development preview at 393 × 852 and 320 × 740, plus desktop at 1440 × 900.
+- AJC's portfolio summary, project tab, recent experience and project-list denominator now include the same Group reference project: 1 project, RM8.7M, “1 of 1 projects shown.”
+- Phone startup opens Search. Top navigation provides Back, and profiles also provide Search. Returning preserves query/filter state and the result position; a lower result returned at scrollY 349.6 during the narrow-screen check.
+- Profiles show Call, Email and Maps links, with destination URLs checked without initiating calls, emails or map requests.
+- Overview, Projects and Documents are visible together; More expands assessment and activity. Opening a profile focuses Back, locks background scrolling, and restores trigger focus on close.
+- Bottom Projects/Documents prompt for a contractor before a selection is made.
+- Empty search recovery, directory refresh failure/retry and document failure/retry were exercised. Live Firebase permissions and actual document viewing were not verified in this unauthenticated local preview.
+- The contractor form at 320px has clientWidth 266 and scrollWidth 266 after constraining the hidden Excel input and form grid. Desktop form opened and was cancelled without submitting. Mobile overview hides creation/export entry cards.
+- Production build passed; six existing integration tests passed; lint has zero errors and five existing warnings. Browser console errors: none observed.
+- Screenshots saved under `tmp/hp-improvements-20261016/`; `02-profile.png` shows the completed phone profile and `07-form-320.png` shows the narrow form.
+- Changes are local; no production deployment or record changes were performed.
+
 ## Result
 
 Passed on 2026-09-15.

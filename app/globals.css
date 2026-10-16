@@ -1992,11 +1992,12 @@ td {
 }
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 15px;
 }
 .form-grid label,
 .score-form-grid label {
+  min-width: 0;
   display: grid;
   gap: 6px;
   color: #5b6878;
@@ -2010,6 +2011,7 @@ td {
 .form-grid select,
 .form-grid textarea,
 .score-form-grid input {
+  min-width: 0;
   width: 100%;
   border: 1px solid #d6dde4;
   border-radius: 7px;
@@ -2133,6 +2135,7 @@ td {
   font-weight: 700;
 }
 .excel-dropzone {
+  position: relative;
   display: grid;
   gap: 5px;
   padding: 14px;
@@ -2140,6 +2143,10 @@ td {
 }
 .excel-dropzone input {
   position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  overflow: hidden;
   opacity: 0;
   pointer-events: none;
 }
@@ -6254,6 +6261,86 @@ td {
   }
 }
 
+/* Phone navigation and contact actions use the existing navy/teal palette. */
+.mobile-top-navigation,
+.mobile-contact-actions,
+.profile-tabs .mobile-profile-more {
+  display: none;
+}
+
+@media (max-width: 620px) {
+  .mobile-top-navigation {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    flex-shrink: 0;
+    min-height: 64px;
+    padding: max(10px, env(safe-area-inset-top)) 12px 10px;
+    background: var(--navy);
+    color: white;
+  }
+  .mobile-top-navigation > div { flex: 1; min-width: 0; }
+  .mobile-top-navigation strong, .mobile-top-navigation small { display: block; }
+  .mobile-top-navigation strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-top-navigation small { margin-top: 3px; font-size: 12px; color: #d4dfeb; }
+  .mobile-top-navigation button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 44px;
+    min-width: 44px;
+    border: 1px solid #597086;
+    border-radius: 8px;
+    padding: 6px 8px;
+    background: transparent;
+    color: white;
+    font-size: 13px;
+  }
+  .mobile-top-navigation button:disabled { visibility: hidden; }
+  .mobile-contact-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    padding: 10px 14px;
+    background: white;
+  }
+  .mobile-contact-actions a {
+    display: inline-flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    border: 1px solid #cbdedb;
+    border-radius: 8px;
+    background: #f4faf9;
+    color: #12665e;
+    font-size: 14px;
+    font-weight: 650;
+    text-decoration: none;
+  }
+  .mobile-contact-actions span { font-size: 13px; color: #536a82; }
+  .mobile-search-empty button { margin-top: 12px; min-height: 44px; }
+  .mobile-top-navigation button:focus-visible,
+  .mobile-contact-actions a:focus-visible { outline: 3px solid #dfb959; outline-offset: 2px; }
+  .overview-action-grid > button:first-child,
+  .overview-action-grid > button:last-child { display: none; }
+  .form-modal {
+    min-width: 0;
+    max-width: 100%;
+    max-height: calc(100dvh - 32px);
+    padding: 20px;
+  }
+  .form-grid, .score-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .form-modal input, .form-modal select, .form-modal textarea { max-width: 100%; font-size: 16px; }
+  .excel-import-heading > div, .excel-import-heading > div > div { min-width: 0; }
+  .excel-import-heading, .excel-dropzone { overflow-wrap: anywhere; }
+}
+
 /* Search-first mobile directory */
 .mobile-contractor-search,
 .mobile-bottom-navigation,
@@ -7900,4 +7987,42 @@ td {
 
 .contractor-use-button {
   white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .mobile-search-header { display: none; }
+  .mobile-directory-status { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; color: #536a82; font-size: 12px; }
+  .mobile-directory-status.ready { color: #12665e; }
+  .mobile-directory-status.error { padding: 8px 10px; border: 1px solid #e4d2ac; border-radius: 8px; background: #fff9ed; color: #72531a; }
+  .mobile-directory-status button { min-height: 44px; padding: 6px 10px; border: 1px solid currentColor; border-radius: 6px; background: transparent; color: inherit; font-weight: 650; }
+  .modal-backdrop { z-index: 80; padding: 12px; }
+  .profile-screen { height: 100dvh; width: 100%; }
+  .profile-header, .profile-summary-strip, .profile-tabs { flex-shrink: 0; }
+  .profile-header { padding: 12px 14px; }
+  .profile-header .profile-close { display: none; }
+  .profile-summary-strip > div:nth-child(3),
+  .profile-summary-strip > div:nth-child(6) { display: none; }
+  .profile-summary-strip > div { padding: 8px 0; }
+  .profile-summary-strip strong { font-size: 16px; }
+  .profile-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    padding: 0 8px;
+    overflow: visible;
+  }
+  .profile-tabs button { min-width: 0; min-height: 48px; padding: 6px 2px; font-size: 11px; }
+  .profile-tab-overview { order: 0; }
+  .profile-tab-projects { order: 1; }
+  .profile-tab-documents { order: 2; }
+  .profile-tabs .mobile-profile-more { display: block; order: 3; }
+  .profile-tab-preq, .profile-tab-activity { display: none; order: 4; }
+  .mobile-details-open .profile-tab-preq,
+  .mobile-details-open .profile-tab-activity { display: block; grid-column: span 2; }
+  .mobile-bottom-navigation span { font-size: 11px; }
+  .mobile-card-meta, .mobile-card-details { font-size: 12px; }
+  .mobile-trade-grid strong { font-size: 13px; }
+  .mobile-results-heading span, .mobile-section-heading p { font-size: 12px; }
+  .form-modal .form-grid, .form-modal .score-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .form-modal .form-grid label.wide { grid-column: span 1; }
 }
