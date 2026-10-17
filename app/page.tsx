@@ -5195,7 +5195,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.50
+              Version 0.50.1
             </button>
           </div>
         </div>
@@ -8838,7 +8838,7 @@ function ContractorHubApp() {
           onMouseDown={() => setShowProfile(false)}
         >
           <section
-            className="profile-screen"
+            className={`profile-screen ${profileTab !== "overview" ? "profile-detail-view" : ""}`}
             ref={mobileProfileRef}
             role="dialog"
             aria-modal="true"

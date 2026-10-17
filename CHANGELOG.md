@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.50.1] - 2026-10-17
+
+- Improved space for live contractor names on short phone screens; project and document views prioritize their content over the summary grid.
+- Hid document upload, rename, delete and download controls in the read-only phone view while preserving View and desktop editor controls.
+
 ## [0.50.0] - 2026-10-16
 
 - Added phone navigation with Back and Search, preserved search state, and quick contractor contact actions.

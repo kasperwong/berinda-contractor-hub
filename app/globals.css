@@ -7999,10 +7999,21 @@ td {
   .profile-screen { height: 100dvh; width: 100%; }
   .profile-header, .profile-summary-strip, .profile-tabs { flex-shrink: 0; }
   .profile-header { padding: 12px 14px; }
+  .profile-identity, .profile-identity > div { min-width: 0; }
+  .profile-identity h2 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    line-height: 1.25;
+  }
   .profile-header .profile-close { display: none; }
   .profile-summary-strip > div:nth-child(3),
   .profile-summary-strip > div:nth-child(6) { display: none; }
-  .profile-summary-strip > div { padding: 8px 0; }
+  .profile-summary-strip > div { min-height: 60px; padding: 8px 0; }
+  .profile-detail-view .profile-summary-strip { display: none; }
+  .documents-card .card-heading .primary-button,
+  .documents-card .document-actions > button:nth-child(n + 2) { display: none; }
   .profile-summary-strip strong { font-size: 16px; }
   .profile-tabs {
     display: grid;

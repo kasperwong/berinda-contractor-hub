@@ -1,5 +1,15 @@
 # Design QA — Search-first mobile contractor view
 
+## Live verification — 2026-10-17
+
+- Firebase confirmed the v0.50 rollout succeeded and serves 100% of traffic; deployed public assets contain the navigation, Back and contact improvements.
+- In the signed-in phone session, FBG Builder loaded 17 portfolio projects and 2 documents. Projects showed “17 of 17 projects shown.”
+- Back returned from Documents to Overview, then to the same Main Contractor filter and 11 results. Bottom Projects and Documents retained FBG Builder as the selected contractor.
+- Viewing the existing project-list PDF completed its authenticated retrieval and opened a PDF tab. Automated PDF-content inspection is blocked by the browser's blob-URL security policy; user confirmation was requested.
+- An unauthenticated document-metadata request returned HTTP 403 PERMISSION_DENIED.
+- Live data exposed long-name spacing and visible editor controls on phone document views. v0.50.1 addresses both; its production build and six integration tests pass, with zero lint errors and five existing warnings.
+- Deployment and browser evidence are saved in `tmp/hp-live-verification/` and `tmp/hp-deployment-status.json`.
+
 ## HP navigation and contact update — 2026-10-16
 
 - Checked local development preview at 393 × 852 and 320 × 740, plus desktop at 1440 × 900.
