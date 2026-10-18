@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.51.0] - 2026-10-18
+
+- Added BPM account sign-in for approved, active BPM users with read-only Contractor Hub access.
+- Kept BPM viewer identities separate from existing Hub accounts; Admin and Editor roles and their Hub sign-in remain unchanged.
+- Added server-side verification of token revocation, disabled accounts and BPM approval, with renewal every 10 minutes and a 15-minute rules-enforced approval limit.
+- Added read-only Firestore protection for BPM sessions, hid management controls for Viewers, and stopped automatic writes from viewer sessions.
+- Added approval-policy tests and Firestore emulator tests covering viewer access, blocked writes, expired approvals and preserved Hub Admin/Editor permissions.
+
 ## [0.50.1] - 2026-10-17
 
 - Improved space for live contractor names on short phone screens; project and document views prioritize their content over the summary grid.

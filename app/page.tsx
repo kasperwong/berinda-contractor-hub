@@ -1036,6 +1036,7 @@ function ContractorHubApp() {
     };
   }, [db, directoryRetry]);
   useEffect(() => {
+    if (!canEdit) return;
     if (!firestoreHydrated.current) return;
     if (skipNextAutomaticSave.current) {
       skipNextAutomaticSave.current = false;
@@ -1085,6 +1086,7 @@ function ContractorHubApp() {
       ),
     ]).catch(() => notify("Could not save this change. Please try again."));
   }, [
+    canEdit,
     db,
     contractorRows,
     archivedContractors,
@@ -5149,6 +5151,7 @@ function ContractorHubApp() {
         <div><strong>{profile ? activeContractor.name : "Contractor Hub"}</strong>
           <small>{profile ? "Contractor profile" : activeSection === "contractors" ? "Find contractors" : sectionTitles[activeSection]}</small></div>
         {profile && <button type="button" onClick={closeMobileProfile}>Search</button>}
+        {!profile && <button type="button" aria-label="Open user menu">{(authProfile?.displayName || authProfile?.email || "User").slice(0, 2).toUpperCase()}</button>}
       </nav>
     );
   }
@@ -5178,7 +5181,7 @@ function ContractorHubApp() {
   }
 
   return (
-    <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+    <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${!canEdit ? "viewer-mode" : ""}`}>
       {selectionRequest && (
         <div className="contractor-selection-banner" role="status">
           <Buildings size={20} weight="duotone" aria-hidden="true" />
@@ -5195,7 +5198,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.50.1
+              Version 0.51
             </button>
           </div>
         </div>
@@ -5217,7 +5220,7 @@ function ContractorHubApp() {
             <span>⌂</span>Overview
           </button>
           <button
-            className={`nav-item ${activeSection === "add" ? "active" : ""}`}
+            className={`editor-only nav-item ${activeSection === "add" ? "active" : ""}`}
             onClick={() => setActiveSection("add")}
           >
             <span>＋</span>Add contractor
@@ -5241,7 +5244,7 @@ function ContractorHubApp() {
             <span>▥</span>Group projects <b>{allGroupProjectRecords.length}</b>
           </button>
           <button
-            className={`nav-item ${activeSection === "imports" ? "active" : ""}`}
+            className={`editor-only nav-item ${activeSection === "imports" ? "active" : ""}`}
             onClick={() => setActiveSection("imports")}
           >
             <span>⇧</span>Imports
@@ -5263,22 +5266,22 @@ function ContractorHubApp() {
             </div>
           </div>
           <button
-            className={`nav-item ${activeSection === "settings" ? "active" : ""}`}
+            className={`editor-only nav-item ${activeSection === "settings" ? "active" : ""}`}
             onClick={() => setActiveSection("settings")}
           >
             <span>⚙</span>Settings
           </button>
           <div className="user-card">
-            <div className="avatar">KW</div>
+            <div className="avatar">{(authProfile?.displayName || authProfile?.email || "User").slice(0, 2).toUpperCase()}</div>
             <div>
-              <strong>Kasper Wong</strong>
-              <span>Berinda Group</span>
+              <strong>{authProfile?.displayName || authProfile?.email || "User"}</strong>
+              <span>{authProfile?.role || "viewer"} access</span>
             </div>
             <button
               aria-label="Open user menu"
               onClick={() =>
                 notify(
-                  "Signed in as Kasper Wong · Berinda Group administrator.",
+                  `Signed in with ${authProfile?.role || "viewer"} access.`,
                 )
               }
             >
@@ -5303,13 +5306,13 @@ function ContractorHubApp() {
               ♧<i>3</i>
             </button>
             <button
-              className="secondary-button"
+              className="secondary-button editor-only"
               onClick={() => setActiveSection("imports")}
             >
               ⇧ Import data
             </button>
             <button
-              className="primary-button"
+              className="primary-button editor-only"
               onClick={() => setActiveSection("add")}
             >
               ＋ Add contractor
@@ -5349,6 +5352,7 @@ function ContractorHubApp() {
         </header>
 
         {mobileNavigation()}
+        {authProfile?.authSource === "bpm" && <div className="bpm-viewer-notice" role="status">BPM account · Viewer access · Read only</div>}
         {activeSection === "contractors" ? (
           <>
             <section className="mobile-contractor-search" aria-label="Find contractors">
@@ -8882,7 +8886,7 @@ function ContractorHubApp() {
                   ● {activeContractor.status}
                 </span>
                 <button
-                  className="secondary-button"
+                  className="secondary-button editor-only"
                   onClick={() => setShowEditProfile(true)}
                 >
                   Edit profile
@@ -9128,7 +9132,7 @@ function ContractorHubApp() {
                         <h3>Recent relevant work</h3>
                       </div>
                       <div className="card-heading-actions">
-                        <button onClick={() => setShowUpload(true)}>
+                        <button className="editor-only" onClick={() => setShowUpload(true)}>
                           Import list
                         </button>
                         <button onClick={() => setProfileTab("projects")}>
@@ -9226,7 +9230,7 @@ function ContractorHubApp() {
                         </p>
                       </div>
                       <button
-                        className="secondary-button"
+                        className="secondary-button editor-only"
                         onClick={() => setShowAssessmentForm(true)}
                       >
                         Open assessment form
@@ -9246,13 +9250,13 @@ function ContractorHubApp() {
                       </div>
                       <div className="card-heading-actions">
                         <button
-                          className="secondary-button"
+                          className="secondary-button editor-only"
                           onClick={() => setShowUpload(true)}
                         >
                           ⇧ Import project list
                         </button>
                         <button
-                          className="primary-button"
+                          className="primary-button editor-only"
                           onClick={() => setShowAddProject(true)}
                         >
                           ＋ Add project
@@ -10742,7 +10746,7 @@ function ContractorHubApp() {
         </div>
       )}
 
-      {showAddContractor && (
+      {showAddContractor && canEdit && (
         <div
           className="modal-backdrop nested-modal"
           role="presentation"
@@ -10942,7 +10946,7 @@ function ContractorHubApp() {
         </div>
       )}
 
-      {showEditProfile && (
+      {showEditProfile && canEdit && (
         <div
           className="modal-backdrop nested-modal"
           role="presentation"
@@ -11105,7 +11109,7 @@ function ContractorHubApp() {
         </div>
       )}
 
-      {showAddProject && (
+      {showAddProject && canEdit && (
         <div
           className="modal-backdrop nested-modal"
           role="presentation"
@@ -11193,7 +11197,7 @@ function ContractorHubApp() {
         </div>
       )}
 
-      {showAssessmentForm && (
+      {showAssessmentForm && canEdit && (
         <div
           className="modal-backdrop nested-modal"
           role="presentation"
@@ -11466,7 +11470,7 @@ function ContractorHubApp() {
         </div>
       )}
 
-      {showUpload && (
+      {showUpload && canEdit && (
         <div
           className="modal-backdrop"
           role="presentation"

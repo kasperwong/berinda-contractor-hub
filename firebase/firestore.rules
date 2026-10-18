@@ -14,19 +14,32 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function bpmSession() {
+      return signedIn() && (request.auth.token.get('bpmViewer', false) == true
+        || request.auth.uid.matches('bpm_[0-9a-f]{64}'));
+    }
+
+    function approvedBpmViewer() {
+      return bpmSession()
+        && request.auth.token.get('bpmViewer', false) == true
+        && request.auth.uid.matches('bpm_[0-9a-f]{64}')
+        && request.auth.token.get('bpmApprovedUntil', 0) > request.time.toMillis();
+    }
+
     function activeUser() {
-      return userExists() && userProfile().active == true;
+      return approvedBpmViewer()
+        || (!bpmSession() && userExists() && userProfile().active == true);
     }
 
     function userGroupId() {
-      return userProfile().get(
+      return bpmSession() ? 'berinda-group' : userProfile().get(
         'groupId',
         userProfile().role == 'admin' ? 'berinda-group' : ''
       );
     }
 
     function roleIs(allowedRoles) {
-      return activeUser() && userProfile().role in allowedRoles;
+      return !bpmSession() && activeUser() && userProfile().role in allowedRoles;
     }
 
     function sameGroup(groupId) {

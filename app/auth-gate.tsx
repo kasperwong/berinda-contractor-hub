@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import {
   isSignInWithEmailLink,
-  onAuthStateChanged,
+  onIdTokenChanged,
   sendPasswordResetEmail,
   sendSignInLinkToEmail,
   signInWithEmailAndPassword,
@@ -23,7 +23,8 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { getFirebaseClient } from "@/lib/firebase/client";
+import { getBpmAuth, getFirebaseClient } from "@/lib/firebase/client";
+import { renewBpmSession, signOutHubAccount } from "@/lib/firebase/bpm-session";
 
 const EMAIL_KEY = "berinda-auth-email";
 const ACTION_SETTINGS = {
@@ -35,6 +36,8 @@ const ACTION_SETTINGS = {
 };
 
 type Profile = {
+  authSource?: "bpm";
+  bpmApprovedUntil?: number;
   role?: "admin" | "editor" | "viewer";
   active?: boolean;
   companyName?: string;
@@ -543,7 +546,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [authMode, setAuthMode] = useState<"password" | "email-link">("password");
+  const [authMode, setAuthMode] = useState<"bpm" | "password" | "email-link">("bpm");
   const [sent, setSent] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -572,10 +575,31 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
+    let authRevision = 0;
+    const unsubscribe = onIdTokenChanged(auth, async (nextUser) => {
+      const revision = ++authRevision;
       setUser(nextUser);
       if (nextUser) {
+        const { claims } = await nextUser.getIdTokenResult();
+        if (revision !== authRevision) return;
+        if (claims.bpmViewer === true || /^bpm_[0-9a-f]{64}$/.test(nextUser.uid)) {
+          const approvedUntil = Number(claims.bpmApprovedUntil) || 0;
+          if (claims.bpmViewer !== true || approvedUntil <= Date.now()) {
+            try { await renewBpmSession(); }
+            catch {
+              await signOutHubAccount();
+              setMessage("Your BPM access must be verified again. Please sign in.");
+              setLoading(false);
+            }
+            return;
+          }
+          setProfile({ role: "viewer", active: true, authSource: "bpm", bpmApprovedUntil: approvedUntil,
+            email: String(claims.bpmEmail ?? ""), displayName: String(claims.bpmDisplayName ?? "BPM user") });
+          setLoading(false);
+          return;
+        }
         const profileSnapshot = await getDoc(doc(db, "users", nextUser.uid));
+        if (revision !== authRevision) return;
         setProfile(profileSnapshot.exists() ? (profileSnapshot.data() as Profile) : null);
         if (!profileSnapshot.exists()) {
           await setDoc(doc(db, "accessRequests", nextUser.uid), {
@@ -599,6 +623,22 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       unsubscribe();
     };
   }, [auth, db]);
+
+  useEffect(() => {
+    if (!user || profile?.authSource !== "bpm") return;
+    const refresh = () => {
+      void renewBpmSession().catch(async () => {
+        await signOutHubAccount();
+        setMessage("Your BPM access could not be renewed. Please sign in with an approved BPM account.");
+      });
+    };
+    const interval = window.setInterval(refresh, 10 * 60 * 1000);
+    const onFocus = () => {
+      if (Date.now() >= (profile.bpmApprovedUntil ?? 0) - 3 * 60 * 1000) refresh();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => { window.clearInterval(interval); window.removeEventListener("focus", onFocus); };
+  }, [user, profile?.authSource, profile?.bpmApprovedUntil]);
 
   async function requestLink(event: React.FormEvent) {
     event.preventDefault();
@@ -630,9 +670,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
     setBusy(true);
     try {
-      await signInWithEmailAndPassword(auth, normalized, password);
+      if (authMode === "bpm") {
+        await signInWithEmailAndPassword(getBpmAuth(), normalized, password);
+        await renewBpmSession();
+        setPassword("");
+      } else {
+        await signInWithEmailAndPassword(auth, normalized, password);
+      }
     } catch (error) {
-      setMessage(firebaseMessage(error, "The email address or password is incorrect."));
+      setMessage(firebaseMessage(error, error instanceof Error ? error.message : "The email address or password is incorrect."));
+    } finally {
       setBusy(false);
     }
   }
@@ -645,18 +692,21 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         <section className="auth-card">
           <p className="eyebrow">BERINDA CONTRACTOR HUB</p>
           <h1>Secure company access</h1>
-          <p>Sign in with an administrator-issued password or request a secure email link.</p>
+          <p>Approved BPM accounts can sign in as Viewers. Existing Hub Admins and Editors can use Hub password or Email link to keep their management access.</p>
 
           <div className="auth-mode-switch" role="tablist" aria-label="Sign-in method">
+            <button type="button" role="tab" aria-selected={authMode === "bpm"} className={authMode === "bpm" ? "active" : ""} onClick={() => { setAuthMode("bpm"); setMessage(""); }}>
+              BPM account
+            </button>
             <button type="button" role="tab" aria-selected={authMode === "password"} className={authMode === "password" ? "active" : ""} onClick={() => { setAuthMode("password"); setMessage(""); }}>
-              Password
+              Hub password
             </button>
             <button type="button" role="tab" aria-selected={authMode === "email-link"} className={authMode === "email-link" ? "active" : ""} onClick={() => { setAuthMode("email-link"); setMessage(""); }}>
               Email link
             </button>
           </div>
 
-          {authMode === "password" ? (
+          {authMode === "password" || authMode === "bpm" ? (
             <form onSubmit={signInWithPassword}>
               <label>
                 Company email
@@ -666,7 +716,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                 Password
                 <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
               </label>
-              <button className="primary-button" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+              <button className="primary-button" type="submit" disabled={busy}>{busy ? "Signing in…" : authMode === "bpm" ? "Sign in with BPM" : "Sign in"}</button>
             </form>
           ) : sent ? (
             <div className="auth-message success">A sign-in link was sent to <strong>{email}</strong>. Open it on this device to continue.</div>
@@ -692,7 +742,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           <p className="eyebrow">ACCESS REQUEST</p>
           <h1>Waiting for approval</h1>
           <p>Your company email is verified, but an administrator must approve your access.</p>
-          <button className="secondary-button" onClick={() => signOut(auth)}>Use another account</button>
+          <button className="secondary-button" onClick={() => signOutHubAccount()}>Use another account</button>
         </section>
       </main>
     );
@@ -714,9 +764,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         {children}
         {showAccountMenu && (
           <div className="account-menu-popover">
-            <div><strong>{user.email}</strong><small>{profile.role} access</small></div>
+            <div><strong>{profileWithIdentity.email}</strong><small>{profile.role} access{profile.authSource === "bpm" ? " · BPM account" : ""}</small></div>
             {profile.role === "admin" && <button onClick={() => { setShowAdmin(true); setShowAccountMenu(false); }}>User management</button>}
-            <button onClick={() => signOut(auth)}>Sign out</button>
+            <button onClick={() => signOutHubAccount()}>Sign out</button>
           </div>
         )}
         {showAdmin && <AdminUserPanel auth={auth} db={db} onClose={() => setShowAdmin(false)} />}

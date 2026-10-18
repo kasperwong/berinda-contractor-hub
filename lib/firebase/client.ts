@@ -11,7 +11,7 @@ type FirebaseClient = {
 };
 
 export function getFirebaseClient(): FirebaseClient {
-  const app = getApps().length
+  const app = getApps().some((app) => app.name === "[DEFAULT]")
     ? getApp()
     : initializeApp({
         apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "AIzaSyBumpCKjW8z4LfXgdP9No_ItMKTE4-Wlsg",
@@ -26,4 +26,14 @@ export function getFirebaseClient(): FirebaseClient {
     db: getFirestore(app),
     auth: getAuth(app),
   };
+}
+
+export function getBpmAuth() {
+  const app = getApps().find((app) => app.name === "bpm-sign-in") ?? initializeApp({
+    apiKey: "AIzaSyD6MHXvKfvg0Ms1b6BZj5jfRhXkE7y-YH4",
+    authDomain: "berinda-project-management.firebaseapp.com",
+    projectId: "berinda-project-management",
+    appId: "1:393176226794:web:c861f09a86aa31806ef093",
+  }, "bpm-sign-in");
+  return getAuth(app);
 }

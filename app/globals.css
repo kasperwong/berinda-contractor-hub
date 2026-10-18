@@ -3379,7 +3379,7 @@ td {
 }
 .auth-mode-switch {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
   margin-top: 22px;
   padding: 4px;
@@ -3387,6 +3387,7 @@ td {
   background: #edf2f6;
 }
 .auth-mode-switch button {
+  font-size: 12px;
   min-height: 42px;
   border: 0;
   border-radius: 7px;
@@ -6262,6 +6263,18 @@ td {
 }
 
 /* Phone navigation and contact actions use the existing navy/teal palette. */
+.viewer-mode .editor-only,
+.viewer-mode .overview-action-grid > button:first-child {
+  display: none !important;
+}
+.bpm-viewer-notice {
+  padding: 10px 16px;
+  background: #edf6f4;
+  border-bottom: 1px solid #cbdedb;
+  color: #12665e;
+  font-size: 12px;
+  font-weight: 650;
+}
 .mobile-top-navigation,
 .mobile-contact-actions,
 .profile-tabs .mobile-profile-more {
