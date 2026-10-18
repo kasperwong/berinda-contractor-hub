@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.52.0] - 2026-10-18
+
+- Open Hub from BPM without a second login through an exact-origin, window-bound session handoff. Fresh BPM tokens renew the Viewer session while the originating BPM page remains open; BPM sign-out ends linked Hub access.
+- Preserve server-side approved-account verification, short approval lifetime, Viewer restrictions and existing Hub roles. Tokens are never placed in links or browser storage.
+
 ## [0.51.0] - 2026-10-18
 
 - Added BPM account sign-in for approved, active BPM users with read-only Contractor Hub access.

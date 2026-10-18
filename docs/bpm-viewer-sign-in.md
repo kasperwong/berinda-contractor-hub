@@ -1,6 +1,6 @@
 # BPM account access to Contractor Hub
 
-Released in v0.51.0, 18 October 2026.
+Released in v0.51.0; seamless BPM handoff added in v0.52.0, 18 October 2026.
 
 ## Sign-in behavior
 
@@ -9,7 +9,9 @@ Released in v0.51.0, 18 October 2026.
 - BPM access is always Viewer access. Contractor, project and document reads are allowed; creation, editing, uploads and deletion are denied by Firestore rules.
 - Existing Hub accounts and their roles are never modified or merged by email. Admins and Editors retain their management access through **Hub password** or **Email link**. The same person can use BPM sign-in for a separate read-only session.
 - A BPM identity gets a reserved, deterministic Hub UID derived from its BPM UID, without a Hub user-profile grant. This prevents matching an email from granting ownership of an existing Hub Admin account.
-- This shares account credentials, not browser sessions across the two app domains. No BPM source-code change is needed.
+- Open **Contractor Hub** from BPM home (desktop/mobile) or Checklists. Hub opens in a new tab and uses the originating BPM session without another login. Keep that BPM page open for automatic renewal. If the originating page is closed or reloaded, reopen Hub from BPM when renewal is needed.
+- The handoff uses a random request ID and exact-origin/source-window checks in both directions. The URL and session storage contain only the request ID, never a token. Firebase ID tokens travel in memory through `postMessage` with an explicit target origin, then the Hub server repeats its approval check.
+- A direct Hub visit still offers BPM password sign-in and existing Hub sign-in methods. Signing out of BPM also signs out linked Hub tabs; signing out of Hub does not sign out the BPM app.
 
 ## Approval lifetime and sign-out
 

@@ -24,7 +24,8 @@ import {
   where,
 } from "firebase/firestore";
 import { getBpmAuth, getFirebaseClient } from "@/lib/firebase/client";
-import { renewBpmSession, signOutHubAccount } from "@/lib/firebase/bpm-session";
+import { hasBpmHandoff, renewBpmSession, signOutHubAccount } from "@/lib/firebase/bpm-session";
+import { BPM_HANDOFF_KEY } from "@/lib/auth/bpm-handoff";
 
 const EMAIL_KEY = "berinda-auth-email";
 const ACTION_SETTINGS = {
@@ -576,49 +577,63 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
 
     let authRevision = 0;
-    const unsubscribe = onIdTokenChanged(auth, async (nextUser) => {
-      const revision = ++authRevision;
-      setUser(nextUser);
-      if (nextUser) {
-        const { claims } = await nextUser.getIdTokenResult();
-        if (revision !== authRevision) return;
-        if (claims.bpmViewer === true || /^bpm_[0-9a-f]{64}$/.test(nextUser.uid)) {
-          const approvedUntil = Number(claims.bpmApprovedUntil) || 0;
-          if (claims.bpmViewer !== true || approvedUntil <= Date.now()) {
-            try { await renewBpmSession(); }
-            catch {
-              await signOutHubAccount();
-              setMessage("Your BPM access must be verified again. Please sign in.");
-              setLoading(false);
+    let cancelled = false;
+    let unsubscribe = () => {};
+    const connect = async () => {
+      if (hasBpmHandoff()) {
+        try { await renewBpmSession(); }
+        catch (error) {
+          await signOutHubAccount();
+          if (!cancelled) setMessage(error instanceof Error ? error.message : "Return to BPM and open Contractor Hub again.");
+        }
+      }
+      if (cancelled) return;
+      unsubscribe = onIdTokenChanged(auth, async (nextUser) => {
+        const revision = ++authRevision;
+        setUser(nextUser);
+        if (nextUser) {
+          const { claims } = await nextUser.getIdTokenResult();
+          if (revision !== authRevision) return;
+          if (claims.bpmViewer === true || /^bpm_[0-9a-f]{64}$/.test(nextUser.uid)) {
+            const approvedUntil = Number(claims.bpmApprovedUntil) || 0;
+            if (claims.bpmViewer !== true || approvedUntil <= Date.now()) {
+              try { await renewBpmSession(); }
+              catch {
+                await signOutHubAccount();
+                setMessage("Your BPM access must be verified again. Please sign in.");
+                setLoading(false);
+              }
+              return;
             }
+            setProfile({ role: "viewer", active: true, authSource: "bpm", bpmApprovedUntil: approvedUntil,
+              email: String(claims.bpmEmail ?? ""), displayName: String(claims.bpmDisplayName ?? "BPM user") });
+            setLoading(false);
             return;
           }
-          setProfile({ role: "viewer", active: true, authSource: "bpm", bpmApprovedUntil: approvedUntil,
-            email: String(claims.bpmEmail ?? ""), displayName: String(claims.bpmDisplayName ?? "BPM user") });
-          setLoading(false);
-          return;
+          const profileSnapshot = await getDoc(doc(db, "users", nextUser.uid));
+          if (revision !== authRevision) return;
+          setProfile(profileSnapshot.exists() ? (profileSnapshot.data() as Profile) : null);
+          if (!profileSnapshot.exists()) {
+            await setDoc(doc(db, "accessRequests", nextUser.uid), {
+              id: nextUser.uid,
+              email: nextUser.email ?? "",
+              groupId: "berinda-group",
+              companyId: "pending",
+              requestedBy: nextUser.uid,
+              status: "pending",
+              requestedAt: serverTimestamp(),
+            }, { merge: true });
+          }
+        } else {
+          setProfile(null);
         }
-        const profileSnapshot = await getDoc(doc(db, "users", nextUser.uid));
-        if (revision !== authRevision) return;
-        setProfile(profileSnapshot.exists() ? (profileSnapshot.data() as Profile) : null);
-        if (!profileSnapshot.exists()) {
-          await setDoc(doc(db, "accessRequests", nextUser.uid), {
-            id: nextUser.uid,
-            email: nextUser.email ?? "",
-            groupId: "berinda-group",
-            companyId: "pending",
-            requestedBy: nextUser.uid,
-            status: "pending",
-            requestedAt: serverTimestamp(),
-          }, { merge: true });
-        }
-      } else {
-        setProfile(null);
-      }
-      setLoading(false);
-    });
+        setLoading(false);
+      });
+    };
+    void connect();
 
     return () => {
+      cancelled = true;
       document.removeEventListener("click", openAccountMenu, true);
       unsubscribe();
     };
@@ -671,6 +686,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     setBusy(true);
     try {
       if (authMode === "bpm") {
+        window.sessionStorage.removeItem(BPM_HANDOFF_KEY);
         await signInWithEmailAndPassword(getBpmAuth(), normalized, password);
         await renewBpmSession();
         setPassword("");

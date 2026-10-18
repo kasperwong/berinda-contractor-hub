@@ -5198,7 +5198,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.51
+              Version 0.52
             </button>
           </div>
         </div>
