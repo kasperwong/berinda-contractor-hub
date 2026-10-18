@@ -7,12 +7,19 @@ import { BPM_HANDOFF_KEY, BPM_ORIGINS, trustedBpmMessage, validHandoffId } from 
 let renewal: Promise<void> | null = null;
 let sessionVersion = 0;
 let listening = false;
+const HANDOFF_ORIGIN_KEY = `${BPM_HANDOFF_KEY}-origin`;
 
 export function hasBpmHandoff() {
   const url = new URL(window.location.href);
   const requestId = url.searchParams.get("bpmRequest");
   if (validHandoffId(requestId) && window.opener) {
     window.sessionStorage.setItem(BPM_HANDOFF_KEY, requestId);
+    let origin: string = BPM_ORIGINS[0];
+    try {
+      const referrerOrigin = new URL(document.referrer).origin;
+      if (BPM_ORIGINS.some(allowed => allowed === referrerOrigin)) origin = referrerOrigin;
+    } catch { /* A private browser may omit the referrer; use the primary BPM host. */ }
+    window.sessionStorage.setItem(HANDOFF_ORIGIN_KEY, origin);
     url.searchParams.delete("bpmRequest");
     window.history.replaceState(window.history.state, "", url);
   }
@@ -42,7 +49,9 @@ function requestBpmToken(): Promise<string> {
     };
     const timeout = window.setTimeout(() => { cleanup(); reject(new Error("The BPM session is unavailable. Return to BPM and open Contractor Hub again.")); }, 20000);
     window.addEventListener("message", receive);
-    for (const origin of BPM_ORIGINS) opener.postMessage({ type: "berinda.bpm.token.request", requestId }, origin);
+    const savedOrigin = window.sessionStorage.getItem(HANDOFF_ORIGIN_KEY);
+    const origin = BPM_ORIGINS.find(allowed => allowed === savedOrigin) ?? BPM_ORIGINS[0];
+    opener.postMessage({ type: "berinda.bpm.token.request", requestId }, origin);
   });
 }
 
@@ -74,5 +83,6 @@ export function renewBpmSession() {
 export async function signOutHubAccount() {
   sessionVersion++;
   window.sessionStorage.removeItem(BPM_HANDOFF_KEY);
+  window.sessionStorage.removeItem(HANDOFF_ORIGIN_KEY);
   await Promise.all([signOut(getFirebaseClient().auth), signOut(getBpmAuth())]);
 }
