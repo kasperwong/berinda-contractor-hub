@@ -2,25 +2,29 @@
 
 import { signInWithCustomToken, signOut } from "firebase/auth";
 import { getBpmAuth, getFirebaseClient } from "./client";
-import { BPM_HANDOFF_KEY, BPM_ORIGINS, trustedBpmMessage, validHandoffId } from "../auth/bpm-handoff";
+import { BPM_HANDOFF_KEY, BPM_ORIGINS, bpmHostWindow, trustedBpmMessage, validHandoffId } from "../auth/bpm-handoff";
 
 let renewal: Promise<void> | null = null;
 let sessionVersion = 0;
 let listening = false;
 const HANDOFF_ORIGIN_KEY = `${BPM_HANDOFF_KEY}-origin`;
+const hostWindow = () => bpmHostWindow(window, window.parent, window.opener);
 
 export function hasBpmHandoff() {
   const url = new URL(window.location.href);
   const requestId = url.searchParams.get("bpmRequest");
-  if (validHandoffId(requestId) && window.opener) {
+  if (validHandoffId(requestId) && hostWindow()) {
     window.sessionStorage.setItem(BPM_HANDOFF_KEY, requestId);
     let origin: string = BPM_ORIGINS[0];
     try {
       const referrerOrigin = new URL(document.referrer).origin;
       if (BPM_ORIGINS.some(allowed => allowed === referrerOrigin)) origin = referrerOrigin;
     } catch { /* A private browser may omit the referrer; use the primary BPM host. */ }
+    const suppliedOrigin = url.searchParams.get("bpmOrigin");
+    if (BPM_ORIGINS.some(allowed => allowed === suppliedOrigin)) origin = suppliedOrigin!;
     window.sessionStorage.setItem(HANDOFF_ORIGIN_KEY, origin);
     url.searchParams.delete("bpmRequest");
+    url.searchParams.delete("bpmOrigin");
     window.history.replaceState(window.history.state, "", url);
   }
   const saved = window.sessionStorage.getItem(BPM_HANDOFF_KEY);
@@ -28,18 +32,18 @@ export function hasBpmHandoff() {
     listening = true;
     window.addEventListener("message", event => {
       const id = window.sessionStorage.getItem(BPM_HANDOFF_KEY);
-      if (id && trustedBpmMessage(event, window.opener, id) && event.data.type === "berinda.bpm.signed-out") {
+      if (id && trustedBpmMessage(event, hostWindow(), id) && event.data.type === "berinda.bpm.signed-out") {
         void signOutHubAccount();
       }
     });
   }
-  return validHandoffId(saved) && !!window.opener;
+  return validHandoffId(saved) && !!hostWindow();
 }
 
 function requestBpmToken(): Promise<string> {
   return new Promise((resolve, reject) => {
     const requestId = window.sessionStorage.getItem(BPM_HANDOFF_KEY)!;
-    const opener = window.opener;
+    const opener = hostWindow();
     const cleanup = () => { window.clearTimeout(timeout); window.removeEventListener("message", receive); };
     const receive = (event: MessageEvent) => {
       if (!trustedBpmMessage(event, opener, requestId) || event.data.type !== "berinda.bpm.token.response") return;
@@ -51,7 +55,31 @@ function requestBpmToken(): Promise<string> {
     window.addEventListener("message", receive);
     const savedOrigin = window.sessionStorage.getItem(HANDOFF_ORIGIN_KEY);
     const origin = BPM_ORIGINS.find(allowed => allowed === savedOrigin) ?? BPM_ORIGINS[0];
-    opener.postMessage({ type: "berinda.bpm.token.request", requestId }, origin);
+    opener?.postMessage({ type: "berinda.bpm.token.request", requestId }, origin);
+  });
+}
+
+export function isEmbeddedBpmSession() {
+  return window.parent !== window && hasBpmHandoff();
+}
+
+export function openBpmDocument(blob: Blob, name: string): Promise<void> {
+  if (!isEmbeddedBpmSession()) return Promise.reject(new Error("BPM frame unavailable"));
+  const requestId = window.sessionStorage.getItem(BPM_HANDOFF_KEY)!;
+  const documentRequest = crypto.randomUUID();
+  const parent = window.parent;
+  const origin = BPM_ORIGINS.find(allowed => allowed === window.sessionStorage.getItem(HANDOFF_ORIGIN_KEY)) ?? BPM_ORIGINS[0];
+  return new Promise((resolve, reject) => {
+    const cleanup = () => { window.clearTimeout(timeout); window.removeEventListener("message", receive); };
+    const receive = (event: MessageEvent) => {
+      if (!trustedBpmMessage(event, parent, requestId) || event.data.type !== "berinda.bpm.document.result" || event.data.documentRequest !== documentRequest) return;
+      cleanup();
+      if (event.data.ok === true) resolve();
+      else reject(new Error("BPM document preview unavailable"));
+    };
+    const timeout = window.setTimeout(() => { cleanup(); reject(new Error("BPM document preview timed out")); }, 20000);
+    window.addEventListener("message", receive);
+    parent.postMessage({ type: "berinda.bpm.document.open", requestId, documentRequest, blob, name }, origin);
   });
 }
 

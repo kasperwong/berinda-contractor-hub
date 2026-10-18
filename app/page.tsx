@@ -1,4 +1,5 @@
 "use client";
+import { isEmbeddedBpmSession, openBpmDocument } from "@/lib/firebase/bpm-session";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { chuanLuckProjects } from "./chuan-luck-projects";
@@ -2908,7 +2909,8 @@ function ContractorHubApp() {
     documentRecord: ContractorDocument,
     download: boolean,
   ) {
-    const previewWindow = download ? null : window.open("", "_blank");
+    const embeddedPreview = !download && isEmbeddedBpmSession();
+    const previewWindow = download || embeddedPreview ? null : window.open("", "_blank");
     if (previewWindow) previewWindow.opener = null;
     setDocumentActionBusy(`${download ? "download" : "view"}-${documentRecord.id}`);
     try {
@@ -2935,6 +2937,10 @@ function ContractorHubApp() {
         return copy.buffer;
       });
       const blob = new Blob(buffers, { type: documentRecord.contentType });
+      if (embeddedPreview) {
+        await openBpmDocument(blob, documentRecord.name);
+        return;
+      }
       const url = URL.createObjectURL(blob);
       if (download) {
         const anchor = window.document.createElement("a");
@@ -5198,7 +5204,7 @@ function ContractorHubApp() {
               className="version-button"
               onClick={() => setShowChangelog(true)}
             >
-              Version 0.52
+              Version 0.53
             </button>
           </div>
         </div>

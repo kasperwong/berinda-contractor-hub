@@ -1,8 +1,13 @@
 export const BPM_ORIGINS = [
   "https://berinda-project-management.web.app",
   "https://berinda-project-management.firebaseapp.com",
+  "https://localhost",
 ] as const;
 export const BPM_HANDOFF_KEY = "berinda-bpm-handoff";
+
+export function bpmHostWindow<T>(self: T, parent: T, opener: T | null): T | null {
+  return parent !== self ? parent : opener;
+}
 
 export function validHandoffId(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);

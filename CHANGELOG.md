@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.53.0] - 2026-10-18
+
+- Support the trusted BPM parent frame so Hub and automatic approved-Viewer sign-in stay inside BPM, including the installed Android app origin.
+- View documents through BPM's existing preview instead of opening an external tab. Restrict embedding to the BPM hosts, installed app origin and Hub itself.
+
 ## [0.52.0] - 2026-10-18
 
 - Open Hub from BPM without a second login through an exact-origin, window-bound session handoff. Fresh BPM tokens renew the Viewer session while the originating BPM page remains open; BPM sign-out ends linked Hub access.

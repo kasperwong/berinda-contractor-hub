@@ -1,6 +1,6 @@
 # BPM account access to Contractor Hub
 
-Released in v0.51.0; seamless BPM handoff added in v0.52.0, 18 October 2026.
+Released in v0.51.0; seamless BPM handoff added in v0.52.0 and in-app embedding in v0.53.0, 18 October 2026.
 
 ## Sign-in behavior
 
@@ -9,7 +9,9 @@ Released in v0.51.0; seamless BPM handoff added in v0.52.0, 18 October 2026.
 - BPM access is always Viewer access. Contractor, project and document reads are allowed; creation, editing, uploads and deletion are denied by Firestore rules.
 - Existing Hub accounts and their roles are never modified or merged by email. Admins and Editors retain their management access through **Hub password** or **Email link**. The same person can use BPM sign-in for a separate read-only session.
 - A BPM identity gets a reserved, deterministic Hub UID derived from its BPM UID, without a Hub user-profile grant. This prevents matching an email from granting ownership of an existing Hub Admin account.
-- Open **Contractor Hub** from BPM home (desktop/mobile) or Checklists. Hub opens in a new tab and uses the originating BPM session without another login. Keep that BPM page open for automatic renewal. If the originating page is closed or reloaded, reopen Hub from BPM when renewal is needed.
+- Open **Contractor Hub** from BPM home (desktop/mobile) or Checklists. Hub opens inside a full-screen BPM panel and uses the parent BPM session without another login. **Back to BPM** closes the panel and restores the original page. The parent page stays available for automatic renewal.
+- Documents open in BPM's existing read-only preview using a bounded Blob message from the registered Hub frame; no token or document URL is stored or exposed in links. The standalone Hub retains its existing document-opening behavior.
+- Framing is limited by CSP to Hub itself, the two BPM hosting origins and the installed Android app's exact `https://localhost` origin. Parent and opener compatibility both require the exact trusted origin, source window and request ID. The Android update permits only HTTPS Hub subframe navigation on the default port; other native navigation keeps its existing policy.
 - The handoff uses a random request ID and exact-origin/source-window checks in both directions. The URL and session storage contain only the request ID, never a token. Firebase ID tokens travel in memory through `postMessage` with an explicit target origin, then the Hub server repeats its approval check.
 - A direct Hub visit still offers BPM password sign-in and existing Hub sign-in methods. Signing out of BPM also signs out linked Hub tabs; signing out of Hub does not sign out the BPM app.
 
