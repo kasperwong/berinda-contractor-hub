@@ -80,6 +80,7 @@
 - Shareable Project Evaluation links that restore selected contractors, calculation inputs, matching keywords, and manually selected report projects for signed-in users.
 - Evaluation report project details limited to qualifying projects, grouped by contractor company in separate sections for each applicable requirement.
 - Separate A4 landscape printing for every counted-project popup, using the sample's fixed seven-column proportions.
+- Five additional evaluation criteria for ongoing counts and value, recent completed counts and value, and the highest-value similar project.
 
 ## [0.47.0] - 2026-09-11
 

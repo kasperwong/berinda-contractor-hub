@@ -1800,6 +1800,31 @@ function ContractorHubApp() {
       criterion: "Highest Contract Value with Group Companies",
       basis: "Highest single recorded contract value with a Group company.",
     },
+    {
+      no: 11,
+      criterion: "Number of Ongoing Projects",
+      basis: "Projects currently recorded as ongoing in the available company record.",
+    },
+    {
+      no: 12,
+      criterion: `Completed Projects – Past ${evaluationYearsToConsiderNumber} Year${evaluationYearsToConsiderNumber === 1 ? "" : "s"}`,
+      basis: `Projects completed in the past ${evaluationYearsToConsiderNumber} year${evaluationYearsToConsiderNumber === 1 ? "" : "s"}, from ${evaluationRecentCutoffYear} onward.`,
+    },
+    {
+      no: 13,
+      criterion: "Total Value of Ongoing Projects",
+      basis: "Combined contract value of projects currently recorded as ongoing.",
+    },
+    {
+      no: 14,
+      criterion: `Total Value of Completed Projects – Past ${evaluationYearsToConsiderNumber} Year${evaluationYearsToConsiderNumber === 1 ? "" : "s"}`,
+      basis: `Combined contract value of projects completed in the past ${evaluationYearsToConsiderNumber} year${evaluationYearsToConsiderNumber === 1 ? "" : "s"}, from ${evaluationRecentCutoffYear} onward.`,
+    },
+    {
+      no: 15,
+      criterion: "Highest Value of a Similar Project",
+      basis: `Highest single contract value among projects matching the selected ${evaluationSimilarityBasisLabel.toLowerCase()} keywords.`,
+    },
   ];
   const evaluationCriteriaResults = evaluationSelectedContractors.map(
     (contractor) => {
@@ -1808,7 +1833,9 @@ function ContractorHubApp() {
         evaluationYear: projectEvaluationYear(project),
       }));
       const recent = projects.filter(
-        (project) => project.evaluationYear >= evaluationRecentCutoffYear,
+        (project) =>
+          project.evaluationYear >= evaluationRecentCutoffYear &&
+          project.evaluationYear <= evaluationCurrentYear,
       );
       const similar = evaluationSimilarityConfigured
         ? projects.filter(projectMatchesEvaluationSelection)
@@ -1827,8 +1854,16 @@ function ContractorHubApp() {
         (project) => project.evaluationYear >= evaluationRecentCutoffYear,
       );
       const groupProjects = projects.filter((project) => project.withinGroup);
+      const ongoingProjects = projects.filter(
+        (project) => project.status === "Ongoing",
+      );
+      const recentCompletedProjects = recent.filter(
+        (project) => project.status === "Completed",
+      );
       const highest = (items: typeof projects) =>
         items.reduce((value, project) => Math.max(value, project.value), 0);
+      const total = (items: typeof projects) =>
+        items.reduce((value, project) => value + project.value, 0);
       const highestProjects = (items: typeof projects) => {
         const highestValue = highest(items);
         return items.filter((project) => project.value === highestValue);
@@ -1854,6 +1889,13 @@ function ContractorHubApp() {
           reportMoney(highest(recent)),
           String(groupProjects.length),
           reportMoney(highest(groupProjects)),
+          String(ongoingProjects.length),
+          String(recentCompletedProjects.length),
+          reportMoney(total(ongoingProjects)),
+          reportMoney(total(recentCompletedProjects)),
+          evaluationSimilarityConfigured
+            ? reportMoney(highest(similar))
+            : "Keyword required",
         ],
         projectsByCriterion: [
           projects,
@@ -1866,6 +1908,11 @@ function ContractorHubApp() {
           highestProjects(recent),
           groupProjects,
           highestProjects(groupProjects),
+          ongoingProjects,
+          recentCompletedProjects,
+          ongoingProjects,
+          recentCompletedProjects,
+          highestProjects(similar),
         ],
       };
     },
