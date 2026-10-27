@@ -3308,7 +3308,7 @@ function ContractorHubApp() {
     return `<table><thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
   }
   function reportDocument(title: string, subtitle: string, content: string) {
-    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@page{size:A4 landscape;margin:12mm}body{font-family:Arial,sans-serif;color:#183047;font-size:10px}h1{font-family:Georgia,serif;font-size:24px;margin:0 0 5px}p{color:#667789;margin:0 0 18px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cfd9df;padding:6px;vertical-align:top;text-align:left}th{background:#edf3f5;font-size:9px;text-transform:uppercase}td{line-height:1.4;white-space:pre-line}.section{margin-top:20px}.section h2{font-size:15px}.criterion-section{page-break-before:always}.criterion-section>h2{margin-bottom:4px}.criterion-basis{margin-bottom:12px}.company-project-group{margin:16px 0 22px}.company-project-group h3{margin:0 0 7px;color:#173451;font-size:12px}.company-project-group h3 span{margin-left:8px;color:#667789;font-size:9px;font-weight:400}.no-qualifying-projects{margin:10px 0;padding:10px;border:1px dashed #cfd9df;color:#667789;font-style:italic}.reference-project-table{table-layout:fixed;font-size:8.5px}.reference-project-table th{padding:6px 5px;line-height:1.1;overflow-wrap:anywhere}.reference-project-table td{padding:7px 5px;line-height:1.25;overflow-wrap:anywhere}.reference-projects-cell{font-size:9px}.reference-projects-cell ol{margin:0;padding-left:22px}.reference-projects-cell li{margin:0 0 12px;padding-left:4px}.reference-projects-cell li:last-child{margin-bottom:0}.reference-projects-cell li>strong{display:block;font-weight:400}.reference-project-details{margin-top:7px}.reference-project-details span{display:block;margin-top:1px}.reference-project-details b{font-weight:600}.no-reference-project{margin:0;color:#7a8794;font-style:italic}</style></head><body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)} · Generated ${new Date().toLocaleDateString("en-GB")}</p>${content}</body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@page{size:A4 landscape;margin:12mm}body{font-family:Arial,sans-serif;color:#183047;font-size:10px}h1{font-family:Georgia,serif;font-size:24px;margin:0 0 5px}p{color:#667789;margin:0 0 18px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cfd9df;padding:6px;vertical-align:top;text-align:left}th{background:#edf3f5;font-size:9px;text-transform:uppercase}td{line-height:1.4;white-space:pre-line}.section{margin-top:20px}.section h2{font-size:15px}.criterion-section{page-break-before:always}.criterion-section>h2{margin-bottom:4px}.criterion-basis{margin-bottom:12px}.company-project-group{margin:16px 0 22px}.company-project-group h3{margin:0 0 7px;color:#173451;font-size:12px}.company-project-group h3 span{margin-left:8px;color:#667789;font-size:9px;font-weight:400}.no-qualifying-projects{margin:10px 0;padding:10px;border:1px dashed #cfd9df;color:#667789;font-style:italic}.reference-project-table{table-layout:fixed;font-size:8.5px}.reference-project-table th{padding:6px 5px;line-height:1.1;overflow-wrap:anywhere}.reference-project-table td{padding:7px 5px;line-height:1.25;overflow-wrap:anywhere}.reference-projects-cell{font-size:9px}.reference-projects-cell ol{margin:0;padding-left:22px}.reference-projects-cell li{margin:0 0 12px;padding-left:4px}.reference-projects-cell li:last-child{margin-bottom:0}.reference-projects-cell li>strong{display:block;font-weight:400}.reference-project-details{margin-top:7px}.reference-project-details span{display:block;margin-top:1px}.reference-project-details b{font-weight:600}.no-reference-project{margin:0;color:#7a8794;font-style:italic}.project-list-print-table{table-layout:fixed;font-size:8px}.project-list-print-table thead{display:table-header-group}.project-list-print-table tr{break-inside:avoid;page-break-inside:avoid}.project-list-print-table th{padding:6px 5px;font-size:7px;line-height:1.15;overflow-wrap:anywhere}.project-list-print-table td{padding:7px 5px;line-height:1.3;overflow-wrap:anywhere}.project-list-print-table td:nth-child(6){font-variant-numeric:tabular-nums}</style></head><body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)} · Generated ${new Date().toLocaleDateString("en-GB")}</p>${content}</body></html>`;
   }
   function printReport(title: string, subtitle: string, content: string) {
     const printWindow = window.open("", "_blank");
@@ -3318,6 +3318,56 @@ function ContractorHubApp() {
     printWindow.document.close();
     printWindow.focus();
     window.setTimeout(() => printWindow.print(), 250);
+  }
+
+  function printEvaluationBreakdown() {
+    if (!evaluationBreakdown?.projects.length) {
+      notify("No projects to print for this result.");
+      return;
+    }
+
+    const completionLabel = (project: EvaluationBreakdownProject) => {
+      if (project.status === "Ongoing") return "Ongoing";
+      if (project.completionDate) return formatProjectDate(project.completionDate);
+      const periodEnd = project.period.split(/\s+[–-]\s+/).at(-1)?.trim();
+      return periodEnd ? formatProjectDate(periodEnd) : "Not provided";
+    };
+    const projects = [...evaluationBreakdown.projects].sort(
+      (first, second) =>
+        second.evaluationYear - first.evaluationYear ||
+        first.name.localeCompare(second.name),
+    );
+    const rows = projects
+      .map(
+        (project) => `<tr>
+          <td>${escapeHtml(project.name)}</td>
+          <td>${escapeHtml(project.scope || "Not provided")}</td>
+          <td>${escapeHtml(project.projectType || "Not provided")}</td>
+          <td>${escapeHtml(project.groupCompany || project.client || "Not provided")}</td>
+          <td>${escapeHtml(project.location || "Not provided")}</td>
+          <td>${escapeHtml(project.value.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</td>
+          <td>${escapeHtml(completionLabel(project))}</td>
+        </tr>`,
+      )
+      .join("");
+    const projectTable = `<table class="project-list-print-table">
+      <colgroup>
+        <col style="width:16%"><col style="width:32%"><col style="width:11%">
+        <col style="width:10%"><col style="width:15%"><col style="width:9%"><col style="width:7%">
+      </colgroup>
+      <thead><tr>
+        <th>Project name</th><th>Scope</th><th>Building type</th>
+        <th>Client / Main contractor</th><th>Location</th><th>Contract value (RM)</th><th>Completion</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+    const projectCount = evaluationBreakdown.projects.length;
+
+    printReport(
+      evaluationBreakdown.criterion,
+      `${evaluationBreakdown.contractorName} · ${evaluationBreakdown.value} · ${projectCount} project${projectCount === 1 ? "" : "s"}`,
+      projectTable,
+    );
   }
 
   function evaluationReportContent() {
@@ -10593,6 +10643,14 @@ function ContractorHubApp() {
               )}
             </div>
             <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={printEvaluationBreakdown}
+                disabled={!evaluationBreakdown.projects.length}
+              >
+                Print project list
+              </button>
               <button
                 type="button"
                 className="primary-button"
