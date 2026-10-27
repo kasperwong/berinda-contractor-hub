@@ -27,6 +27,10 @@ export type ExcelProject = {
   progress?: string;
 };
 
+type ExcelProjectWorkbookOptions = {
+  columnWidths?: Partial<Record<ExcelProjectField, number>>;
+};
+
 const LABELS: Record<ExcelProjectField, string> = {
   name: "Project Name",
   scope: "Scope",
@@ -92,6 +96,7 @@ function cell(reference: string, value: unknown, style: number, numeric = false)
 export function createProjectReferenceWorkbook(
   projects: ExcelProject[],
   requestedFields: ExcelProjectField[],
+  options: ExcelProjectWorkbookOptions = {},
 ) {
   const fields = requestedFields.length
     ? requestedFields
@@ -120,7 +125,7 @@ export function createProjectReferenceWorkbook(
   const columns = fields
     .map(
       (field, index) =>
-        `<col min="${index + 1}" max="${index + 1}" width="${WIDTHS[field]}" customWidth="1"/>`,
+        `<col min="${index + 1}" max="${index + 1}" width="${options.columnWidths?.[field] ?? WIDTHS[field]}" customWidth="1"/>`,
     )
     .join("");
   const tableColumns = fields

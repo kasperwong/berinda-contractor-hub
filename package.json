@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "npm run build && node --experimental-strip-types --test tests/workpro-selection.test.mjs tests/bpm-auth.test.mjs tests/bpm-handoff.test.mjs",
+    "test": "npm run build && node --experimental-strip-types --test tests/workpro-selection.test.mjs tests/bpm-auth.test.mjs tests/bpm-handoff.test.mjs tests/project-reference-xlsx.test.mjs",
     "test:bpm:rules": "firebase emulators:exec --only firestore --project demo-hub-bpm --config firebase-emulator-bpm.json \"node --test tests/bpm-rules.integration.mjs\"",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"

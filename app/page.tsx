@@ -3373,12 +3373,6 @@ function ContractorHubApp() {
       return;
     }
 
-    const completionLabel = (project: EvaluationBreakdownProject) => {
-      if (project.status === "Ongoing") return "Ongoing";
-      if (project.completionDate) return formatProjectDate(project.completionDate);
-      const periodEnd = project.period.split(/\s+[–-]\s+/).at(-1)?.trim();
-      return periodEnd ? formatProjectDate(periodEnd) : "Not provided";
-    };
     const projects = [...evaluationBreakdown.projects].sort(
       (first, second) =>
         second.evaluationYear - first.evaluationYear ||
@@ -3393,7 +3387,7 @@ function ContractorHubApp() {
           <td>${escapeHtml(project.groupCompany || project.client || "Not provided")}</td>
           <td>${escapeHtml(project.location || "Not provided")}</td>
           <td>${escapeHtml(project.value.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</td>
-          <td>${escapeHtml(completionLabel(project))}</td>
+          <td>${escapeHtml(evaluationBreakdownCompletionLabel(project))}</td>
         </tr>`,
       )
       .join("");
@@ -3414,6 +3408,71 @@ function ContractorHubApp() {
       evaluationBreakdown.criterion,
       `${evaluationBreakdown.contractorName} · ${evaluationBreakdown.value} · ${projectCount} project${projectCount === 1 ? "" : "s"}`,
       projectTable,
+    );
+  }
+
+  function evaluationBreakdownCompletionLabel(
+    project: EvaluationBreakdownProject,
+  ) {
+    if (project.status === "Ongoing") return "Ongoing";
+    if (project.completionDate)
+      return formatProjectDate(project.completionDate);
+    const periodEnd = project.period.split(/\s+[–-]\s+/).at(-1)?.trim();
+    return periodEnd ? formatProjectDate(periodEnd) : "Not provided";
+  }
+
+  function downloadEvaluationBreakdownExcel() {
+    if (!evaluationBreakdown?.projects.length) {
+      notify("No projects to download for this result.");
+      return;
+    }
+
+    const projects = [...evaluationBreakdown.projects]
+      .sort(
+        (first, second) =>
+          second.evaluationYear - first.evaluationYear ||
+          first.name.localeCompare(second.name),
+      )
+      .map((project) => ({
+        ...project,
+        scope: project.scope || "Not provided",
+        projectType: project.projectType || "Not provided",
+        client:
+          project.groupCompany || project.client || "Not provided",
+        location: project.location || "Not provided",
+        completionDate: evaluationBreakdownCompletionLabel(project),
+      }));
+    const workbook = createProjectReferenceWorkbook(
+      projects,
+      [
+        "name",
+        "scope",
+        "projectType",
+        "client",
+        "location",
+        "value",
+        "completionDate",
+      ],
+      {
+        columnWidths: {
+          name: 75,
+          scope: 18,
+          projectType: 12,
+          client: 12,
+          location: 9,
+          value: 13.5,
+          completionDate: 10.5,
+        },
+      },
+    );
+    const safeName = `${evaluationBreakdown.contractorName}-${evaluationBreakdown.criterion}`
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    downloadBinaryFile(
+      `${safeName || "counted-projects"}.xlsx`,
+      workbook,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
   }
 
@@ -10690,6 +10749,14 @@ function ContractorHubApp() {
               )}
             </div>
             <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={downloadEvaluationBreakdownExcel}
+                disabled={!evaluationBreakdown.projects.length}
+              >
+                Download formatted Excel
+              </button>
               <button
                 type="button"
                 className="secondary-button"
